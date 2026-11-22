@@ -1,0 +1,7 @@
+#pragma once
+
+/// Human readable project version, e.g. "0.1.0".
+#define QCD_VERSION "@PROJECT_VERSION@"
+
+/// Git commit hash (with "-dirty" suffix when the tree is modified).
+#define QCD_GIT_COMMIT "@GIT_COMMIT_HASH@"

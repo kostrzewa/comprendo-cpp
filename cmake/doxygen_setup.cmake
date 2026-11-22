@@ -1,0 +1,60 @@
+include(FetchContent)
+FetchContent_Declare(
+    doxygen-awesome-css
+    URL https://github.com/jothepro/doxygen-awesome-css/archive/refs/heads/main.zip
+)
+FetchContent_MakeAvailable(doxygen-awesome-css)
+ 
+# Save the location the files were cloned into
+# This allows us to get the path to doxygen-awesome.css
+FetchContent_GetProperties(doxygen-awesome-css SOURCE_DIR AWESOME_CSS_DIR)
+
+set(DOXYGEN_ALPHABETICAL_INDEX NO)
+set(DOXYGEN_BUILTIN_STL_SUPPORT YES)
+set(DOXYGEN_CASE_SENSE_NAMES NO)
+set(DOXYGEN_CLASS_DIAGRAMS NO)
+set(DOXYGEN_DISTRIBUTE_GROUP_DOC YES)
+set(DOXYGEN_EXCLUDE bin)
+set(DOXYGEN_EXCLUDE_PATTERNS README.md)
+set(DOXYGEN_EXTRACT_ALL YES)
+set(DOXYGEN_EXTRACT_LOCAL_CLASSES NO)
+set(DOXYGEN_FILE_PATTERNS *.h *.hpp *.md)
+set(DOXYGEN_GENERATE_TREEVIEW YES)
+set(DOXYGEN_HIDE_FRIEND_COMPOUNDS YES)
+set(DOXYGEN_HIDE_IN_BODY_DOCS YES)
+set(DOXYGEN_GENERATE_LATEX YES)
+set(DOXYGEN_HIDE_UNDOC_CLASSES YES)
+set(DOXYGEN_HIDE_UNDOC_MEMBERS YES)
+set(DOXYGEN_CODE_COLORS = YES)
+set(DOXYGEN_MARKDOWN_ID_STYLE GITHUB)
+set(DOXYGEN_QUIET YES)
+set(DOXYGEN_RECURSIVE YES)
+set(DOXYGEN_REFERENCED_BY_RELATION YES)
+set(DOXYGEN_REFERENCES_RELATION YES)
+set(DOXYGEN_SORT_BY_SCOPE_NAME YES)
+set(DOXYGEN_SORT_MEMBER_DOCS NO)
+set(DOXYGEN_SOURCE_BROWSER YES)
+set(DOXYGEN_STRIP_CODE_COMMENTS NO)
+set(DOXYGEN_IMAGE_PATH docs/graphics)
+#set(DOXYGEN_WARN_AS_ERROR FAIL_ON_WARNINGS)
+
+# Extra latex packages to load using \usepackage{...}
+set(DOXYGEN_EXTRA_PACKAGES amsmath)
+
+# Doxygen Awesome
+set(DOXYGEN_HTML_COLORSTYLE LIGHT)
+set(DOXYGEN_FULL_SIDEBAR NO)
+set(DOXYGEN_DISABLE_INDEX NO)
+set(DOXYGEN_GENERATE_TREEVIEW YES)
+set(DOXYGEN_HTML_EXTRA_STYLESHEET ${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen/custom.css ${AWESOME_CSS_DIR}/doxygen-awesome-sidebar-only.css )
+set(DOXYGEN_HTML_EXTRA_FILES ${AWESOME_CSS_DIR}/doxygen-awesome-interactive-toc.js)
+set(DOXYGEN_HTML_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen/header.html)
+set(DOXYGEN_EXTRA_PACKAGES amsmath)
+set(DOXYGEN_USE_MATHJAX YES)
+
+
+# Customization
+set(DOXYGEN_PROJECT_NAME Kronos)
+set(DOXYGEN_PROJECT_NUMBER 0.0.2)
+set(DOXYGEN_PAGE_OUTLINE_PANEL YES)
+
