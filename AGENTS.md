@@ -9,7 +9,7 @@ TypeScript opencode plugin. Read these before changing anything:
 
 - `plan/comprendo-cpp.md` — requirements (source of truth)
 - `plan/architecture.md` — components, targets, extractor design
-- `plan/chart-schema.md` — HDF5 layout and invariants
+- `plan/chart-schema.md` — SQLite schema and invariants (DDL in `schema/chart.sql`)
 - `plan/milestones.md` — current milestone and acceptance criteria
 
 ## Toolchain
@@ -82,6 +82,7 @@ Keep `docs/main.md` and the `plan/` documents current.
   finishing.
 - Gate tests that need external tools (for example `clangd-22`) on their
   presence.
+- Use CHECK instead of REQUIRE so tests run even if some test cases fail.
 
 ### Window tests
 
@@ -121,6 +122,7 @@ and tests before committing.
 - `src/` — viewer and CLI entry points and implementations
 - `tests/` — Catch2 tests
 - `plugin/` — TypeScript opencode plugin
+- `schema/` — `chart.sql`, the SQLite DDL shared by C++ and the plugin
 - `cmake/` — dependency, doxygen, and git-hash setup
 - `docs/` — Doxygen assets and main page
 - `plan/` — requirements and implementation plans
