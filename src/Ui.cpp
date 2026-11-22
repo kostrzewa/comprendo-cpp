@@ -105,10 +105,10 @@ namespace Comprendo
   bool
   Ui::panels_created()
   {
-    return ImGui::FindWindowByName("Explorer") != nullptr &&
-           ImGui::FindWindowByName("Inspector") != nullptr &&
-           ImGui::FindWindowByName("Log") != nullptr &&
-           ImGui::FindWindowByName("##StatusBar") != nullptr;
+    return ImGui::FindWindowByName("Explorer") != nullptr
+      && ImGui::FindWindowByName("Inspector") != nullptr
+      && ImGui::FindWindowByName("Log") != nullptr
+      && ImGui::FindWindowByName("##StatusBar") != nullptr;
   }
 
   void
@@ -137,8 +137,8 @@ namespace Comprendo
   Ui::viewport_matches_window()
   {
     const ImGuiIO &imgui_io = ImGui::GetIO();
-    return (static_cast<int>(imgui_io.DisplaySize.x) == GetScreenWidth()) &&
-           (static_cast<int>(imgui_io.DisplaySize.y) == GetScreenHeight());
+    return (static_cast<int>(imgui_io.DisplaySize.x) == GetScreenWidth())
+      && (static_cast<int>(imgui_io.DisplaySize.y) == GetScreenHeight());
   }
 
   void
@@ -155,6 +155,15 @@ namespace Comprendo
 
     // The central node is transparent so the raylib graph shows through.
     ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+    if (const ImGuiDockNode *central = ImGui::DockBuilderGetCentralNode(dockspace_id))
+    {
+      state.graph_area = {
+        .x = central->Pos.x - viewport->Pos.x,
+        .y = central->Pos.y - viewport->Pos.y,
+        .width = central->Size.x,
+        .height = central->Size.y,
+      };
+    }
     draw_menu_bar(state);
     draw_explorer(state);
     draw_inspector(state);
@@ -178,12 +187,12 @@ namespace Comprendo
 
     // Tree left, inspector right, log bottom; the remaining node is the graph.
     ImGuiID dock_main = dockspace_id;
-    const ImGuiID dock_left =
-      ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.22F, nullptr, &dock_main);
-    const ImGuiID dock_right =
-      ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.30F, nullptr, &dock_main);
-    const ImGuiID dock_bottom =
-      ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.25F, nullptr, &dock_main);
+    const ImGuiID dock_left
+      = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.22F, nullptr, &dock_main);
+    const ImGuiID dock_right
+      = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.30F, nullptr, &dock_main);
+    const ImGuiID dock_bottom
+      = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.25F, nullptr, &dock_main);
 
     ImGui::DockBuilderDockWindow("Explorer", dock_left);
     ImGui::DockBuilderDockWindow("Inspector", dock_right);
@@ -213,6 +222,19 @@ namespace Comprendo
       ImGui::MenuItem("Explorer", nullptr, &state.show_explorer);
       ImGui::MenuItem("Inspector", nullptr, &state.show_inspector);
       ImGui::MenuItem("Log", nullptr, &state.show_log);
+      ImGui::Separator();
+      if (ImGui::MenuItem("Group by file", "G", state.grouping == Grouping::File))
+      {
+        state.grouping = Grouping::File;
+      }
+      if (ImGui::MenuItem("Group by namespace", "G", state.grouping == Grouping::Namespace))
+      {
+        state.grouping = Grouping::Namespace;
+      }
+      if (ImGui::MenuItem("Fit chart", "Home"))
+      {
+        state.fit_requested = true;
+      }
       ImGui::Separator();
       if (ImGui::MenuItem("Reset layout"))
       {
@@ -349,16 +371,16 @@ namespace Comprendo
     ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, height));
     ImGui::SetNextWindowViewport(viewport->ID);
 
-    const ImGuiWindowFlags flags =
-      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
-      ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
+      | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking
+      | ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
     if (ImGui::Begin("##StatusBar", nullptr, flags))
     {
       const std::string status = fmt::format(
-        "Comprendo {}  |  {:.1f} FPS  |  Ctrl+F/F11 fullscreen",
+        "Comprendo {}  |  {:.1f} FPS  |  F11 fullscreen",
         COMPRENDO_VERSION,
         ImGui::GetIO().Framerate
       );

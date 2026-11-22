@@ -16,8 +16,8 @@ toolchain. Commits stay small and frequent.
 - Doxygen target with project CSS and header.
 - `comprendo-cli --version` / `--help`.
 - `comprendo` opens a resizable raylib window showing version and commit;
-  `Ctrl+F` or `F11` toggles borderless fullscreen at the monitor's native
-  resolution and `Escape` leaves it.
+  `F11` toggles borderless fullscreen at the monitor's native resolution and
+  `Escape` leaves it (`Ctrl+F` is reserved for search).
 - Catch2 smoke test wired through CTest.
 - `viewer_smoke` CTest runs the viewer's hidden `--smoke-test` under `xvfb-run`,
   exercising resize and fullscreen without touching the desktop.
@@ -129,11 +129,19 @@ step's gain.
   measured at 0–7% faster but changes the layout (both golden files fail), so
   layouts would differ between debug and release and between CPUs.
 
-## M4 — Viewer MVP
+## M4 — Viewer MVP (complete)
 
-- Load `.comprendo/chart.sqlite` read-only, render nodes and edges with `Camera2D`.
-- Pan, zoom, select; inspector details arrive in M4b.
-- Level-of-detail labels and kind colors.
+- Load a chart read-only (default `.comprendo/chart.sqlite`), lay it out, and
+  render groups and edges in screen space (`ChartView`, `GraphRenderer`); see
+  [architecture](architecture.md#viewer).
+- Pan, zoom, select, hover tooltip, fit into the free dock area, grouping switch
+  (`G`, View menu); inspector details arrive in M4b.
+- Level-of-detail culling, points, and labels; kind colours.
+- Fullscreen on `F11` only; `Ctrl+F` reserved for search.
+- Tests: camera, level of detail, culling, edge aggregation, picking, colours,
+  grouping switch, display labels; `viewer_smoke_chart` runs the hidden-window
+  smoke test on an extracted chart (fit, zoom, pick, regroup) under `xvfb-run`.
+- Verified on raylib (42k nodes): loads and lays out in 0.43 s in release.
 
 Acceptance: a real chart opens and is navigable.
 

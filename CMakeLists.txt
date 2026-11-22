@@ -43,6 +43,7 @@ add_library(
   STATIC
   src/Chart.cpp
   src/ChartStore.cpp
+  src/ChartView.cpp
   src/Cli.cpp
   src/CtagsExtractor.cpp
   src/ExtractConfig.cpp
@@ -77,7 +78,7 @@ add_executable(comprendo-cli src/cli_main.cpp)
 target_link_libraries(comprendo-cli PRIVATE comprendo_core)
 
 if(COMPRENDO_BUILD_VIEWER)
-  add_executable(comprendo src/viewer_main.cpp src/Ui.cpp)
+  add_executable(comprendo src/viewer_main.cpp src/Ui.cpp src/GraphRenderer.cpp)
   target_link_libraries(comprendo PRIVATE comprendo_core raylib rlimgui CLI11::CLI11)
 endif()
 
@@ -88,6 +89,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_smoke.cpp
     tests/test_chart.cpp
     tests/test_chart_store.cpp
+    tests/test_chart_view.cpp
     tests/test_cli.cpp
     tests/test_ctags_extractor.cpp
     tests/test_extract_config.cpp
@@ -148,6 +150,13 @@ if(COMPRENDO_BUILD_TESTS)
     find_program(XVFB_RUN xvfb-run)
     if(XVFB_RUN)
       add_test(NAME viewer_smoke COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test)
+      if(UNIVERSAL_CTAGS)
+        add_test(
+          NAME viewer_smoke_chart
+          COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test ${CLI_TEST_CHART}
+        )
+        set_tests_properties(viewer_smoke_chart PROPERTIES FIXTURES_REQUIRED cli_chart)
+      endif()
     endif()
   endif()
 endif()

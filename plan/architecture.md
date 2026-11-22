@@ -221,13 +221,43 @@ The layout is computed by the viewer for its current grouping; the chart's
 
 ## Viewer
 
-The viewer is read-only. It opens `.comprendo/chart.sqlite` read-only, computes a
-deterministic layout, and renders with raylib:
+The viewer is read-only. It opens a chart read-only (positional argument,
+default `.comprendo/chart.sqlite`), computes the layout for the current grouping,
+and renders with raylib. Without a chart it shows a placeholder explaining how to
+create one.
 
-- `Camera2D` pan and zoom, kind-colored nodes, level-of-detail labels;
-- resizable window (minimum 640x480); `Ctrl+F` or `F11` toggles borderless
-  fullscreen at the monitor's native resolution and `Escape` leaves it; layout
-  is recomputed from the current window size;
+`ChartView` (in `comprendo_core`, no graphics dependency, unit tested) holds the
+chart, hierarchy, and layout and answers the frame's questions:
+
+- `ViewCamera`: chart/screen conversion, zoom about the mouse, pan, and fit into
+  the free central dock area (`Ui` records the central node's rectangle);
+- `visible()`: level of detail by screen size, walking the hierarchy from the
+  root; off-screen subtrees are culled, groups under 1.5 px become points,
+  containers under 8 px are drawn filled without children, so the work per frame
+  follows the screen area rather than the chart size;
+- `visible_edges()`: non-`Contains` edges attached to the deepest visible
+  ancestor of each endpoint and merged per kind with summed weight;
+- `pick()`: the deepest drawn group under the mouse, with a few pixels of
+  tolerance for small groups;
+- `kind_color()` and `display_label()` (anonymous namespaces show as
+  "(anonymous)").
+
+`GraphRenderer` draws in screen space (no `Camera2D`), in passes: container
+fills and rings, edges, disks and points, selection and hover rings, then
+labels at a fixed pixel size, placed greedily without overlap. Circles use a
+segment count proportional to their screen radius, so containers stay round when
+zoomed in far.
+
+Interaction: mouse wheel zooms about the cursor, left-drag or right/middle-drag
+pans, left-click selects, hovering shows a tooltip (label, kind, file:line).
+`Home` or View → Fit chart fits the chart; the view stays fitted (also across
+window resizes and dock changes) until the user zooms or pans. `G` or the View
+menu switches between file and namespace grouping, keeping the selection.
+Input is ignored while ImGui uses the mouse or keyboard.
+
+- resizable window (minimum 640x480); `F11` toggles borderless fullscreen at the
+  monitor's native resolution and `Escape` leaves it; `Ctrl+F` is reserved for
+  search;
 - convex-hull cluster fills, side panel with summary/detail/file:line/edges;
 - search, kind filters, double-click drill-down, minimap;
 - Jolt particles for cosmetic interaction feedback only — never layout;

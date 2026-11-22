@@ -4,12 +4,25 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <expected>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
+#include <imgui.h>
 
+#include "Comprendo/ChartStore.hpp"
+#include "Comprendo/ChartView.hpp"
+#include "Comprendo/Cli.hpp"
+#include "Comprendo/GraphRenderer.hpp"
 #include "Comprendo/Ui.hpp"
 #include "Logger/Logger.hpp"
 #include "Version.hpp"
@@ -32,7 +45,7 @@ namespace
   constexpr int kTargetFps = 60;
 
   /// Background color.
-  constexpr Color kBackground {24, 24, 32, 255};
+  constexpr Color kBackground {.r = 24, .g = 24, .b = 32, .a = 255};
 
   /// Title font size in pixels.
   constexpr int kTitleFontSize = 40;
@@ -44,10 +57,43 @@ namespace
   constexpr int kLineGap = 30;
 
   /// Hint shown below the build information.
-  constexpr const char *kFullscreenHint = "Ctrl+F or F11: fullscreen";
+  constexpr const char *kFullscreenHint = "F11: fullscreen";
+
+  /// Zoom multiplier per mouse-wheel step.
+  constexpr float kZoomStep = 1.2F;
+
+  /// Smallest zoom, in screen pixels per chart unit.
+  constexpr float kMinZoom = 1e-5F;
+
+  /// Largest zoom, in screen pixels per chart unit.
+  constexpr float kMaxZoom = 200.0F;
+
+  /// Mouse movement in pixels after which a left press becomes a drag.
+  constexpr float kDragThreshold = 4.0F;
+
+  /// Fraction of the window left free around the chart when fitting.
+  constexpr float kFitMargin = 0.08F;
 
   /// Number of frames rendered by the smoke test.
-  constexpr int kSmokeTestFrames = 20;
+  constexpr int kSmokeTestFrames = 30;
+
+  /// Frame on which the smoke test fits the chart and checks it is visible.
+  constexpr int kSmokeChartFitFrame = 18;
+
+  /// Frame on which the smoke test zooms into the chart.
+  constexpr int kSmokeChartZoomFrame = 20;
+
+  /// Frame on which the smoke test picks at the window centre.
+  constexpr int kSmokeChartPickFrame = 22;
+
+  /// Frame on which the smoke test switches to namespace grouping.
+  constexpr int kSmokeChartNamespaceFrame = 24;
+
+  /// Frame on which the smoke test checks the namespace grouping.
+  constexpr int kSmokeChartNamespaceCheckFrame = 26;
+
+  /// Frame on which the smoke test switches back to file grouping.
+  constexpr int kSmokeChartFileFrame = 28;
 
   /// Window width used by the smoke test resize step.
   constexpr int kSmokeResizeWidth = 800;
@@ -90,6 +136,10 @@ namespace
   {
     /// Render a hidden window for a fixed number of frames and exit.
     bool smoke_test = false;
+    /// Chart to open.
+    std::string chart {Comprendo::kDefaultChartPath};
+    /// True when the chart was named on the command line.
+    bool chart_given = false;
   };
 
   /// Exit code for a malformed command line, matching `comprendo-cli`.
@@ -116,6 +166,8 @@ namespace
       options.smoke_test,
       "Render a hidden window for a fixed number of frames, exercising resize and fullscreen"
     );
+    CLI::Option *chart
+      = app.add_option("chart", options.chart, "Chart to open")->capture_default_str();
     try
     {
       app.parse(argc, argv);
@@ -124,6 +176,7 @@ namespace
     {
       return std::unexpected(app.exit(error) == 0 ? 0 : kExitUsage);
     }
+    options.chart_given = chart->count() > 0;
     return options;
   }
 
@@ -150,12 +203,11 @@ namespace
     );
   }
 
-  /// Toggle fullscreen on Ctrl+F or F11, and leave it on Escape.
+  /// Toggle fullscreen on F11, and leave it on Escape. Ctrl+F stays free for search.
   void
   handle_window_shortcuts()
   {
-    const bool toggle_fullscreen = IsKeyPressed(KEY_F11)
-      || ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_F));
+    const bool toggle_fullscreen = IsKeyPressed(KEY_F11);
     const bool leave_fullscreen = IsKeyPressed(KEY_ESCAPE) && is_fullscreen();
     if (toggle_fullscreen || leave_fullscreen)
     {
@@ -164,11 +216,12 @@ namespace
     }
   }
 
-  /// Draw the centered placeholder screen behind the ImGui panels.
+  /// Draw the centered placeholder screen shown when no chart is loaded.
   ///
   /// \param build_info Version and git commit string.
+  /// \param note Why no chart is shown.
   void
-  draw_placeholder(const std::string &build_info)
+  draw_placeholder(const std::string &build_info, std::string_view note)
   {
     const int screen_width = GetScreenWidth();
     const int screen_height = GetScreenHeight();
@@ -191,6 +244,273 @@ namespace
       kBodyFontSize,
       GRAY
     );
+    const std::string text {note};
+    DrawText(
+      text.c_str(),
+      block_x,
+      block_y + kTitleFontSize + (2 * kBodyFontSize) + (3 * kLineGap),
+      kBodyFontSize,
+      GRAY
+    );
+  }
+
+  /// A loaded chart with its camera, selection, and mouse state.
+  struct GraphSession
+  {
+    /// Chart prepared for viewing.
+    Comprendo::ChartView view;
+    /// View camera.
+    Comprendo::ViewCamera camera;
+    /// Selected group.
+    std::optional<std::size_t> selected;
+    /// Group under the mouse.
+    std::optional<std::size_t> hovered;
+    /// Mouse position when the left button went down.
+    Vector2 press {};
+    /// True while a left-button press is being used to pan.
+    bool dragging = false;
+    /// True until the user zooms or pans: the chart is refitted whenever the
+    /// graph area changes (startup layout, window resize, re-docked panels).
+    bool auto_fit = true;
+    /// Graph area of the last fit.
+    Comprendo::ScreenRect fitted_area;
+  };
+
+  /// Load a chart and prepare it for viewing.
+  ///
+  /// \param path Chart file.
+  /// \return The session, or a message explaining why the chart is unavailable.
+  std::expected<GraphSession, std::string>
+  load_session(const std::string &path)
+  {
+    const auto start = std::chrono::steady_clock::now();
+    auto chart = Comprendo::read_chart(path);
+    if (!chart)
+    {
+      return std::unexpected(chart.error());
+    }
+    const std::size_t nodes = chart->nodes.size();
+    const std::size_t edges = chart->edges.size();
+    GraphSession session {
+      .view = Comprendo::ChartView {std::move(*chart), Comprendo::Grouping::File}
+    };
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - start
+    );
+    Comprendo::Logger::info(
+      "Loaded {} ({} nodes, {} edges) in {} ms", path, nodes, edges, elapsed.count()
+    );
+    return session;
+  }
+
+  /// Fit the whole chart into the graph area, or the window while the dock
+  /// layout is not known yet.
+  ///
+  /// \param session Session to update.
+  /// \param area Graph area from the UI; empty before the first frame.
+  void
+  fit_chart(GraphSession &session, const Comprendo::ScreenRect &area)
+  {
+    session.camera.width = static_cast<float>(GetScreenWidth());
+    session.camera.height = static_cast<float>(GetScreenHeight());
+    const Comprendo::ScreenRect target = area.width > 0.0F && area.height > 0.0F
+      ? area
+      : Comprendo::ScreenRect {
+          .width = session.camera.width,
+          .height = session.camera.height,
+        };
+    session.camera.fit(
+      session.view.group_centre(0), session.view.layout().groups.front().radius, kFitMargin, target
+    );
+  }
+
+  /// Describe a group for the inspector and the tooltip.
+  ///
+  /// \param view Chart view.
+  /// \param group Group index.
+  /// \return Label, kind, and the first node's location.
+  std::string
+  describe(const Comprendo::ChartView &view, std::size_t group)
+  {
+    const Comprendo::HierarchyGroup &entry = view.hierarchy().groups[group];
+    if (entry.nodes.empty())
+    {
+      return view.display_label(group);
+    }
+    const Comprendo::Node &node = view.chart().nodes[entry.nodes.front()];
+    return fmt::format(
+      "{}\n{} at {}:{}",
+      view.display_label(group),
+      Comprendo::to_string(node.kind),
+      node.file,
+      node.line_start
+    );
+  }
+
+  /// Apply the grouping chosen in the menu, keeping the selection on the same node.
+  ///
+  /// \param session Session to update.
+  /// \param state Viewer state holding the requested grouping.
+  void
+  apply_grouping(GraphSession &session, Comprendo::ViewerState &state)
+  {
+    if (state.grouping == session.view.grouping())
+    {
+      return;
+    }
+    std::optional<std::size_t> selected_node;
+    if (session.selected && !session.view.hierarchy().groups[*session.selected].nodes.empty())
+    {
+      selected_node = session.view.hierarchy().groups[*session.selected].nodes.front();
+    }
+    session.view.set_grouping(state.grouping);
+    session.selected.reset();
+    if (selected_node)
+    {
+      session.selected = session.view.hierarchy().group_of_node[*selected_node];
+    }
+    session.hovered.reset();
+    state.fit_requested = true;
+  }
+
+  /// Handle mouse and keyboard input for the graph: zoom, pan, select, fit, regroup.
+  ///
+  /// Input is ignored while ImGui uses the mouse or keyboard.
+  ///
+  /// \param session Session to update.
+  /// \param state Viewer state.
+  void
+  handle_graph_input(GraphSession &session, Comprendo::ViewerState &state)
+  {
+    Comprendo::ViewCamera &camera = session.camera;
+    camera.width = static_cast<float>(GetScreenWidth());
+    camera.height = static_cast<float>(GetScreenHeight());
+    session.hovered.reset();
+    if (!Comprendo::Ui::wants_mouse())
+    {
+      const Vector2 mouse = GetMousePosition();
+      const Comprendo::Vec2 point {.x = mouse.x, .y = mouse.y};
+      const float wheel = GetMouseWheelMove();
+      if (wheel != 0.0F)
+      {
+        camera.zoom_at(point, std::pow(kZoomStep, wheel), kMinZoom, kMaxZoom);
+        session.auto_fit = false;
+      }
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+      {
+        session.press = mouse;
+        session.dragging = false;
+      }
+      if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !session.dragging)
+      {
+        session.dragging
+          = std::hypot(mouse.x - session.press.x, mouse.y - session.press.y) > kDragThreshold;
+      }
+      if (
+        session.dragging || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)
+        || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)
+      )
+      {
+        const Vector2 delta = GetMouseDelta();
+        camera.pan({.x = delta.x, .y = delta.y});
+        session.auto_fit = session.auto_fit && delta.x == 0.0F && delta.y == 0.0F;
+      }
+      if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+      {
+        if (!session.dragging)
+        {
+          session.selected = session.view.pick(camera, point);
+          state.selection = session.selected ? describe(session.view, *session.selected)
+                                             : std::string {"(nothing selected)"};
+        }
+        session.dragging = false;
+      }
+      session.hovered = session.view.pick(camera, point);
+    }
+    if (!Comprendo::Ui::wants_keyboard())
+    {
+      if (IsKeyPressed(KEY_HOME))
+      {
+        state.fit_requested = true;
+      }
+      if (IsKeyPressed(KEY_G))
+      {
+        state.grouping = state.grouping == Comprendo::Grouping::File
+          ? Comprendo::Grouping::Namespace
+          : Comprendo::Grouping::File;
+      }
+    }
+    apply_grouping(session, state);
+    if (state.fit_requested)
+    {
+      session.auto_fit = true;
+      session.fitted_area = {};
+      state.fit_requested = false;
+    }
+    if (session.auto_fit && state.graph_area.width > 0.0F && state.graph_area != session.fitted_area)
+    {
+      fit_chart(session, state.graph_area);
+      session.fitted_area = state.graph_area;
+    }
+  }
+
+  /// Draw the graph of a session.
+  ///
+  /// \param session Session to draw.
+  void
+  draw_session(const GraphSession &session)
+  {
+    Comprendo::GraphFrame frame;
+    frame.items = session.view.visible(session.camera);
+    frame.edges = session.view.visible_edges(frame.items);
+    frame.selected = session.selected;
+    frame.hovered = session.hovered;
+    Comprendo::draw_graph(session.view, session.camera, frame);
+  }
+
+  /// Show a tooltip for the group under the mouse.
+  ///
+  /// \param session Session whose hovered group is described.
+  void
+  draw_tooltip(const GraphSession &session)
+  {
+    if (session.hovered && !Comprendo::Ui::wants_mouse())
+    {
+      ImGui::BeginTooltip();
+      ImGui::TextUnformatted(describe(session.view, *session.hovered).c_str());
+      ImGui::EndTooltip();
+    }
+  }
+
+  /// Draw one frame: the graph or the placeholder, then the ImGui shell.
+  ///
+  /// \param session Loaded chart, if any.
+  /// \param build_info Version and git commit string.
+  /// \param note Placeholder note shown without a chart.
+  /// \param ui_shell Viewer UI shell.
+  /// \param state Viewer state.
+  void
+  draw_frame(
+    const std::optional<GraphSession> &session,
+    const std::string &build_info,
+    std::string_view note,
+    Comprendo::Ui &ui_shell,
+    Comprendo::ViewerState &state
+  )
+  {
+    if (session)
+    {
+      draw_session(*session);
+    }
+    else
+    {
+      draw_placeholder(build_info, note);
+    }
+    ui_shell.draw(state);
+    if (session)
+    {
+      draw_tooltip(*session);
+    }
   }
 
   /// Return true when the raylib window and framebuffer sizes agree.
@@ -286,27 +606,72 @@ namespace
     }
   }
 
-  /// Exercise resize, fullscreen, and ImGui paths in a hidden window.
+  /// Apply the smoke test's chart action for one frame.
+  ///
+  /// \param frame Current frame index.
+  /// \param session Loaded chart.
+  /// \param state Viewer state.
+  /// \return True when the frame's check passed.
+  bool
+  run_chart_step(int frame, GraphSession &session, Comprendo::ViewerState &state)
+  {
+    const Comprendo::Vec2 centre {
+      .x = static_cast<float>(GetScreenWidth()) / 2.0F,
+      .y = static_cast<float>(GetScreenHeight()) / 2.0F,
+    };
+    switch (frame)
+    {
+    case kSmokeChartFitFrame:
+      fit_chart(session, state.graph_area);
+      return !session.view.visible(session.camera).empty();
+    case kSmokeChartZoomFrame:
+      session.camera.zoom_at(centre, 8.0F, kMinZoom, kMaxZoom);
+      return true;
+    case kSmokeChartPickFrame:
+      session.selected = session.view.pick(session.camera, centre);
+      Comprendo::Logger::info("Smoke: picked {}", session.selected ? "a group" : "nothing");
+      return true;
+    case kSmokeChartNamespaceFrame: state.grouping = Comprendo::Grouping::Namespace; return true;
+    case kSmokeChartNamespaceCheckFrame:
+      return session.view.grouping() == Comprendo::Grouping::Namespace
+        && !session.view.visible(session.camera).empty();
+    case kSmokeChartFileFrame: state.grouping = Comprendo::Grouping::File; return true;
+    default: return true;
+    }
+  }
+
+  /// Exercise resize, fullscreen, ImGui, and (with a chart) graph paths in a
+  /// hidden window.
   ///
   /// \param build_info Version and git commit string.
+  /// \param session Loaded chart, if any.
+  /// \param note Placeholder note shown without a chart.
   /// \param ui_shell Viewer UI shell.
   /// \param state Viewer state.
   /// \return True when every check passed.
   bool
   run_smoke_test(
-    const std::string &build_info, Comprendo::Ui &ui_shell, Comprendo::ViewerState &state
+    const std::string &build_info,
+    std::optional<GraphSession> &session,
+    std::string_view note,
+    Comprendo::Ui &ui_shell,
+    Comprendo::ViewerState &state
   )
   {
     bool passed = true;
     for (int frame = 0; frame < kSmokeTestFrames; ++frame)
     {
       passed = run_smoke_step(frame) && passed;
+      if (session)
+      {
+        passed = run_chart_step(frame, *session, state) && passed;
+        apply_grouping(*session, state);
+      }
 
       BeginDrawing();
       ClearBackground(kBackground);
-      draw_placeholder(build_info);
       Comprendo::Ui::begin_frame();
-      ui_shell.draw(state);
+      draw_frame(session, build_info, note, ui_shell, state);
       Comprendo::Ui::end_frame();
       EndDrawing();
     }
@@ -314,7 +679,94 @@ namespace
   }
 } // namespace
 
+namespace
+{
+  /// Run the viewer: open the window, load the chart, and loop until closed.
+  ///
+  /// \param options Parsed command-line options.
+  /// \return Process exit code: 1 when the smoke test failed.
+  int
+  run_viewer(const Options &options)
+  {
+    Comprendo::Logger::init();
+
+    unsigned int flags = FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIDDEN;
+
+    SetConfigFlags(flags);
+    InitWindow(kWindowWidth, kWindowHeight, "Comprendo");
+    SetWindowMinSize(kMinWindowWidth, kMinWindowHeight);
+    SetTargetFPS(kTargetFps);
+
+    Comprendo::Ui ui_shell;
+    Comprendo::ViewerState state;
+    ui_shell.init(!options.smoke_test);
+
+    // Let the window manager place the window before it becomes visible.
+    if (!options.smoke_test)
+    {
+      ClearWindowState(FLAG_WINDOW_HIDDEN);
+    }
+
+    const std::string build_info
+      = fmt::format("v{} (git {})", COMPRENDO_VERSION, COMPRENDO_GIT_COMMIT);
+
+    std::optional<GraphSession> session;
+    std::string note;
+    if (auto loaded = load_session(options.chart))
+    {
+      session = std::move(*loaded);
+      fit_chart(*session, state.graph_area);
+    }
+    else
+    {
+      Comprendo::Logger::warn("No chart: {}", loaded.error());
+      note = fmt::format("No chart: create one with 'comprendo-cli extract' ({})", loaded.error());
+    }
+
+    bool passed = true;
+    if (options.smoke_test)
+    {
+      passed = !(options.chart_given && !session);
+      passed = run_smoke_test(build_info, session, note, ui_shell, state) && passed;
+    }
+    else
+    {
+      bool first_frame = true;
+      while (!WindowShouldClose() && !state.quit_requested)
+      {
+        BeginDrawing();
+        ClearBackground(kBackground);
+
+        Comprendo::Ui::begin_frame();
+        if (first_frame || IsWindowResized())
+        {
+          Comprendo::Ui::log_viewport_state(first_frame ? "Startup" : "Resized");
+          first_frame = false;
+        }
+        if (!Comprendo::Ui::wants_keyboard())
+        {
+          handle_window_shortcuts();
+        }
+        if (session)
+        {
+          handle_graph_input(*session, state);
+        }
+        draw_frame(session, build_info, note, ui_shell, state);
+        Comprendo::Ui::end_frame();
+
+        EndDrawing();
+      }
+    }
+
+    Comprendo::Ui::shutdown();
+    CloseWindow();
+    return passed ? 0 : 1;
+  }
+} // namespace
+
 /// Program entry point.
+///
+/// Exceptions are reported on standard error instead of terminating silently.
 ///
 /// \param argc Number of command-line arguments.
 /// \param argv Command-line argument vector.
@@ -322,66 +774,18 @@ namespace
 int
 main(int argc, char **argv)
 {
-  const auto parsed = parse_options(argc, argv);
-  if (!parsed)
+  try
   {
-    return parsed.error();
-  }
-  const Options options = *parsed;
-  Comprendo::Logger::init();
-
-  unsigned int flags = FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIDDEN;
-
-  SetConfigFlags(flags);
-  InitWindow(kWindowWidth, kWindowHeight, "Comprendo");
-  SetWindowMinSize(kMinWindowWidth, kMinWindowHeight);
-  SetTargetFPS(kTargetFps);
-
-  Comprendo::Ui ui_shell;
-  Comprendo::ViewerState state;
-  ui_shell.init(!options.smoke_test);
-
-  // Let the window manager place the window before it becomes visible.
-  if (!options.smoke_test)
-  {
-    ClearWindowState(FLAG_WINDOW_HIDDEN);
-  }
-
-  const std::string build_info
-    = fmt::format("v{} (git {})", COMPRENDO_VERSION, COMPRENDO_GIT_COMMIT);
-
-  bool passed = true;
-  if (options.smoke_test)
-  {
-    passed = run_smoke_test(build_info, ui_shell, state);
-  }
-  else
-  {
-    bool first_frame = true;
-    while (!WindowShouldClose() && !state.quit_requested)
+    const auto parsed = parse_options(argc, argv);
+    if (!parsed)
     {
-      BeginDrawing();
-      ClearBackground(kBackground);
-      draw_placeholder(build_info);
-
-      Comprendo::Ui::begin_frame();
-      if (first_frame || IsWindowResized())
-      {
-        Comprendo::Ui::log_viewport_state(first_frame ? "Startup" : "Resized");
-        first_frame = false;
-      }
-      if (!Comprendo::Ui::wants_keyboard())
-      {
-        handle_window_shortcuts();
-      }
-      ui_shell.draw(state);
-      Comprendo::Ui::end_frame();
-
-      EndDrawing();
+      return parsed.error();
     }
+    return run_viewer(*parsed);
   }
-
-  Comprendo::Ui::shutdown();
-  CloseWindow();
-  return passed ? 0 : 1;
+  catch (const std::exception &error)
+  {
+    std::fputs(fmt::format("comprendo: {}\n", error.what()).c_str(), stderr);
+    return 1;
+  }
 }

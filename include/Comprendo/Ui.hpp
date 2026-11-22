@@ -5,6 +5,9 @@
 #include <initializer_list>
 #include <string>
 
+#include "Comprendo/ChartView.hpp"
+#include "Comprendo/Hierarchy.hpp"
+
 namespace Comprendo
 {
   /// Persistent state shared by the viewer's UI panels.
@@ -29,10 +32,21 @@ namespace Comprendo
     bool quit_requested = false;
 
     /// Current explorer filter text.
-    std::array<char, kFilterCapacity> filter{};
+    std::array<char, kFilterCapacity> filter {};
 
     /// Label of the current selection.
     std::string selection = "(nothing selected)";
+
+    /// Grouping chosen in the View menu.
+    Grouping grouping = Grouping::File;
+
+    /// Set by the View menu to fit the chart into the graph area; cleared by the
+    /// viewer, which keeps the chart fitted until the user zooms or pans.
+    bool fit_requested = false;
+
+    /// Screen area of the transparent central dock node where the graph is
+    /// visible; empty until the first frame has been laid out.
+    ScreenRect graph_area;
   };
 
   /// Dear ImGui docking shell for the viewer.
