@@ -83,6 +83,11 @@ Keep `docs/main.md` and the `plan/` documents current.
 - Gate tests that need external tools (for example `clangd-22`) on their
   presence.
 - Use CHECK instead of REQUIRE so tests run even if some test cases fail.
+  Never dereference a value a CHECK may have rejected: compare without
+  dereferencing where possible (`CHECK(result == expected)` works on
+  `std::expected` and `std::optional`), otherwise follow the CHECK with an
+  early `return` guard, e.g. `CHECK(node != nullptr); if (node == nullptr)
+  { return; }`. A crash in one test case aborts the whole test binary.
 - Every test case should be prefaced with an approximately 5 line comment
   which explains why the test is there, what it does and how it does it. The
   comment must be kept up-to-date.

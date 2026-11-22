@@ -18,6 +18,7 @@
 #include "ChartSchema.hpp"
 #include "Comprendo/Chart.hpp"
 #include "Comprendo/ChartStore.hpp"
+#include "Checks.hpp"
 #include "TempDir.hpp"
 
 namespace
@@ -27,6 +28,8 @@ namespace
   using Comprendo::EdgeKind;
   using Comprendo::NodeKind;
   using Comprendo::Provenance;
+  using Comprendo::Testing::error_of;
+  using Comprendo::Testing::joined;
   using Comprendo::Testing::TempDir;
 
   /// Run SQL on a database file through the raw SQLite API.
@@ -155,109 +158,142 @@ namespace
   }
 } // namespace
 
-/// A populated chart survives a write/read cycle unchanged.
+/// The SQLite store is the only persistence format, so every field must survive
+/// a write/read cycle bit for bit. Writes a chart exercising ids with the high bit
+/// set (stored bit-cast in signed INTEGER), UTF-8 text, every node and edge kind,
+/// nested clusters listed child-first (needing deferred foreign keys), and a full
+/// layout into a not-yet-existing directory, then compares the read-back chart
+/// with the canonical original.
 TEST_CASE("populated chart round-trips", "[store]")
 {
   const TempDir dir {"round-trip"};
   const Chart chart = populated_chart();
-  REQUIRE(Comprendo::validate(chart).ok());
+  CHECK(Comprendo::validate(chart).ok());
 
   const auto path = dir / "nested/dir/chart.sqlite";
   const auto written = Comprendo::write_chart(path, chart);
-  REQUIRE(written.has_value());
+  CHECK(written.has_value());
 
   const auto read = Comprendo::read_chart(path);
-  REQUIRE(read.has_value());
-  CHECK(*read == canonical(chart));
+  CHECK(read.has_value());
+  CHECK(read == canonical(chart));
 }
 
-/// An empty chart round-trips and keeps its header.
+/// A freshly created project chart has no rows at all, and empty tables are an
+/// easy place for off-by-one or "no rows means error" bugs. Writes a chart with
+/// only a project name, reads it back, and checks it equals the original,
+/// including the header stored in the meta table.
 TEST_CASE("empty chart round-trips", "[store]")
 {
   const TempDir dir {"empty"};
   Chart chart;
   chart.project = "empty";
 
-  REQUIRE(Comprendo::write_chart(dir / "chart.sqlite", chart).has_value());
+  CHECK(Comprendo::write_chart(dir / "chart.sqlite", chart).has_value());
   const auto read = Comprendo::read_chart(dir / "chart.sqlite");
-  REQUIRE(read.has_value());
-  CHECK(*read == chart);
+  CHECK(read.has_value());
+  CHECK(read == chart);
 }
 
-/// A chart without a cached layout reads back without one.
+/// The layout table is an optional cache; charts written before layout is computed
+/// must read back with no positions rather than zeros. Writes the populated chart
+/// with its layout cleared, reads it back, and checks the layout is empty and the
+/// rest of the chart equals the canonical original.
 TEST_CASE("chart without layout round-trips", "[store]")
 {
   const TempDir dir {"no-layout"};
   Chart chart = populated_chart();
   chart.layout.clear();
 
-  REQUIRE(Comprendo::write_chart(dir / "chart.sqlite", chart).has_value());
+  CHECK(Comprendo::write_chart(dir / "chart.sqlite", chart).has_value());
   const auto read = Comprendo::read_chart(dir / "chart.sqlite");
-  REQUIRE(read.has_value());
+  CHECK(read.has_value());
+  if (!read)
+  {
+    return;
+  }
   CHECK(read->layout.empty());
-  CHECK(*read == canonical(chart));
+  CHECK(read == canonical(chart));
 }
 
-/// A layout missing a node's position is a stale cache and reads as empty.
+/// When the plugin adds nodes after extraction, cached positions cover only some
+/// nodes; a partial layout must be treated as stale so the viewer recomputes it
+/// instead of misaligning positions. Writes a chart with a full layout, deletes
+/// one layout row through the raw SQLite API, and checks read_chart() returns no
+/// layout while still returning the nodes.
 TEST_CASE("partial layout reads as empty", "[store]")
 {
   const TempDir dir {"partial-layout"};
   const auto path = dir / "chart.sqlite";
-  REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
-  REQUIRE(
+  CHECK(Comprendo::write_chart(path, populated_chart()).has_value());
+  CHECK(
     exec_raw(path, "DELETE FROM layout WHERE rowid = (SELECT MIN(rowid) FROM layout)") == SQLITE_OK
   );
 
   const auto read = Comprendo::read_chart(path);
-  REQUIRE(read.has_value());
+  CHECK(read.has_value());
+  if (!read)
+  {
+    return;
+  }
   CHECK(read->layout.empty());
   CHECK_FALSE(read->nodes.empty());
 }
 
-/// Writing again replaces the previous chart completely.
+/// `comprendo-cli extract` rewrites the chart on every run, so no rows from the
+/// previous chart may survive. Writes the populated chart, then writes a different
+/// one-node chart to the same path, and checks the read-back chart equals the
+/// second chart exactly.
 TEST_CASE("writing overwrites an existing chart", "[store]")
 {
   const TempDir dir {"overwrite"};
   const auto path = dir / "chart.sqlite";
-  REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
+  CHECK(Comprendo::write_chart(path, populated_chart()).has_value());
 
   Chart second;
   second.project = "second";
   second.nodes.push_back({.id = 5, .kind = NodeKind::File, .name = "only.cpp"});
-  REQUIRE(Comprendo::write_chart(path, second).has_value());
+  CHECK(Comprendo::write_chart(path, second).has_value());
 
   const auto read = Comprendo::read_chart(path);
-  REQUIRE(read.has_value());
-  CHECK(*read == second);
+  CHECK(read.has_value());
+  CHECK(read == second);
 }
 
-/// An invalid chart is refused and the existing file is left as it was.
+/// Writes go to a temporary file renamed over the target, so a refused or failed
+/// write must never damage the previous chart. Writes a valid chart, attempts to
+/// write one with a dangling edge, and checks the error names the problem, no
+/// `.tmp` file is left behind, and the original chart still reads back intact.
 TEST_CASE("failed write leaves the existing chart untouched", "[store]")
 {
   const TempDir dir {"atomic"};
   const auto path = dir / "chart.sqlite";
   const Chart original = populated_chart();
-  REQUIRE(Comprendo::write_chart(path, original).has_value());
+  CHECK(Comprendo::write_chart(path, original).has_value());
 
   Chart dangling;
   dangling.nodes.push_back({.id = 1});
   dangling.edges.push_back({.src = 1, .dst = 2, .kind = EdgeKind::Calls});
   const auto written = Comprendo::write_chart(path, dangling);
-  REQUIRE_FALSE(written.has_value());
-  CHECK_THAT(written.error(), ContainsSubstring("edge destination 2 does not exist"));
+  CHECK_FALSE(written.has_value());
+  CHECK_THAT(error_of(written), ContainsSubstring("edge destination 2 does not exist"));
 
   CHECK_FALSE(std::filesystem::exists(dir / "chart.sqlite.tmp"));
   const auto read = Comprendo::read_chart(path);
-  REQUIRE(read.has_value());
-  CHECK(*read == canonical(original));
+  CHECK(read.has_value());
+  CHECK(read == canonical(original));
 }
 
-/// Written files carry the Comprendo identity pragmas and the supported schema version.
+/// Readers (C++ and the plugin) identify charts by application_id and
+/// user_version, and rely on WAL mode for concurrent reading. Writes an empty
+/// chart, queries both pragmas with the raw SQLite API, checks the WAL file was
+/// checkpointed away, and inspects the file header bytes 18-19, which SQLite sets
+/// to 2 for WAL-mode databases.
 TEST_CASE("written chart carries identity pragmas", "[store]")
 {
   const TempDir dir {"identity"};
   const auto path = dir / "chart.sqlite";
-  REQUIRE(Comprendo::write_chart(path, Chart {}).has_value());
+  CHECK(Comprendo::write_chart(path, Chart {}).has_value());
 
   CHECK(query_raw(path, "PRAGMA application_id") == Comprendo::kChartApplicationId);
   CHECK(query_raw(path, "PRAGMA user_version") == Comprendo::kChartSchemaVersion);
@@ -272,23 +308,30 @@ TEST_CASE("written chart carries identity pragmas", "[store]")
   CHECK(header[kWriteVersionOffset + 1] == kWalVersion);
 }
 
-/// The shared DDL can be applied repeatedly, as both the plugin and the CLI do.
+/// Both the plugin and the C++ writers apply schema/chart.sql to files that may
+/// already contain a chart, so applying it twice must not fail. Executes the
+/// embedded DDL twice on a new file through the raw SQLite API and checks that
+/// read_chart() then accepts the result as a valid, empty chart.
 TEST_CASE("schema DDL is idempotent", "[store]")
 {
   const TempDir dir {"idempotent"};
   const auto path = dir / "chart.sqlite";
   const std::string schema {Comprendo::kChartSchemaSql};
-  REQUIRE(exec_raw(path, schema) == SQLITE_OK);
-  REQUIRE(exec_raw(path, schema) == SQLITE_OK);
+  CHECK(exec_raw(path, schema) == SQLITE_OK);
+  CHECK(exec_raw(path, schema) == SQLITE_OK);
   CHECK(Comprendo::read_chart(path).has_value());
 }
 
-/// The SQL constraints reject rows the in-memory validation would reject.
+/// The plugin writes rows directly with SQL, bypassing validate(), so the schema
+/// itself must reject invalid rows. Inserts rows with an out-of-range kind, an
+/// out-of-range provenance, a zero cluster id, an edge between missing nodes, and
+/// a node pointing at a missing cluster, checking each fails, while a valid node
+/// insert succeeds.
 TEST_CASE("schema constraints enforce invariants", "[store]")
 {
   const TempDir dir {"constraints"};
   const auto path = dir / "chart.sqlite";
-  REQUIRE(Comprendo::write_chart(path, Chart {}).has_value());
+  CHECK(Comprendo::write_chart(path, Chart {}).has_value());
   const std::string node = "INSERT INTO nodes (id, kind, name, qualified_name, file, provenance) "
                            "VALUES ";
 
@@ -299,19 +342,23 @@ TEST_CASE("schema constraints enforce invariants", "[store]")
     exec_raw(path, "INSERT INTO edges (src, dst, kind, provenance) VALUES (1, 2, 3, 1)")
     != SQLITE_OK
   );
-  REQUIRE(exec_raw(path, node + "(1, 0, 'n', 'n', 'f', 0)") == SQLITE_OK);
+  CHECK(exec_raw(path, node + "(1, 0, 'n', 'n', 'f', 0)") == SQLITE_OK);
   CHECK(exec_raw(path, "UPDATE nodes SET cluster_id = 5 WHERE id = 1") != SQLITE_OK);
 }
 
-/// The thorough file check accepts a good chart and catches what read_chart() cannot.
+/// `comprendo-cli validate` must catch damage that read_chart() would load
+/// silently, such as rows written by a connection with foreign keys disabled.
+/// Checks a good chart passes, then inserts a dangling edge with foreign keys off
+/// and checks both the SQLite foreign-key report and the in-memory rule appear,
+/// and finally checks a missing file is reported.
 TEST_CASE("check_chart_file finds integrity problems", "[store]")
 {
   const TempDir dir {"check-file"};
   const auto path = dir / "chart.sqlite";
-  REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
+  CHECK(Comprendo::write_chart(path, populated_chart()).has_value());
   CHECK(Comprendo::check_chart_file(path).ok());
 
-  REQUIRE(
+  CHECK(
     exec_raw(
       path,
       "PRAGMA foreign_keys = OFF; "
@@ -320,7 +367,7 @@ TEST_CASE("check_chart_file finds integrity problems", "[store]")
     == SQLITE_OK
   );
   const Comprendo::ValidationResult result = Comprendo::check_chart_file(path);
-  REQUIRE_FALSE(result.ok());
+  CHECK_FALSE(result.ok());
   bool foreign_key = false;
   bool dangling = false;
   for (const std::string &error : result.errors)
@@ -332,21 +379,25 @@ TEST_CASE("check_chart_file finds integrity problems", "[store]")
   CHECK(dangling);
 
   const Comprendo::ValidationResult missing = Comprendo::check_chart_file(dir / "absent.sqlite");
-  REQUIRE_FALSE(missing.ok());
-  CHECK_THAT(missing.errors.front(), ContainsSubstring("does not exist"));
+  CHECK_FALSE(missing.ok());
+  CHECK_THAT(joined(missing.errors), ContainsSubstring("does not exist"));
 }
 
-/// Reading a file that does not exist reports it by name.
+/// The viewer and CLI open charts by path, and SQLite would happily create an
+/// empty database for a mistyped path. Reads a path that does not exist, checks
+/// the error says so, and checks no file was created as a side effect.
 TEST_CASE("reading a missing chart fails", "[store]")
 {
   const TempDir dir {"missing"};
   const auto read = Comprendo::read_chart(dir / "absent.db");
-  REQUIRE_FALSE(read.has_value());
-  CHECK_THAT(read.error(), ContainsSubstring("does not exist"));
+  CHECK_FALSE(read.has_value());
+  CHECK_THAT(error_of(read), ContainsSubstring("does not exist"));
   CHECK_FALSE(std::filesystem::exists(dir / "absent.db"));
 }
 
-/// A file that is not a SQLite database is rejected.
+/// Users may point the tools at the wrong file; the error must be a clear message,
+/// not a crash or a misleading empty chart. Writes plain text to a `.sqlite` file,
+/// reads it, and checks the error is reported as a failure to read that file.
 TEST_CASE("reading a non-database file fails", "[store]")
 {
   const TempDir dir {"garbage"};
@@ -354,47 +405,54 @@ TEST_CASE("reading a non-database file fails", "[store]")
   std::ofstream {path} << "this is not a database, just some text that is long enough";
 
   const auto read = Comprendo::read_chart(path);
-  REQUIRE_FALSE(read.has_value());
-  CHECK_THAT(read.error(), ContainsSubstring("cannot read"));
+  CHECK_FALSE(read.has_value());
+  CHECK_THAT(error_of(read), ContainsSubstring("cannot read"));
 }
 
-/// A SQLite database from another application is rejected.
+/// Other applications' SQLite files are valid databases, so only the
+/// application_id distinguishes a Comprendo chart. Creates an unrelated SQLite
+/// database with one table and checks read_chart() rejects it as not a Comprendo
+/// chart instead of failing later on missing tables.
 TEST_CASE("reading a foreign database fails", "[store]")
 {
   const TempDir dir {"foreign"};
   const auto path = dir / "other.db";
-  REQUIRE(exec_raw(path, "CREATE TABLE t (x INTEGER)") == SQLITE_OK);
+  CHECK(exec_raw(path, "CREATE TABLE t (x INTEGER)") == SQLITE_OK);
 
   const auto read = Comprendo::read_chart(path);
-  REQUIRE_FALSE(read.has_value());
-  CHECK_THAT(read.error(), ContainsSubstring("not a Comprendo chart"));
+  CHECK_FALSE(read.has_value());
+  CHECK_THAT(error_of(read), ContainsSubstring("not a Comprendo chart"));
 }
 
-/// A chart from a newer schema version is refused with the supported range.
+/// An older viewer must not misread a chart written with a newer, incompatible
+/// schema. Writes a chart, bumps user_version to 2 through the raw SQLite API, and
+/// checks the error names the found version and the supported range.
 TEST_CASE("reading a newer schema version fails", "[store]")
 {
   const TempDir dir {"newer"};
   const auto path = dir / "chart.sqlite";
-  REQUIRE(Comprendo::write_chart(path, Chart {}).has_value());
-  REQUIRE(exec_raw(path, "PRAGMA user_version = 2") == SQLITE_OK);
+  CHECK(Comprendo::write_chart(path, Chart {}).has_value());
+  CHECK(exec_raw(path, "PRAGMA user_version = 2") == SQLITE_OK);
 
   const auto read = Comprendo::read_chart(path);
-  REQUIRE_FALSE(read.has_value());
+  CHECK_FALSE(read.has_value());
   CHECK_THAT(
-    read.error(), ContainsSubstring("unsupported chart schema version 2 (supported 1..1)")
+    error_of(read), ContainsSubstring("unsupported chart schema version 2 (supported 1..1)")
   );
 }
 
-/// Reading never modifies the chart file.
+/// The viewer opens charts read-only, possibly while the plugin writes them, so
+/// reading must never modify the file. Writes a chart, records its size and
+/// modification time, reads it, and checks both are unchanged.
 TEST_CASE("reading leaves the file unchanged", "[store]")
 {
   const TempDir dir {"read-only"};
   const auto path = dir / "chart.sqlite";
-  REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
+  CHECK(Comprendo::write_chart(path, populated_chart()).has_value());
   const auto size = std::filesystem::file_size(path);
   const auto modified = std::filesystem::last_write_time(path);
 
-  REQUIRE(Comprendo::read_chart(path).has_value());
+  CHECK(Comprendo::read_chart(path).has_value());
   CHECK(std::filesystem::file_size(path) == size);
   CHECK(std::filesystem::last_write_time(path) == modified);
 }

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <expected>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -18,6 +19,7 @@
 #include "Comprendo/CtagsExtractor.hpp"
 #include "Comprendo/ExtractConfig.hpp"
 #include "Comprendo/Process.hpp"
+#include "Checks.hpp"
 #include "TempDir.hpp"
 
 namespace
@@ -31,6 +33,7 @@ namespace
   using Comprendo::Node;
   using Comprendo::NodeKind;
   using Comprendo::Provenance;
+  using Comprendo::Testing::error_of;
 
   /// Find the node with a qualified name in a file.
   ///
@@ -60,19 +63,46 @@ namespace
     return node != nullptr && node->kind == NodeKind::File ? node : nullptr;
   }
 
+  /// Flatten a parse result to the tag it holds.
+  ///
+  /// \param parsed Result of Comprendo::parse_ctags_line().
+  /// \return The tag, or nothing for errors and skipped records.
+  std::optional<CtagsTag>
+  parsed_tag(const std::expected<std::optional<CtagsTag>, std::string> &parsed)
+  {
+    return parsed.value_or(std::nullopt);
+  }
+
+  /// Look up the kind of a node.
+  ///
+  /// \param chart Chart to search.
+  /// \param qualified_name Qualified name.
+  /// \param file Repository-relative file.
+  /// \return The node's kind, or nothing when the node does not exist.
+  std::optional<NodeKind>
+  kind_of(const Chart &chart, std::string_view qualified_name, std::string_view file)
+  {
+    const Node *node = find_node(chart, qualified_name, file);
+    return node == nullptr ? std::nullopt : std::optional<NodeKind> {node->kind};
+  }
+
   /// Find the unique `Contains` parent of a node.
   ///
   /// \param chart Chart to search.
-  /// \param child Node whose parent is wanted.
-  /// \return The parent, or null when there is none or more than one.
+  /// \param child Node whose parent is wanted; may be null.
+  /// \return The parent, or null when \p child is null or has no unique parent.
   const Node *
-  contains_parent(const Chart &chart, const Node &child)
+  contains_parent(const Chart &chart, const Node *child)
   {
+    if (child == nullptr)
+    {
+      return nullptr;
+    }
     const Node *parent = nullptr;
     std::size_t parents = 0;
     for (const Edge &edge : chart.edges)
     {
-      if (edge.kind == EdgeKind::Contains && edge.dst == child.id)
+      if (edge.kind == EdgeKind::Contains && edge.dst == child->id)
       {
         ++parents;
         const auto it = std::ranges::find_if(
@@ -119,8 +149,8 @@ namespace
   ///
   /// \param dir Scratch directory.
   /// \param config_toml Contents of `.comprendo/config.toml`.
-  /// \return Extractor configuration for the copy.
-  Comprendo::ExtractConfig
+  /// \return Extractor configuration for the copy, or nothing when loading failed.
+  std::optional<Comprendo::ExtractConfig>
   prepare_fixture(const Comprendo::Testing::TempDir &dir, std::string_view config_toml)
   {
     std::filesystem::copy(
@@ -129,12 +159,20 @@ namespace
     std::filesystem::create_directories(dir / ".comprendo");
     std::ofstream {dir / ".comprendo/config.toml"} << config_toml;
     auto config = Comprendo::load_extract_config(dir.path());
-    REQUIRE(config.has_value());
+    CHECK(config.has_value());
+    if (!config)
+    {
+      return std::nullopt;
+    }
     return *config;
   }
 } // namespace
 
-/// A full ctags JSON record maps onto every tag field.
+/// Every tag reaches the chart through parse_ctags_line(), so each JSON field must
+/// land in the right CtagsTag member. Parses a complete ctags record and compares
+/// the whole struct, checks pseudo-tag records are skipped, checks malformed JSON,
+/// non-objects, and records without a name are errors, and checks that a `= delete`
+/// pattern sets the deleted flag while an ordinary pattern does not.
 TEST_CASE("ctags line parsing", "[ctags]")
 {
   const auto tag = Comprendo::parse_ctags_line(
@@ -142,10 +180,8 @@ TEST_CASE("ctags line parsing", "[ctags]")
     R"( "typeref": "typename:double", "kind": "function", "signature": "() const",)"
     R"( "scope": "geo::Circle", "scopeKind": "class", "end": 13})"
   );
-  REQUIRE(tag.has_value());
-  REQUIRE(tag->has_value());
   CHECK(
-    **tag
+    parsed_tag(tag)
     == CtagsTag {
       .name = "area",
       .path = "src/circle.cpp",
@@ -160,13 +196,13 @@ TEST_CASE("ctags line parsing", "[ctags]")
 
   const auto pseudo
     = Comprendo::parse_ctags_line(R"({"_type": "ptag", "name": "JSON_OUTPUT_VERSION"})");
-  REQUIRE(pseudo.has_value());
-  CHECK_FALSE(pseudo->has_value());
+  CHECK(pseudo.has_value());
+  CHECK_FALSE(parsed_tag(pseudo).has_value());
 
-  CHECK_THAT(Comprendo::parse_ctags_line("{oops").error(), ContainsSubstring("bad ctags output"));
-  CHECK_THAT(Comprendo::parse_ctags_line("[1]").error(), ContainsSubstring("not an object"));
+  CHECK_THAT(error_of(Comprendo::parse_ctags_line("{oops")), ContainsSubstring("bad ctags output"));
+  CHECK_THAT(error_of(Comprendo::parse_ctags_line("[1]")), ContainsSubstring("not an object"));
   CHECK_THAT(
-    Comprendo::parse_ctags_line(R"({"_type": "tag", "path": "a.c", "kind": "function"})").error(),
+    error_of(Comprendo::parse_ctags_line(R"({"_type": "tag", "path": "a.c", "kind": "function"})")),
     ContainsSubstring("lacks name")
   );
 
@@ -174,13 +210,24 @@ TEST_CASE("ctags line parsing", "[ctags]")
     R"json({"_type": "tag", "name": "T", "path": "t.hpp", "pattern": "/^  T(const T &) = delete;$/",)json"
     R"json( "line": 3, "kind": "prototype", "signature": "(const T &)"})json"
   );
-  REQUIRE(deleted.has_value());
-  REQUIRE(deleted->has_value());
-  CHECK((*deleted)->deleted);
-  CHECK_FALSE(tag->value().deleted);
+  CHECK(
+    parsed_tag(deleted)
+    == CtagsTag {
+      .name = "T",
+      .path = "t.hpp",
+      .kind = "prototype",
+      .signature = "(const T &)",
+      .line = 3,
+      .deleted = true,
+    }
+  );
 }
 
-/// Kinds map per language; functions in class scopes become methods.
+/// ctags kind names differ between languages, and the node kind drives colors,
+/// grouping, and id computation. Checks representative mappings: functions become
+/// methods only inside class-like scopes, Python `member` tags are methods,
+/// prototypes map like functions, unknown kinds become Other, and locals, include
+/// references, and similar kinds are not charted.
 TEST_CASE("ctags kind mapping", "[ctags]")
 {
   using Comprendo::map_ctags_kind;
@@ -201,7 +248,11 @@ TEST_CASE("ctags kind mapping", "[ctags]")
   CHECK_FALSE(map_ctags_kind("C", "header", "").has_value());
 }
 
-/// Chart building is pure: scopes resolve across files, duplicates and unknown files drop.
+/// build_ctags_chart() is pure, so its rules can be tested exactly without ctags.
+/// Feeds two files and hand-written tags in scrambled order (an out-of-line method
+/// whose class lives in another file, a duplicated namespace tag, a tag in an
+/// unknown file, an unmatched declaration) and checks node/edge counts, kinds,
+/// ids, cross-file containment, includes, and that reversed input gives the same chart.
 TEST_CASE("chart building from tags", "[ctags]")
 {
   const std::vector<CtagsSourceFile> files = {
@@ -246,21 +297,33 @@ TEST_CASE("chart building from tags", "[ctags]")
   );
 
   const Node *run = find_node(chart, "ns::A::run", "src/b.cpp");
-  REQUIRE(run != nullptr);
+  CHECK(run != nullptr);
+  if (run == nullptr)
+  {
+    return;
+  }
   CHECK(run->kind == NodeKind::Method);
   CHECK(run->loc == 5);
   CHECK(run->id == Comprendo::make_node_id(NodeKind::Method, "ns::A::run", "src/b.cpp", "()"));
-  const Node *run_parent = contains_parent(chart, *run);
-  REQUIRE(run_parent != nullptr);
+  const Node *run_parent = contains_parent(chart, run);
+  CHECK(run_parent != nullptr);
+  if (run_parent == nullptr)
+  {
+    return;
+  }
   CHECK(run_parent->qualified_name == "ns::A");
   CHECK(run_parent->file == "src/a.hpp");
 
   const Node *ns_b = find_node(chart, "ns", "src/b.cpp");
-  REQUIRE(ns_b != nullptr);
-  CHECK(contains_parent(chart, *ns_b) == find_file(chart, "src/b.cpp"));
+  CHECK(ns_b != nullptr);
+  CHECK(contains_parent(chart, ns_b) == find_file(chart, "src/b.cpp"));
 
   const Node *b_file = find_file(chart, "src/b.cpp");
-  REQUIRE(b_file != nullptr);
+  CHECK(b_file != nullptr);
+  if (b_file == nullptr)
+  {
+    return;
+  }
   CHECK(b_file->name == "b.cpp");
   CHECK(b_file->loc == 20);
   CHECK(includes(chart, "src/b.cpp", "src/a.hpp"));
@@ -270,7 +333,11 @@ TEST_CASE("chart building from tags", "[ctags]")
   CHECK(again == chart);
 }
 
-/// Prototypes are matched to definitions in tiers; only unmatched, live ones are charted.
+/// Declarations must be charted only when no definition exists, or every function
+/// would appear twice. Builds definitions and prototypes covering each matching
+/// tier (exact signature, renamed parameters with defaults, unique arity), a
+/// qualifier mismatch, a pure virtual, a `(void)` declaration, a deleted
+/// constructor, and a lambda, then checks exactly the expected ones become nodes.
 TEST_CASE("declarations are matched to definitions", "[ctags]")
 {
   const std::vector<CtagsSourceFile> files = {
@@ -325,7 +392,7 @@ TEST_CASE("declarations are matched to definitions", "[ctags]")
   tags.push_back(deleted);
 
   const Chart chart = Comprendo::build_ctags_chart(files, tags, {});
-  REQUIRE(Comprendo::validate(chart).ok());
+  CHECK(Comprendo::validate(chart).ok());
 
   const auto declared_in_header = [&](std::string_view qualified_name)
   {
@@ -342,15 +409,22 @@ TEST_CASE("declarations are matched to definitions", "[ctags]")
   CHECK(find_node(chart, "__anon1a2b", "a.cpp") == nullptr);
   CHECK(declared_in_header("S::m") == 1);
   const Node *pure = find_node(chart, "S::pure", "a.hpp");
-  REQUIRE(pure != nullptr);
-  CHECK(pure->kind == NodeKind::Method);
-  CHECK(contains_parent(chart, *pure) == find_node(chart, "S", "a.hpp"));
+  CHECK(kind_of(chart, "S::pure", "a.hpp") == NodeKind::Method);
+  CHECK(contains_parent(chart, pure) == find_node(chart, "S", "a.hpp"));
   const Node *rvalue = find_node(chart, "S::m", "a.hpp");
-  REQUIRE(rvalue != nullptr);
+  CHECK(rvalue != nullptr);
+  if (rvalue == nullptr)
+  {
+    return;
+  }
   CHECK(rvalue->signature == "(int) &&");
 }
 
-/// The fixture tree yields the expected symbols, containment, and include graph.
+/// End-to-end check of the real pipeline (file listing, language detection, ctags
+/// in batches, include scanning, chart building) on a small C++/Python tree.
+/// Copies the fixture outside git, configures excludes, languages, and a batch size
+/// of 2 to force several ctags calls, then checks totals, kinds, containment,
+/// declarations, includes, header fields, determinism, and SQLite round-trip.
 TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
 {
   if (!have_universal_ctags())
@@ -358,16 +432,25 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
     SKIP("Universal Ctags is not installed");
   }
   const Comprendo::Testing::TempDir dir {"ctags-basic"};
-  const Comprendo::ExtractConfig config = prepare_fixture(
+  const auto config = prepare_fixture(
     dir,
     "[extract]\nexcludes = [\"third_party/**\"]\nlanguages = [\"C++\", \"Python\"]\n"
     "ctags_batch = 2\n"
   );
 
+  if (!config)
+  {
+    return;
+  }
+
   Comprendo::CtagsExtractor extractor;
-  const auto chart = extractor.extract(config);
-  REQUIRE(chart.has_value());
-  REQUIRE(Comprendo::validate(*chart).ok());
+  const auto chart = extractor.extract(*config);
+  CHECK(chart.has_value());
+  if (!chart)
+  {
+    return;
+  }
+  CHECK(Comprendo::validate(*chart).ok());
 
   CHECK(chart->nodes.size() == 30);
   CHECK(chart->edges.size() == 28);
@@ -377,16 +460,20 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
   SECTION("symbols carry kinds and lines")
   {
     const Node *area = find_node(*chart, "geo::Circle::area", "src/circle.cpp");
-    REQUIRE(area != nullptr);
+    CHECK(area != nullptr);
+    if (area == nullptr)
+    {
+      return;
+    }
     CHECK(area->kind == NodeKind::Method);
     CHECK(area->line_start == 10);
     CHECK(area->line_end == 13);
     CHECK(area->signature == "() const");
-    CHECK(find_node(*chart, "SCALE_FACTOR", "src/main.cpp")->kind == NodeKind::Macro);
-    CHECK(find_node(*chart, "Number", "src/main.cpp")->kind == NodeKind::TypeAlias);
-    CHECK(find_node(*chart, "geo::Point", "include/geo/shape.hpp")->kind == NodeKind::Struct);
-    CHECK(find_node(*chart, "geo::Point::x", "include/geo/shape.hpp")->kind == NodeKind::Field);
-    CHECK(find_node(*chart, "Helper.run", "src/util.py")->kind == NodeKind::Method);
+    CHECK(kind_of(*chart, "SCALE_FACTOR", "src/main.cpp") == NodeKind::Macro);
+    CHECK(kind_of(*chart, "Number", "src/main.cpp") == NodeKind::TypeAlias);
+    CHECK(kind_of(*chart, "geo::Point", "include/geo/shape.hpp") == NodeKind::Struct);
+    CHECK(kind_of(*chart, "geo::Point::x", "include/geo/shape.hpp") == NodeKind::Field);
+    CHECK(kind_of(*chart, "Helper.run", "src/util.py") == NodeKind::Method);
   }
 
   SECTION("declarations without a definition are charted once")
@@ -398,15 +485,15 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
       );
     };
     const Node *pure = find_node(*chart, "geo::Shape::area", "include/geo/shape.hpp");
-    REQUIRE(pure != nullptr);
-    CHECK(pure->kind == NodeKind::Method);
+    CHECK(pure != nullptr);
+    CHECK(kind_of(*chart, "geo::Shape::area", "include/geo/shape.hpp") == NodeKind::Method);
     CHECK(
-      contains_parent(*chart, *pure) == find_node(*chart, "geo::Shape", "include/geo/shape.hpp")
+      contains_parent(*chart, pure) == find_node(*chart, "geo::Shape", "include/geo/shape.hpp")
     );
     CHECK(find_node(*chart, "geo::Shape::~Shape", "include/geo/shape.hpp") != nullptr);
     const Node *declared = find_node(*chart, "log_value", "src/main.cpp");
-    REQUIRE(declared != nullptr);
-    CHECK(contains_parent(*chart, *declared) == find_file(*chart, "src/main.cpp"));
+    CHECK(declared != nullptr);
+    CHECK(contains_parent(*chart, declared) == find_file(*chart, "src/main.cpp"));
     CHECK(count("geo::distance") == 1);
     CHECK(count("geo::perimeter") == 1);
     CHECK(find_node(*chart, "geo::perimeter", "src/circle.cpp") != nullptr);
@@ -425,17 +512,17 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
   SECTION("containment resolves scopes")
   {
     const Node *area = find_node(*chart, "geo::Circle::area", "src/circle.cpp");
-    REQUIRE(area != nullptr);
-    CHECK(contains_parent(*chart, *area) == find_node(*chart, "geo::Circle", "src/circle.hpp"));
+    CHECK(area != nullptr);
+    CHECK(contains_parent(*chart, area) == find_node(*chart, "geo::Circle", "src/circle.hpp"));
     const Node *distance = find_node(*chart, "geo::distance", "src/circle.cpp");
-    REQUIRE(distance != nullptr);
-    CHECK(contains_parent(*chart, *distance) == find_node(*chart, "geo", "src/circle.cpp"));
+    CHECK(distance != nullptr);
+    CHECK(contains_parent(*chart, distance) == find_node(*chart, "geo", "src/circle.cpp"));
     const Node *run = find_node(*chart, "Helper.run", "src/util.py");
-    REQUIRE(run != nullptr);
-    CHECK(contains_parent(*chart, *run) == find_node(*chart, "Helper", "src/util.py"));
+    CHECK(run != nullptr);
+    CHECK(contains_parent(*chart, run) == find_node(*chart, "Helper", "src/util.py"));
     const Node *main_function = find_node(*chart, "main", "src/main.cpp");
-    REQUIRE(main_function != nullptr);
-    CHECK(contains_parent(*chart, *main_function) == find_file(*chart, "src/main.cpp"));
+    CHECK(main_function != nullptr);
+    CHECK(contains_parent(*chart, main_function) == find_file(*chart, "src/main.cpp"));
   }
 
   SECTION("includes resolve to project files only")
@@ -456,19 +543,25 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
 
   SECTION("extraction is deterministic and storable")
   {
-    auto again = extractor.extract(config);
-    REQUIRE(again.has_value());
+    auto again = extractor.extract(*config);
+    CHECK(again.has_value());
+    if (!again)
+    {
+      return;
+    }
     again->generated_at = chart->generated_at;
     CHECK(*again == *chart);
 
-    REQUIRE(Comprendo::write_chart(dir / "chart.sqlite", *chart).has_value());
+    CHECK(Comprendo::write_chart(dir / "chart.sqlite", *chart).has_value());
     const auto read = Comprendo::read_chart(dir / "chart.sqlite");
-    REQUIRE(read.has_value());
-    CHECK(*read == *chart);
+    CHECK(read == *chart);
   }
 }
 
-/// A missing or wrong ctags executable is reported, not crashed on.
+/// A missing or wrong ctags (for example Exuberant Ctags, which lacks JSON output)
+/// must produce a clear error instead of a crash or an empty chart. Runs the
+/// extractor with a nonexistent program name and with `true`, which runs but is
+/// not Universal Ctags, and checks both error messages.
 TEST_CASE("ctags extraction reports a bad executable", "[ctags]")
 {
   const Comprendo::Testing::TempDir dir {"ctags-bad"};
@@ -477,11 +570,11 @@ TEST_CASE("ctags extraction reports a bad executable", "[ctags]")
 
   config.ctags = "comprendo-no-such-ctags";
   const auto missing = Comprendo::CtagsExtractor {}.extract(config);
-  REQUIRE_FALSE(missing.has_value());
-  CHECK_THAT(missing.error(), ContainsSubstring("cannot run 'comprendo-no-such-ctags'"));
+  CHECK_FALSE(missing.has_value());
+  CHECK_THAT(error_of(missing), ContainsSubstring("cannot run 'comprendo-no-such-ctags'"));
 
   config.ctags = "true";
   const auto wrong = Comprendo::CtagsExtractor {}.extract(config);
-  REQUIRE_FALSE(wrong.has_value());
-  CHECK_THAT(wrong.error(), ContainsSubstring("is not Universal Ctags"));
+  CHECK_FALSE(wrong.has_value());
+  CHECK_THAT(error_of(wrong), ContainsSubstring("is not Universal Ctags"));
 }

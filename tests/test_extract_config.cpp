@@ -11,12 +11,16 @@
 #include <vector>
 
 #include "Comprendo/ExtractConfig.hpp"
+#include "Checks.hpp"
 #include "TempDir.hpp"
 
 using Catch::Matchers::ContainsSubstring;
 using Comprendo::ExtractConfig;
 
-/// Every recognized key replaces its default.
+/// Users tune extraction through `.comprendo/config.toml`, so every documented key
+/// must take effect. Applies a document setting every key in `[extract]` and
+/// checks each field of ExtractConfig holds the configured value instead of its
+/// default.
 TEST_CASE("config toml overrides defaults", "[config]")
 {
   ExtractConfig config;
@@ -32,7 +36,7 @@ ctags_batch = 16
 )",
     "config.toml"
   );
-  REQUIRE(applied.has_value());
+  CHECK(applied.has_value());
   CHECK(config.roots == std::vector<std::string> {"src", "include"});
   CHECK(config.excludes == std::vector<std::string> {"third_party/**"});
   CHECK(config.languages == std::vector<std::string> {"C++"});
@@ -41,25 +45,30 @@ ctags_batch = 16
   CHECK(config.ctags_batch == 16);
 }
 
-/// An empty document keeps the defaults.
+/// An empty or absent config file is the common case and must leave the defaults
+/// intact, including the C++-only language list. Applies an empty document and
+/// checks the roots, ctags executable, and languages keep their default values.
 TEST_CASE("empty config keeps defaults", "[config]")
 {
   ExtractConfig config;
-  REQUIRE(Comprendo::apply_config_toml(config, "", "config.toml").has_value());
+  CHECK(Comprendo::apply_config_toml(config, "", "config.toml").has_value());
   CHECK(config.roots == std::vector<std::string> {"."});
   CHECK(config.ctags == "ctags");
   CHECK(config.languages == std::vector<std::string> {"C++"});
 }
 
-/// Mistakes are reported with the source name and the offending key.
+/// Silently ignoring a typo would extract the wrong files without any hint, so
+/// mistakes must be errors naming the key and file. Applies documents with a
+/// misspelled key, wrong value types, a non-positive batch size, an unknown
+/// section, a non-table section, and a syntax error, and checks each message.
 TEST_CASE("config toml rejects mistakes", "[config]")
 {
   const auto error_for = [](const char *text)
   {
     ExtractConfig config;
     const auto applied = Comprendo::apply_config_toml(config, text, "my.toml");
-    REQUIRE_FALSE(applied.has_value());
-    return applied.error();
+    CHECK_FALSE(applied.has_value());
+    return Comprendo::Testing::error_of(applied);
   };
   CHECK_THAT(error_for("[extract]\nrots = []"), ContainsSubstring("unknown key extract.rots"));
   CHECK_THAT(
@@ -73,17 +82,20 @@ TEST_CASE("config toml rejects mistakes", "[config]")
   CHECK_THAT(error_for("[extract\nroots = []"), ContainsSubstring("my.toml"));
 }
 
-/// COMPRENDO_CTAGS replaces the executable; an absent variable changes nothing.
+/// COMPRENDO_CTAGS lets users point at a specific ctags without editing config
+/// files; it must override the config and do nothing when unset. Injects a custom
+/// environment map (so the test does not depend on the real environment), first
+/// empty, then with the variable set, and checks the configured executable.
 TEST_CASE("environment overrides the ctags executable", "[config]")
 {
   ExtractConfig config;
-  REQUIRE(
+  CHECK(
     Comprendo::apply_environment(config, std::unordered_map<std::string, std::string> {})
       .has_value()
   );
   CHECK(config.ctags == "ctags");
 
-  REQUIRE(
+  CHECK(
     Comprendo::apply_environment(
       config, std::unordered_map<std::string, std::string> {{"COMPRENDO_CTAGS", "/x/ctags"}}
     )
@@ -92,7 +104,10 @@ TEST_CASE("environment overrides the ctags executable", "[config]")
   CHECK(config.ctags == "/x/ctags");
 }
 
-/// The project's `.comprendo/config.toml` is picked up from the root.
+/// load_extract_config() must find `.comprendo/config.toml` under the given root
+/// and surface its errors. Writes a config into a scratch project, loads it and
+/// checks the root and roots, then rewrites it with an unknown key and checks
+/// loading fails with the file named in the error.
 TEST_CASE("config is loaded from the project root", "[config]")
 {
   const Comprendo::Testing::TempDir dir {"config-load"};
@@ -100,12 +115,16 @@ TEST_CASE("config is loaded from the project root", "[config]")
   std::ofstream {dir / ".comprendo/config.toml"} << "[extract]\nroots = [\"lib\"]\n";
 
   const auto config = Comprendo::load_extract_config(dir.path());
-  REQUIRE(config.has_value());
+  CHECK(config.has_value());
+  if (!config)
+  {
+    return;
+  }
   CHECK(config->root == dir.path());
   CHECK(config->roots == std::vector<std::string> {"lib"});
 
   std::ofstream {dir / ".comprendo/config.toml"} << "[extract]\nbogus = 1\n";
   const auto broken = Comprendo::load_extract_config(dir.path());
-  REQUIRE_FALSE(broken.has_value());
-  CHECK_THAT(broken.error(), ContainsSubstring("config.toml"));
+  CHECK_FALSE(broken.has_value());
+  CHECK_THAT(Comprendo::Testing::error_of(broken), ContainsSubstring("config.toml"));
 }

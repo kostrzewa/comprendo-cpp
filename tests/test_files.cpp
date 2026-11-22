@@ -14,7 +14,10 @@
 using Comprendo::FileSource;
 using Comprendo::glob_match;
 
-/// Globs follow the documented `*`, `?`, and `**` semantics.
+/// Exclude patterns decide which files are extracted, so the documented glob
+/// semantics must hold. Checks `**` spanning zero or more directories, `*` staying
+/// within one segment, slash-free patterns matching the file name at any depth,
+/// `?` matching exactly one character, and backtracking across several `*`.
 TEST_CASE("glob matching", "[files]")
 {
   CHECK(glob_match("build/**", "build/a.o"));
@@ -33,7 +36,11 @@ TEST_CASE("glob matching", "[files]")
   CHECK_FALSE(glob_match("a*b*c", "aXbY"));
 }
 
-/// Outside a git work tree the directory walk applies roots and excludes.
+/// Trees outside git (tarballs, copies) are listed by walking directories, which
+/// must apply roots and excludes and skip `.git`. Creates files in a scratch
+/// directory, including `build/` and `.git/` entries, then checks the full
+/// listing, a listing restricted to `src/` with a `*.hpp` exclude, and the error
+/// for a missing root.
 TEST_CASE("enumeration walks a plain directory", "[files]")
 {
   const Comprendo::Testing::TempDir dir {"files-walk"};
@@ -45,23 +52,38 @@ TEST_CASE("enumeration walks a plain directory", "[files]")
   }
 
   const auto all = Comprendo::enumerate_files(dir.path(), {"."}, {"build/**"});
-  REQUIRE(all.has_value());
+  CHECK(all.has_value());
+  if (!all)
+  {
+    return;
+  }
   CHECK(all->source == FileSource::Walk);
   CHECK(all->files == std::vector<std::string> {"lib/c.cpp", "src/a.cpp", "src/sub/b.hpp"});
 
   const auto src = Comprendo::enumerate_files(dir.path(), {"src/"}, {"*.hpp"});
-  REQUIRE(src.has_value());
+  CHECK(src.has_value());
+  if (!src)
+  {
+    return;
+  }
   CHECK(src->files == std::vector<std::string> {"src/a.cpp"});
 
   CHECK_FALSE(Comprendo::enumerate_files(dir / "absent", {"."}, {}).has_value());
 }
 
-/// Inside a git work tree the listing comes from git and is relative to the root.
+/// Inside a work tree, git's view (tracked plus untracked, honouring .gitignore)
+/// is authoritative, and paths must be relative to the requested root even when
+/// it is a subdirectory of the repository. Lists the in-repo fixture and checks
+/// the exact sorted file list; skipped when the fixture is not inside git.
 TEST_CASE("enumeration uses git inside a work tree", "[files]")
 {
   const std::filesystem::path fixture = COMPRENDO_FIXTURE_DIR "/extract_basic";
   const auto listing = Comprendo::enumerate_files(fixture, {"."}, {});
-  REQUIRE(listing.has_value());
+  CHECK(listing.has_value());
+  if (!listing)
+  {
+    return;
+  }
   if (listing->source != FileSource::Git)
   {
     SKIP("fixture is not inside a git work tree");

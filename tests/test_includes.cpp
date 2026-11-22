@@ -13,7 +13,10 @@ using Comprendo::IncludeDirective;
 using Comprendo::resolve_include;
 using Comprendo::scan_includes;
 
-/// Directives are found with their line numbers and delimiter style.
+/// Includes edges come from scanning source text, which must find real directives
+/// and ignore lookalikes. Scans one source containing quoted, angled, indented,
+/// commented, block-commented, macro, empty, misspelled, and trailing-comment
+/// forms, and compares the result with the exact expected directives and line numbers.
 TEST_CASE("scan finds include directives", "[includes]")
 {
   const std::string source = "#include \"a.hpp\"\n"
@@ -36,7 +39,11 @@ TEST_CASE("scan finds include directives", "[includes]")
   CHECK(scan_includes(source) == expected);
 }
 
-/// Resolution prefers the includer's directory, then the include paths in order.
+/// An include must resolve to the same file the compiler would pick, or the
+/// include graph points at the wrong header. Resolves directives against a fixed
+/// file set and checks: the includer's directory first for quoted includes, then
+/// the include paths in order, angled includes skipping the local directory,
+/// `..` handling, and no result for system headers or paths escaping the root.
 TEST_CASE("resolve follows the include search order", "[includes]")
 {
   const std::unordered_set<std::string> known

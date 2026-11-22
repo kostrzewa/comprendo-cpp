@@ -38,18 +38,22 @@ namespace
   require_error(const Chart &chart, const std::string &phrase)
   {
     const Comprendo::ValidationResult result = Comprendo::validate(chart);
-    REQUIRE_FALSE(result.ok());
+    CHECK_FALSE(result.ok());
     bool found = false;
     for (const std::string &error : result.errors)
     {
       found = found || error.find(phrase) != std::string::npos;
     }
     INFO("expected an error containing: " << phrase);
-    REQUIRE(found);
+    CHECK(found);
   }
 } // namespace
 
-/// Kind names match plan/chart-schema.md and flag out-of-range values.
+/// Kind names are shown to users by `comprendo-cli info` and the viewer, so they
+/// must match the enum names documented in plan/chart-schema.md. Checks representative
+/// values of NodeKind and EdgeKind, including the last of each, then casts one past the
+/// last enumerator to confirm out-of-range values (possible in hand-written or
+/// corrupt charts) render as "Invalid" instead of reading past the name table.
 TEST_CASE("kind names", "[chart]")
 {
   CHECK(Comprendo::to_string(NodeKind::Other) == "Other");
@@ -61,7 +65,10 @@ TEST_CASE("kind names", "[chart]")
   CHECK(Comprendo::to_string(static_cast<EdgeKind>(7)) == "Invalid");
 }
 
-/// FNV-1a matches the published 64-bit test vectors.
+/// Node ids are FNV-1a hashes, and the plugin reimplements the hash in TypeScript;
+/// both must agree with the published algorithm, not merely with each other.
+/// Hashes the empty string, "a", and "foobar" and compares against the reference
+/// FNV-1a 64-bit values, which also pins the offset basis and prime constants.
 TEST_CASE("fnv1a64 matches reference vectors", "[chart][id]")
 {
   CHECK(Comprendo::fnv1a64("") == 0xcbf29ce484222325ULL);
@@ -69,7 +76,11 @@ TEST_CASE("fnv1a64 matches reference vectors", "[chart][id]")
   CHECK(Comprendo::fnv1a64("foobar") == 0x85944171f73967e8ULL);
 }
 
-/// Node ids match the vectors documented in plan/chart-schema.md for the plugin.
+/// plan/chart-schema.md lists golden node ids that the TypeScript plugin tests
+/// also check, so a change to the id recipe (field order, separator, kind byte)
+/// would silently break cross-language agreement. Recomputes each documented
+/// vector, including an overload pair that differs only in signature, and
+/// compares against the literal hex values copied into the schema document.
 TEST_CASE("make_node_id matches documented vectors", "[chart][id]")
 {
   using Comprendo::make_node_id;
@@ -91,7 +102,11 @@ TEST_CASE("make_node_id matches documented vectors", "[chart][id]")
   CHECK(make_node_id(NodeKind::Function, "f", "a.cpp", "void (double)") == 0x2f0a08d143e85434ULL);
 }
 
-/// Every identity field contributes to the id, and field boundaries matter.
+/// Stable ids must change when any identity field changes, otherwise distinct
+/// symbols (e.g. overloads, or a function and a method of the same name) collide.
+/// Varies kind, qualified name, file, and signature one at a time against a base
+/// id, and checks that ("ab", "c") and ("a", "bc") differ, which proves the field
+/// separator prevents concatenation ambiguities.
 TEST_CASE("make_node_id distinguishes every identity field", "[chart][id]")
 {
   using Comprendo::make_node_id;
@@ -107,7 +122,11 @@ TEST_CASE("make_node_id distinguishes every identity field", "[chart][id]")
   );
 }
 
-/// Canonical order sorts by id and keeps positions attached to their nodes.
+/// read_chart() returns charts in canonical order, and layout positions are stored
+/// parallel to nodes, so sorting must move each position with its node. Builds a
+/// chart with unsorted nodes, clusters, and edges (including two edges that differ
+/// only in kind), canonicalizes it, and checks the resulting order of every
+/// collection and that each x coordinate still belongs to its original node.
 TEST_CASE("canonicalize sorts and keeps layout aligned", "[chart]")
 {
   Chart chart;
@@ -135,7 +154,10 @@ TEST_CASE("canonicalize sorts and keeps layout aligned", "[chart]")
   CHECK(chart.edges[2].src == 20);
 }
 
-/// A well-formed chart passes validation without errors.
+/// Validation is the gate for writing charts, so a false positive would block
+/// every write. Builds the minimal valid chart used by the rule tests (two nodes,
+/// one cluster, one call edge) and checks that validate() reports success with an
+/// empty error list; it is also the baseline the rule tests mutate.
 TEST_CASE("valid chart passes validation", "[chart][validate]")
 {
   const Comprendo::ValidationResult result = Comprendo::validate(valid_chart());
@@ -143,7 +165,11 @@ TEST_CASE("valid chart passes validation", "[chart][validate]")
   CHECK(result.errors.empty());
 }
 
-/// Each validation rule from plan/chart-schema.md rejects its violation.
+/// Each rule in plan/chart-schema.md must be enforced with an actionable message,
+/// because the CLI prints these errors verbatim. Starts every section from the
+/// same valid chart, introduces exactly one violation (bad version, duplicate or
+/// out-of-range ids/kinds, missing references, cluster cycles, duplicate edge
+/// keys, layout length), and checks that an error containing the expected text appears.
 TEST_CASE("validation rejects every rule violation", "[chart][validate]")
 {
   Chart chart = valid_chart();
@@ -234,7 +260,10 @@ TEST_CASE("validation rejects every rule violation", "[chart][validate]")
   }
 }
 
-/// Parallel edges of different kinds are allowed.
+/// The edge key is (src, dst, kind), so a call and a use between the same two
+/// nodes are distinct facts and must both be storable; the duplicate-edge rule
+/// must not over-reject. Adds a Uses edge parallel to the existing Calls edge and
+/// checks that validation still passes.
 TEST_CASE("edges of different kinds between the same nodes are valid", "[chart][validate]")
 {
   Chart chart = valid_chart();
