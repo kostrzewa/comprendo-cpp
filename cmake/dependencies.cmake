@@ -124,16 +124,3 @@ if(QCD_BUILD_TESTS)
   include(Catch)
 endif()
 
-# ---------------------------------------------------------------------------
-# Optional task parallelism. HPX is large and pulls in Boost/hwloc, so it is
-# opt-in. The game falls back to std::jthread when it is disabled.
-# ---------------------------------------------------------------------------
-if(QCD_USE_HPX)
-  FetchContent_Declare(
-    hpx
-    GIT_REPOSITORY https://github.com/STEllAR-GROUP/hpx.git
-    GIT_TAG v1.11.0
-    GIT_SHALLOW TRUE
-  )
-  FetchContent_MakeAvailable(hpx)
-endif()
