@@ -21,9 +21,15 @@ scale(double value)
   return value * SCALE_FACTOR;
 }
 
+double
+total(const geo::Shape &shape)
+{
+  return shape.area();
+}
+
 int
 main()
 {
   const geo::Circle circle{1.0};
-  return static_cast<int>(scale(circle.area()));
+  return static_cast<int>(scale(circle.area()) + total(circle));
 }

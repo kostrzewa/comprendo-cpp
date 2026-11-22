@@ -63,16 +63,24 @@ Acceptance: round-trip test and validation tests pass.
 
 Acceptance: fixture extraction produces the expected nodes and edges.
 
-## M2b — clangd-22 semantic backend
+## M2b — clangd-22 semantic backend (complete)
 
-- `ClangdExtractor` spawning `clangd-22` with `--compile-commands-dir`.
-- LSP client: initialize, `documentSymbol`, `callHierarchy/*`, `references`,
-  `typeHierarchy/*`, `hover`.
-- Merge with ctags output; `auto` prefers clangd-22 for C/C++.
-- Tests gated on `clangd-22` presence.
+- `ClangdExtractor`: ctags node set plus `Calls` and `Inherits` edges from
+  `clangd-22` ([architecture](architecture.md#clangd-backend-m2b)).
+- `Subprocess` (two-way pipes) and a minimal synchronous LSP client:
+  framing, file URIs, `initialize`, `didOpen`, `documentSymbol`, `sync`,
+  `callHierarchy/*`, `typeHierarchy/*`, `shutdown`.
+- Compilation database discovery; config keys `backend`, `clangd`,
+  `compile_commands_dir`; `COMPRENDO_CLANGD`; `extract --backend`.
+- `auto` falls back to ctags with a warning; `clangd` fails instead.
+- Tests: framing, reader, URIs, client against a canned server, name columns,
+  database discovery, node mapping, fallback, and the fixture with real
+  clangd-22 (skipped when absent).
+- `references`, `hover`, and `Uses` edges moved to M7.
 
-Acceptance: fixture call graph resolves overloads and virtual calls that ctags
-collapses.
+Acceptance (met): in the fixture, `main` calls `scale(double)` and not
+`scale(int)`, `total` calls the virtual `geo::Shape::area` through a base
+reference, and `geo::Circle` inherits `geo::Shape`.
 
 ## M3 — Deterministic layout (complete)
 
@@ -225,4 +233,5 @@ plugin prints the viewer command.
 - SFML DSP tones; Jolt cosmetic particles.
 - Live reload on `PRAGMA data_version` change.
 - Profiler scopes and Perfetto dump; `clang-tidy-22` target.
+- clangd `Uses` edges (`references`) and hover text for node details.
 - Documentation pass and screenshots.

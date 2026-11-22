@@ -33,6 +33,9 @@ languages = ["C++"]
 include_paths = ["include"]
 ctags = "/opt/ctags/bin/ctags"
 ctags_batch = 16
+backend = "clangd"
+clangd = "/opt/llvm/bin/clangd"
+compile_commands_dir = "out/debug"
 )",
     "config.toml"
   );
@@ -43,6 +46,9 @@ ctags_batch = 16
   CHECK(config.include_paths == std::vector<std::string> {"include"});
   CHECK(config.ctags == "/opt/ctags/bin/ctags");
   CHECK(config.ctags_batch == 16);
+  CHECK(config.backend == Comprendo::ExtractBackend::Clangd);
+  CHECK(config.clangd == "/opt/llvm/bin/clangd");
+  CHECK(config.compile_commands_dir == "out/debug");
 }
 
 /// An empty or absent config file is the common case and must leave the defaults
@@ -77,6 +83,9 @@ TEST_CASE("config toml rejects mistakes", "[config]")
   CHECK_THAT(error_for("[extract]\nexcludes = [1]"), ContainsSubstring("only strings"));
   CHECK_THAT(error_for("[extract]\nctags = 3"), ContainsSubstring("extract.ctags must be"));
   CHECK_THAT(error_for("[extract]\nctags_batch = 0"), ContainsSubstring("positive integer"));
+  CHECK_THAT(error_for("[extract]\nbackend = \"lsp\""), ContainsSubstring("extract.backend"));
+  CHECK_THAT(error_for("[extract]\nclangd = \"\""), ContainsSubstring("non-empty string"));
+  CHECK_THAT(error_for("[extract]\ncompile_commands_dir = 1"), ContainsSubstring("a string"));
   CHECK_THAT(error_for("[extrct]\nroots = []"), ContainsSubstring("unknown section [extrct]"));
   CHECK_THAT(error_for("extract = 1"), ContainsSubstring("extract must be a table"));
   CHECK_THAT(error_for("[extract\nroots = []"), ContainsSubstring("my.toml"));
@@ -102,6 +111,36 @@ TEST_CASE("environment overrides the ctags executable", "[config]")
       .has_value()
   );
   CHECK(config.ctags == "/x/ctags");
+}
+
+/// COMPRENDO_CLANGD selects the clangd binary the same way COMPRENDO_CTAGS selects
+/// ctags, e.g. to use an unversioned or self-built clangd. Injects an environment
+/// map with the variable set and checks the clangd executable changes while the
+/// ctags executable keeps its default.
+TEST_CASE("environment overrides the clangd executable", "[config]")
+{
+  ExtractConfig config;
+  CHECK(config.clangd == "clangd-22");
+  CHECK(
+    Comprendo::apply_environment(
+      config, std::unordered_map<std::string, std::string> {{"COMPRENDO_CLANGD", "/x/clangd"}}
+    )
+      .has_value()
+  );
+  CHECK(config.clangd == "/x/clangd");
+  CHECK(config.ctags == "ctags");
+}
+
+/// Backend names come from both the TOML file and `extract --backend`, so the
+/// parser shared by both must accept exactly the documented names. Parses each
+/// valid name and two invalid ones and checks the result.
+TEST_CASE("backend names parse", "[config]")
+{
+  CHECK(Comprendo::parse_extract_backend("auto") == Comprendo::ExtractBackend::Auto);
+  CHECK(Comprendo::parse_extract_backend("ctags") == Comprendo::ExtractBackend::Ctags);
+  CHECK(Comprendo::parse_extract_backend("clangd") == Comprendo::ExtractBackend::Clangd);
+  CHECK_FALSE(Comprendo::parse_extract_backend("Clangd").has_value());
+  CHECK_FALSE(Comprendo::parse_extract_backend("").has_value());
 }
 
 /// load_extract_config() must find `.comprendo/config.toml` under the given root

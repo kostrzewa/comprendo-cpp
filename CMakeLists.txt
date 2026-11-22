@@ -44,6 +44,7 @@ add_library(
   src/Chart.cpp
   src/ChartStore.cpp
   src/ChartView.cpp
+  src/ClangdExtractor.cpp
   src/Cli.cpp
   src/CtagsExtractor.cpp
   src/ExtractConfig.cpp
@@ -51,6 +52,7 @@ add_library(
   src/Hierarchy.cpp
   src/Includes.cpp
   src/Json.cpp
+  src/Lsp.cpp
   src/Layout.cpp
   src/Process.cpp
   src/QuadTree.cpp
@@ -90,6 +92,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_chart.cpp
     tests/test_chart_store.cpp
     tests/test_chart_view.cpp
+    tests/test_clangd_extractor.cpp
     tests/test_cli.cpp
     tests/test_ctags_extractor.cpp
     tests/test_extract_config.cpp
@@ -98,6 +101,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_includes.cpp
     tests/test_json.cpp
     tests/test_layout.cpp
+    tests/test_lsp.cpp
     tests/test_process.cpp
     tests/test_quadtree.cpp
     tests/test_radix_sort.cpp
@@ -130,7 +134,8 @@ if(COMPRENDO_BUILD_TESTS)
     add_test(
       NAME cli_extract
       COMMAND
-        comprendo-cli extract --root ${CMAKE_SOURCE_DIR}/tests/fixtures/extract_basic --output
+        comprendo-cli extract --backend ctags --root ${CMAKE_SOURCE_DIR}/tests/fixtures/extract_basic
+        --output
         ${CLI_TEST_CHART}
     )
     add_test(NAME cli_validate COMMAND comprendo-cli validate ${CLI_TEST_CHART})

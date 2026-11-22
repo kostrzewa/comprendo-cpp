@@ -77,6 +77,28 @@ namespace
       config.ctags = value.as_string();
       return {};
     }
+    if (key == "clangd" || key == "compile_commands_dir")
+    {
+      if (!value.is_string() || (key == "clangd" && value.as_string().empty()))
+      {
+        return std::unexpected(
+          fmt::format("extract.{} must be a {}string", key, key == "clangd" ? "non-empty " : "")
+        );
+      }
+      (key == "clangd" ? config.clangd : config.compile_commands_dir) = value.as_string();
+      return {};
+    }
+    if (key == "backend")
+    {
+      const auto backend
+        = value.is_string() ? Comprendo::parse_extract_backend(value.as_string()) : std::nullopt;
+      if (!backend)
+      {
+        return std::unexpected("extract.backend must be \"auto\", \"ctags\", or \"clangd\"");
+      }
+      config.backend = *backend;
+      return {};
+    }
     if (key == "ctags_batch")
     {
       if (!value.is_integer() || value.as_integer() <= 0)
@@ -92,6 +114,24 @@ namespace
 
 namespace Comprendo
 {
+  std::optional<ExtractBackend>
+  parse_extract_backend(std::string_view name)
+  {
+    if (name == "auto")
+    {
+      return ExtractBackend::Auto;
+    }
+    if (name == "ctags")
+    {
+      return ExtractBackend::Ctags;
+    }
+    if (name == "clangd")
+    {
+      return ExtractBackend::Clangd;
+    }
+    return std::nullopt;
+  }
+
   std::expected<void, std::string>
   apply_config_toml(ExtractConfig &config, std::string_view toml_text, std::string_view source_name)
   {
@@ -137,6 +177,7 @@ namespace Comprendo
   {
     auto prefix = env::prefix("COMPRENDO");
     const auto ctags_id = prefix.register_variable<std::string>("CTAGS");
+    const auto clangd_id = prefix.register_variable<std::string>("CLANGD");
     const auto parsed
       = environment ? prefix.parse_and_validate(*environment) : prefix.parse_and_validate();
     if (!parsed.ok())
@@ -146,6 +187,10 @@ namespace Comprendo
     if (const auto ctags = parsed.get(ctags_id); ctags && !ctags->empty())
     {
       config.ctags = *ctags;
+    }
+    if (const auto clangd = parsed.get(clangd_id); clangd && !clangd->empty())
+    {
+      config.clangd = *clangd;
     }
     return {};
   }

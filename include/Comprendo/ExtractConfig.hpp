@@ -3,6 +3,7 @@
 /// \file
 /// \brief Extractor configuration from defaults, `.comprendo/config.toml`, and the environment.
 
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <optional>
@@ -13,6 +14,25 @@
 
 namespace Comprendo
 {
+  /// Extraction backend.
+  enum class ExtractBackend : std::uint8_t
+  {
+    /// clangd when it and a compilation database are available, else ctags.
+    Auto,
+    /// Universal Ctags only: symbols, includes, and textual edges.
+    Ctags,
+    /// ctags plus clangd; fails when clangd cannot be used.
+    Clangd,
+  };
+
+  /// Parse a backend name.
+  ///
+  /// \param name "auto", "ctags", or "clangd".
+  /// \return The backend, or nothing for other names.
+  [[nodiscard]]
+  std::optional<ExtractBackend>
+  parse_extract_backend(std::string_view name);
+
   /// Settings controlling extraction from a source tree.
   struct ExtractConfig
   {
@@ -31,13 +51,21 @@ namespace Comprendo
     std::string ctags = "ctags";
     /// Number of files passed to one ctags invocation.
     std::size_t ctags_batch = 256;
+    /// Extraction backend.
+    ExtractBackend backend = ExtractBackend::Auto;
+    /// clangd executable used by the clangd backend.
+    std::string clangd = "clangd-22";
+    /// Directory holding `compile_commands.json`, relative to the root; empty to
+    /// search the usual places (see find_compile_commands()).
+    std::string compile_commands_dir;
   };
 
   /// Apply a `config.toml` document on top of the default configuration.
   ///
   /// Recognized keys live in the `[extract]` table: `roots`, `excludes`,
   /// `languages`, `include_paths` (string arrays), `ctags` (string), and
-  /// `ctags_batch` (positive integer). Unknown keys are errors.
+  /// `ctags_batch` (positive integer), `backend` ("auto", "ctags", "clangd"),
+  /// `clangd`, and `compile_commands_dir` (strings). Unknown keys are errors.
   ///
   /// \param config Configuration to update.
   /// \param toml_text TOML document.
@@ -49,7 +77,8 @@ namespace Comprendo
     ExtractConfig &config, std::string_view toml_text, std::string_view source_name
   );
 
-  /// Apply environment overrides: `COMPRENDO_CTAGS` replaces the ctags executable.
+  /// Apply environment overrides: `COMPRENDO_CTAGS` and `COMPRENDO_CLANGD`
+  /// replace the ctags and clangd executables.
   ///
   /// \param config Configuration to update.
   /// \param environment Environment to read instead of the process environment,

@@ -64,17 +64,19 @@ never used.
 
 - `CtagsExtractor` — complete, fast symbol inventory. Works without a compile
   database and covers every language Universal Ctags supports.
-- `ClangdExtractor` — C/C++ semantics. Spawns `clangd-22` with
-  `--compile-commands-dir=<build>`, speaks LSP over stdio, and uses
-  `textDocument/documentSymbol`, `callHierarchy/*`, `textDocument/references`,
-  `typeHierarchy/*`, and `textDocument/hover`.
+- `ClangdExtractor` — C/C++ semantics. Runs the ctags pipeline for the node
+  set, then spawns `clangd-22` with `--compile-commands-dir=<build>`, speaks
+  LSP over stdio, and adds `Calls` and `Inherits` edges from `callHierarchy/*`
+  and `typeHierarchy/*`.
 
-The `auto` backend prefers `clangd-22` for C/C++ when `compile_commands.json`
-and the binary are available, and falls back to ctags otherwise. Merge rules:
+The `auto` backend (default) uses clangd when a compilation database is found
+and the binary runs, and falls back to the ctags chart with a warning
+otherwise; `backend = "clangd"` (or `extract --backend clangd`) makes those
+failures errors. Merge rules:
 
 - ctags supplies the full node set;
-- clangd enriches `Calls`, `Uses`, and `Inherits` edges and disambiguates
-  overloads;
+- clangd adds `Calls` and `Inherits` edges, resolving overloads and calls
+  through base classes to the exact chart node;
 - `Includes` edges come from parsing `#include` directives;
 - `Contains` edges come from ctags scope fields and file membership.
 
@@ -87,8 +89,8 @@ overloads without depending on clangd exposing USRs.
 Pipeline, each step a separately tested unit in `comprendo_core`:
 
 1. **Configuration** (`ExtractConfig`): defaults, then
-   `<root>/.comprendo/config.toml`, then the environment (`COMPRENDO_CTAGS`, via
-   libenvpp). Unknown TOML sections or keys are errors.
+   `<root>/.comprendo/config.toml`, then the environment (`COMPRENDO_CTAGS` and
+   `COMPRENDO_CLANGD`, via libenvpp). Unknown TOML sections or keys are errors.
 
    ```toml
    [extract]
@@ -98,6 +100,9 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    include_paths = ["include", "src", "."]
    ctags = "ctags"
    ctags_batch = 256                               # files per ctags call
+   backend = "auto"                                # auto | ctags | clangd
+   clangd = "clangd-22"
+   compile_commands_dir = ""                       # empty: search (see M2b)
    ```
 
 2. **Enumeration** (`enumerate_files`): `git ls-files --cached --others
@@ -108,7 +113,7 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    Universal Ctags 5.9 has no `--` marker, so paths starting with `-` are
    skipped with a warning.
 4. **Tags**: `ctags --output-format=json --fields=+KnSesp`, parsed with the
-   in-tree `Json` parser (also used by the LSP client in M2b).
+   in-tree `Json` parser (also used by the LSP client).
 5. **Includes** (`scan_includes`, `resolve_include`): C-family files only;
    quoted includes resolve next to the includer first, then through
    `include_paths`; only project files produce edges.
@@ -129,6 +134,39 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    (matching kind and same file preferred, across files otherwise, e.g. an
    out-of-line method under its class in the header), or its file. Duplicate
    ids keep the first tag in `(path, line)` order.
+
+### clangd backend (M2b)
+
+`enrich_with_clangd` adds edges to a finished ctags chart:
+
+1. **Compilation database** (`find_compile_commands`): `compile_commands_dir`
+   when set, otherwise the root, `build/`, then the first directory below
+   `build/` by name (e.g. `build/clang-22-debug`).
+2. **Server**: `clangd-22 --compile-commands-dir=<dir> --background-index=false
+   -j=<cores>`. Without a background index nothing is written into the project
+   (no `.cache/clangd`); stderr goes to `/dev/null`. The LSP client
+   (`LspClient`, over `Subprocess` pipes) is synchronous: server requests are
+   answered with `null`, notifications skipped. `initialize` asks for UTF-8
+   positions so columns are byte offsets.
+3. **Parsing**: every C-family File node is opened with `didOpen`; one
+   `documentSymbol` request per file waits for its AST, then clangd's `sync`
+   extension waits for asynchronous preamble indexing. Without `sync`, calls to
+   symbols declared only in headers went missing nondeterministically.
+4. **Queries**: for each function and method, `prepareCallHierarchy` at the
+   name's column (`find_name_column` on the ctags line) and
+   `callHierarchy/outgoingCalls`; for each class, struct, and union,
+   `prepareTypeHierarchy` and `typeHierarchy/supertypes`. Queries run grouped
+   by file because clangd keeps only a few ASTs; in chart (id) order nearly
+   every query reparsed its file (2 min vs 28 s on this repository).
+5. **Mapping** (`NodeLocator`): a result's URI and selection line map to the
+   innermost node of an accepted kind whose line range contains it; otherwise
+   to the only node whose qualified name equals clangd's `detail`. Targets
+   outside the project (standard library, dependencies) are dropped.
+6. **Edges**: merged per (src, dst, kind); `Calls` weight is the number of call
+   sites, evidence the first call site (`file:line`); `Inherits` points from
+   derived to base. Provenance `Extractor`; the generator names both backends.
+
+Not used: `references`, `hover`, and `Uses` edges (see M7).
 
 ## CLI
 

@@ -452,8 +452,8 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
   }
   CHECK(Comprendo::validate(*chart).ok());
 
-  CHECK(chart->nodes.size() == 30);
-  CHECK(chart->edges.size() == 28);
+  CHECK(chart->nodes.size() == 31);
+  CHECK(chart->edges.size() == 29);
   CHECK(find_file(*chart, "docs/notes.md") == nullptr);
   CHECK(find_node(*chart, "vendored", "third_party/vendored.cpp") == nullptr);
 

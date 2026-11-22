@@ -39,3 +39,20 @@ commit. Newest last.
   direction whose last component restores the scale).
 - Frame time on the raylib chart unchanged on the software rasterizer
   (15.2 ms); smoke tests now run without the 60 FPS limiter.
+- Commit: `1faa233`.
+
+## 2026-11-23 — M2b clangd-22 semantic backend
+
+- `comprendo-cli extract` now defaults to `auto`: ctags for the node set, then
+  clangd-22 for `Calls` and `Inherits` edges when a `compile_commands.json` is
+  found (root, `build/`, or a directory below `build/`).
+- On this repository: 621 call and 2 inheritance edges from 520 queried
+  symbols in 28 s (debug build; mostly clangd parsing 69 files that include
+  raylib, ImGui, and spdlog headers).
+- Two clangd behaviours found by measuring, not by tests: querying in chart
+  order reparsed a file per query (2 min; fixed by grouping queries per file),
+  and calls to header-only declarations were missing in some runs until the
+  client waited on clangd's `sync` for preamble indexing. Three runs now give
+  identical edges.
+- The fixture gained `total(const geo::Shape &)` to exercise a virtual call
+  through a base reference (ctags counts are now 31 nodes, 29 edges).

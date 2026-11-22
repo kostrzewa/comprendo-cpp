@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <span>
@@ -21,6 +22,7 @@
 
 #include "Comprendo/Chart.hpp"
 #include "Comprendo/ChartStore.hpp"
+#include "Comprendo/ClangdExtractor.hpp"
 #include "Comprendo/CtagsExtractor.hpp"
 #include "Comprendo/ExtractConfig.hpp"
 #include "Version.hpp"
@@ -29,6 +31,7 @@ namespace
 {
   using Comprendo::kExitFailure;
   using Comprendo::kExitOk;
+  using Comprendo::kExitUsage;
 
   /// Options of the `extract` command.
   struct ExtractOptions
@@ -37,6 +40,8 @@ namespace
     std::string root = ".";
     /// Chart file to write; defaults to the root's `.comprendo/chart.sqlite`.
     std::optional<std::string> output;
+    /// Backend overriding the configuration.
+    std::optional<std::string> backend;
   };
 
   /// Run `extract`.
@@ -61,8 +66,28 @@ namespace
       fmt::print(err, "comprendo-cli: {}\n", config.error());
       return kExitFailure;
     }
-    Comprendo::CtagsExtractor extractor;
-    auto chart = extractor.extract(*config);
+    if (options.backend)
+    {
+      const auto backend = Comprendo::parse_extract_backend(*options.backend);
+      if (!backend)
+      {
+        fmt::print(err, "comprendo-cli: unknown backend '{}'\n", *options.backend);
+        return kExitUsage;
+      }
+      config->backend = *backend;
+    }
+    std::unique_ptr<Comprendo::Extractor> extractor;
+    if (config->backend == Comprendo::ExtractBackend::Ctags)
+    {
+      extractor = std::make_unique<Comprendo::CtagsExtractor>();
+    }
+    else
+    {
+      extractor = std::make_unique<Comprendo::ClangdExtractor>(
+        config->backend == Comprendo::ExtractBackend::Clangd
+      );
+    }
+    auto chart = extractor->extract(*config);
     if (!chart)
     {
       fmt::print(err, "comprendo-cli: extraction failed: {}\n", chart.error());
@@ -203,7 +228,7 @@ namespace Comprendo
 
     ExtractOptions extract_options;
     CLI::App *extract
-      = app.add_subcommand("extract", "Extract the structural chart with Universal Ctags");
+      = app.add_subcommand("extract", "Extract the chart with Universal Ctags and clangd");
     extract->add_option("--root", extract_options.root, "Project root to extract")
       ->capture_default_str();
     extract->add_option(
@@ -211,6 +236,13 @@ namespace Comprendo
       extract_options.output,
       "Chart file to write [default: ROOT/.comprendo/chart.sqlite]"
     );
+    extract
+      ->add_option(
+        "--backend",
+        extract_options.backend,
+        "auto (clangd when available), ctags, or clangd [default: from config, else auto]"
+      )
+      ->check(CLI::IsMember({"auto", "ctags", "clangd"}));
 
     std::string validate_path {kDefaultChartPath};
     CLI::App *validate = app.add_subcommand("validate", "Check a chart; exit 1 when it is invalid");
