@@ -11,7 +11,7 @@
 
 #include "Logger/Logger.hpp"
 
-namespace qcd
+namespace Comprendo
 {
 
   /// Lightweight hierarchical profiler with task-graph output.
@@ -111,7 +111,7 @@ namespace qcd
 #endif
       if (m_timers.empty())
       {
-        qcd::Logger::error("[Profiler] Mismatched push/pop calls");
+        Comprendo::Logger::error("[Profiler] Mismatched push/pop calls");
         return;
       }
 
@@ -132,7 +132,7 @@ namespace qcd
         chain += m_scopes[m_timers[i].scope_id].name;
       }
 
-      qcd::Logger::debug("[Profiler] {}: {:.6e} us", chain, duration_ns * 1e-3);
+      Comprendo::Logger::debug("[Profiler] {}: {:.6e} us", chain, duration_ns * 1e-3);
 
       m_scopes[entry.scope_id].total_ns += duration_ns;
       m_scopes[entry.scope_id].call_count++;
@@ -186,7 +186,7 @@ namespace qcd
       std::ofstream f(path);
       if (!f)
       {
-        qcd::Logger::error("[Profiler] Cannot open trace file: {}", path);
+        Comprendo::Logger::error("[Profiler] Cannot open trace file: {}", path);
         return;
       }
 
@@ -246,7 +246,7 @@ namespace qcd
       }
       f << "]}\n";
 
-      qcd::Logger::info(
+      Comprendo::Logger::info(
         "[Profiler] Trace written to {} ({} events, {} B/E pairs{})",
         path,
         count,
@@ -272,7 +272,7 @@ namespace qcd
 #endif
       if (m_scopes.size() <= 1)
       {
-        qcd::Logger::info("[Profiler] No scopes recorded.");
+        Comprendo::Logger::info("[Profiler] No scopes recorded.");
         return;
       }
 
@@ -298,11 +298,11 @@ namespace qcd
         )
                                 .count());
 
-      qcd::Logger::info("[Profiler] ═══════════════════════════════════════════");
-      qcd::Logger::info(
+      Comprendo::Logger::info("[Profiler] ═══════════════════════════════════════════");
+      Comprendo::Logger::info(
         "[Profiler] Profile  (wall: {:.4e} s, depth: {})", wall_ns * 1e-9, max_depth
       );
-      qcd::Logger::info("[Profiler] ═══════════════════════════════════════════");
+      Comprendo::Logger::info("[Profiler] ═══════════════════════════════════════════");
 
       const auto &root_ids = children[0];
       for (uint64_t root_id : root_ids)
@@ -313,8 +313,8 @@ namespace qcd
           = (s.call_count > 0) ? (s.total_ns / static_cast<double>(s.call_count)) * 1e-3 : 0.0;
         const double root_pct = (wall_ns > 0.0) ? (s.total_ns / wall_ns) * 100.0 : 0.0;
 
-        qcd::Logger::info("[Profiler]");
-        qcd::Logger::info(
+        Comprendo::Logger::info("[Profiler]");
+        Comprendo::Logger::info(
           "[Profiler] {:<40s} {:>10.4e} s    x{:<5} {:>10.0f} us/call  ({:>3.0f}% of wall)",
           s.name,
           s.total_ns * 1e-9,
@@ -342,40 +342,40 @@ namespace qcd
         {
           const double missing_ns = scope_missing(root_id, children);
           const double accounted_ns = s.total_ns - missing_ns;
-          qcd::Logger::info("[Profiler]    ──────────────────────────────────────────");
-          qcd::Logger::info(
+          Comprendo::Logger::info("[Profiler]    ──────────────────────────────────────────");
+          Comprendo::Logger::info(
             "[Profiler]    {:<40s} {:>10.4e} s   ({:>3.0f}%)",
             "accounted",
             accounted_ns * 1e-9,
             (s.total_ns > 0.0 ? (accounted_ns / s.total_ns) * 100.0 : 0.0)
           );
-          qcd::Logger::info(
+          Comprendo::Logger::info(
             "[Profiler]    {:<40s} {:>10.4e} s   ({:>3.0f}%)",
             "missing",
             missing_ns * 1e-9,
             (s.total_ns > 0.0 ? (missing_ns / s.total_ns) * 100.0 : 0.0)
           );
         }
-        qcd::Logger::info("[Profiler]    ==========================================");
+        Comprendo::Logger::info("[Profiler]    ==========================================");
       }
 
       // ---- grand total --------------------------------------------------
       const double root_total_ns = all_scopes_ns();
-      qcd::Logger::info("[Profiler]");
-      qcd::Logger::info("[Profiler] ═══════════════════════════════════════════");
-      qcd::Logger::info(
+      Comprendo::Logger::info("[Profiler]");
+      Comprendo::Logger::info("[Profiler] ═══════════════════════════════════════════");
+      Comprendo::Logger::info(
         "[Profiler] {:<40s} {:>10.4e} s   ({:>3.0f}% of wall)",
         "accounted (profiled)",
         root_total_ns * 1e-9,
         (wall_ns > 0.0 ? (root_total_ns / wall_ns) * 100.0 : 0.0)
       );
-      qcd::Logger::info(
+      Comprendo::Logger::info(
         "[Profiler] {:<40s} {:>10.4e} s   ({:>3.0f}% of wall)",
         "missing (unprofiled)",
         (wall_ns - root_total_ns) * 1e-9,
         (wall_ns > 0.0 ? ((wall_ns - root_total_ns) / wall_ns) * 100.0 : 0.0)
       );
-      qcd::Logger::info("[Profiler] ═══════════════════════════════════════════");
+      Comprendo::Logger::info("[Profiler] ═══════════════════════════════════════════");
     }
 
   private:
@@ -484,7 +484,7 @@ namespace qcd
           = (s.call_count > 0) ? (s.total_ns / static_cast<double>(s.call_count)) * 1e-3 : 0.0;
 
         // ---- print the scope line -----------------------------------------
-        qcd::Logger::info(
+        Comprendo::Logger::info(
           "[Profiler] {}{:<40s} {:>10.4e} s    x{:<5} {:>10.0f} us/call  ({:>3.0f}%)",
           prefix,
           s.name,
@@ -509,7 +509,7 @@ namespace qcd
         {
           const double missing_ns = scope_missing(child_id, children);
           const double missing_pct = (s.total_ns > 0.0) ? (missing_ns / s.total_ns) * 100.0 : 0.0;
-          qcd::Logger::info(
+          Comprendo::Logger::info(
             "[Profiler] {}└ {:<40s} {:>10.4e} s                 ({:>3.0f}%)",
             child_indent,
             "missing",
@@ -556,4 +556,4 @@ namespace qcd
 
   }; // class Profiler
 
-} // namespace qcd
+} // namespace Comprendo

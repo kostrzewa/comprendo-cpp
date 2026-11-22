@@ -12,9 +12,9 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/stopwatch.h>
 
-#include "qcd/Version.hpp"
+#include "Version.hpp"
 
-namespace qcd::Logger
+namespace Comprendo::Logger
 {
   /// Exception thrown by Logger::error().
   struct LoggerError : std::runtime_error
@@ -68,7 +68,7 @@ namespace qcd::Logger
     console_sink->set_level(selected);
     sinks.push_back(console_sink);
 
-    auto logger = std::make_shared<spdlog::logger>("qcd_logger", sinks.begin(), sinks.end());
+    auto logger = std::make_shared<spdlog::logger>("Comprendo_logger", sinks.begin(), sinks.end());
     logger->set_pattern(pattern);
     logger->set_level(spdlog::level::debug);
     logger->flush_on(spdlog::level::debug);
@@ -76,7 +76,7 @@ namespace qcd::Logger
     spdlog::register_logger(logger);
     spdlog::set_default_logger(logger);
 
-    spdlog::info("QCD Game v{} (git {})", QCD_VERSION, QCD_GIT_COMMIT);
+    spdlog::info("Comprendo-CPP v{} (git {})", COMPRENDO_VERSION, COMPRENDO_GIT_COMMIT);
   }
 
   /// Log a debug message.
@@ -113,4 +113,4 @@ namespace qcd::Logger
     throw LoggerError(fmt::format(fmt, std::forward<Args>(args)...));
   }
 
-} // namespace qcd::Logger
+} // namespace Comprendo::Logger
