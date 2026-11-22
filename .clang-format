@@ -1,0 +1,44 @@
+BasedOnStyle: WebKit
+IndentWidth: 2
+AccessModifierOffset: -2
+AlignAfterOpenBracket: BlockIndent
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine : true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BreakConstructorInitializers: AfterColon
+BreakInheritanceList: AfterColon
+ColumnLimit: 100
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+ConstructorInitializerIndentWidth: 2
+ContinuationIndentWidth: 2
+Cpp11BracedListStyle: true
+FixNamespaceComments: true
+NamespaceIndentation: All
+PointerAlignment: Right
+SortIncludes: false
+SpaceBeforeAssignmentOperators: true
+CommentPragmas:  '^\\.+'
+UseTab: Never
+IndentRequires: true
+BinPackParameters: false
+BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: true
+BreakBeforeBraces: Allman
+AttributeMacros:
+  - KOKKOS_FORCEINLINE_FUNCTION
+  - KOKKOS_FUNCTION
+  - KOKKOS_INLINE_FUNCTION
+  - KOKKOS_DEFAULTED_FUNCTION
+BreakAfterAttributes: Always
+BreakBeforeTernaryOperators: true
+PenaltyBreakBeforeFirstCallParameter: 0
+PenaltyExcessCharacter: 1000
+PenaltyBreakComment: 0
+PenaltyBreakString: 0
+PenaltyBreakTemplateDeclaration: 0
+PenaltyReturnTypeOnItsOwnLine: 0
+AlwaysBreakTemplateDeclarations: true
+InsertBraces: true
+BreakAfterReturnType: All

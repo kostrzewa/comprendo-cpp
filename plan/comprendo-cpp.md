@@ -38,3 +38,9 @@ Use the anti-slop skill to prevent slop.
 Use the cpp-coding-standards skill to check if you are following CPP coding standards.
 
 Use clang-format-22 to format code, format given by .clang-format
+
+## Implementation plans
+
+- [architecture.md](architecture.md) — components, targets, extractor design, toolchain convention.
+- [chart-schema.md](chart-schema.md) — HDF5 layout, node/edge kinds, ids, validation.
+- [milestones.md](milestones.md) — M0–M7 with acceptance criteria and test gates.

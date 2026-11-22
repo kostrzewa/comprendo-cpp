@@ -70,7 +70,7 @@ namespace Comprendo
     static void
     init()
     {
-#if !QCD_PROFILER_ENABLED
+#if !COMPRENDO_PROFILER_ENABLED
       return;
 #endif
       m_timers.clear();
@@ -93,7 +93,7 @@ namespace Comprendo
     inline static void
     push(const std::string &name)
     {
-#if !QCD_PROFILER_ENABLED
+#if !COMPRENDO_PROFILER_ENABLED
       return;
 #endif
       const uint64_t parent_id = m_timers.empty() ? 0 : m_timers.back().scope_id;
@@ -106,7 +106,7 @@ namespace Comprendo
     inline static void
     pop()
     {
-#if !QCD_PROFILER_ENABLED
+#if !COMPRENDO_PROFILER_ENABLED
       return;
 #endif
       if (m_timers.empty())
@@ -180,7 +180,7 @@ namespace Comprendo
     inline static void
     dump_perfetto(const std::string &path)
     {
-#if !QCD_PROFILER_ENABLED
+#if !COMPRENDO_PROFILER_ENABLED
       return;
 #endif
       std::ofstream f(path);
@@ -267,7 +267,7 @@ namespace Comprendo
     inline static void
     print_profile(int max_depth = 1)
     {
-#if !QCD_PROFILER_ENABLED
+#if !COMPRENDO_PROFILER_ENABLED
       return;
 #endif
       if (m_scopes.size() <= 1)

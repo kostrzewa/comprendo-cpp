@@ -34,6 +34,10 @@ ctest --preset clang-22 --output-on-failure
 Use `clang-22-release` for optimized builds. `compile_commands.json` lives in
 the build directory; pass `--compile-commands-dir=<build>` to `clangd-22`.
 
+UI: Dear ImGui `v1.92.7-docking` + rlImGui `Raylib_5_5`. The graph is the
+transparent central dock node; do not replace the docking shell with fixed
+panels without updating the plan.
+
 ## Packages and environments
 
 - Do not install packages or create side environments (conda, nix, etc.).
@@ -79,6 +83,27 @@ Keep `docs/main.md` and the `plan/` documents current.
 - Gate tests that need external tools (for example `clangd-22`) on their
   presence.
 
+### Window tests
+
+Never run the viewer against the user's desktop display. Use a virtual
+framebuffer so no window appears on their desktop:
+
+```sh
+xvfb-run -a ./build/clang-22-debug/comprendo
+```
+
+If `xvfb-run` is unavailable, ask the user to install `xvfb`; do not fall back
+to the interactive `DISPLAY`. For in-process checks, prefer a hidden raylib
+window (`FLAG_WINDOW_HIDDEN`) and exit after a fixed number of frames.
+
+The viewer's `--smoke-test` flag does exactly that: it renders a hidden window
+for a fixed number of frames and exercises resize and fullscreen. CTest
+registers it as `viewer_smoke` when `xvfb-run` is available.
+
+The viewer starts hidden and is shown after initialization so tiling window
+managers can place it. Do not reintroduce `FLAG_WINDOW_HIGHDPI` without fixing
+raylib's resize callback.
+
 ## Plan maintenance
 
 `plan/` must stay current (non-negotiable). When scope changes, update the
@@ -86,8 +111,9 @@ relevant document and the milestone status in `plan/milestones.md`.
 
 ## Commits
 
-Make small, frequent commits. Do not commit unless the user asks. Run the build
+- Make small, frequent commits. Do not commit unless the user asks. Run the build
 and tests before committing.
+- No agent attribution in commits.
 
 ## Layout
 

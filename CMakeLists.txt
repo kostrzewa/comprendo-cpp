@@ -1,0 +1,59 @@
+cmake_minimum_required(VERSION 3.31)
+
+project(Comprendo VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+option(COMPRENDO_BUILD_VIEWER "Build the raylib viewer" ON)
+option(COMPRENDO_BUILD_AUDIO "Build SFML audio support" OFF)
+option(COMPRENDO_BUILD_PHYSICS "Build Jolt physics support" OFF)
+option(COMPRENDO_BUILD_TESTS "Build the Catch2 test suite" ON)
+option(COMPRENDO_PROFILER_ENABLED "Compile profiling scopes into the binaries" ON)
+
+include(cmake/git_hash.cmake)
+
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated)
+configure_file(
+  cmake/Version.hpp.in
+  ${CMAKE_BINARY_DIR}/generated/Version.hpp
+  @ONLY
+)
+
+include(cmake/dependencies.cmake)
+include(cmake/doxygen_setup.cmake)
+
+add_library(comprendo_core INTERFACE)
+target_include_directories(
+  comprendo_core
+  INTERFACE ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/generated
+)
+target_link_libraries(comprendo_core INTERFACE fmt::fmt spdlog::spdlog)
+target_compile_definitions(
+  comprendo_core
+  INTERFACE COMPRENDO_PROFILER_ENABLED=$<BOOL:${COMPRENDO_PROFILER_ENABLED}>
+)
+
+add_executable(comprendo-cli src/cli_main.cpp)
+target_link_libraries(comprendo-cli PRIVATE comprendo_core)
+
+if(COMPRENDO_BUILD_VIEWER)
+  add_executable(comprendo src/viewer_main.cpp src/Ui.cpp)
+  target_link_libraries(comprendo PRIVATE comprendo_core raylib rlimgui)
+endif()
+
+if(COMPRENDO_BUILD_TESTS)
+  enable_testing()
+  add_executable(comprendo_tests tests/test_smoke.cpp)
+  target_link_libraries(comprendo_tests PRIVATE comprendo_core Catch2::Catch2WithMain)
+  catch_discover_tests(comprendo_tests)
+
+  if(COMPRENDO_BUILD_VIEWER)
+    find_program(XVFB_RUN xvfb-run)
+    if(XVFB_RUN)
+      add_test(NAME viewer_smoke COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test)
+    endif()
+  endif()
+endif()

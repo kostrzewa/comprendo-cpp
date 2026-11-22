@@ -1,0 +1,68 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 31,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "clang-22",
+      "displayName": "Clang 22 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/clang-22-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang-22",
+        "CMAKE_CXX_COMPILER": "clang++-22",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "COMPRENDO_BUILD_VIEWER": "ON",
+        "COMPRENDO_BUILD_AUDIO": "OFF",
+        "COMPRENDO_BUILD_PHYSICS": "OFF",
+        "COMPRENDO_BUILD_TESTS": "ON",
+        "COMPRENDO_PROFILER_ENABLED": "ON"
+      }
+    },
+    {
+      "name": "clang-22-release",
+      "displayName": "Clang 22 Release",
+      "inherits": "clang-22",
+      "binaryDir": "${sourceDir}/build/clang-22-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "clang-22",
+      "configurePreset": "clang-22"
+    },
+    {
+      "name": "clang-22-release",
+      "configurePreset": "clang-22-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "clang-22",
+      "configurePreset": "clang-22",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "clang-22-release",
+      "configurePreset": "clang-22-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    }
+  ]
+}
