@@ -83,6 +83,9 @@ Keep `docs/main.md` and the `plan/` documents current.
 - Gate tests that need external tools (for example `clangd-22`) on their
   presence.
 - Use CHECK instead of REQUIRE so tests run even if some test cases fail.
+- Every test case should be prefaced with an approximately 5 line comment
+  which explains why the test is there, what it does and how it does it. The
+  comment must be kept up-to-date.
 
 ### Window tests
 
