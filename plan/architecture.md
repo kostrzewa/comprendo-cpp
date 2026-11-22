@@ -5,23 +5,24 @@ Cross-references: [requirements](comprendo-cpp.md) · [chart schema](chart-schem
 ## Purpose
 
 Comprendo is a code explorer and visualizer. A deterministic extractor builds the
-structural graph of a codebase; the opencode model annotates that graph with
-explanations and semantic edges; a raylib viewer renders the result for
-navigation.
+structural graph of a codebase; the opencode model explores the codebase and
+writes nodes, explanations, and semantic edges; both write the same SQLite
+chart, and a raylib viewer renders it for navigation.
 
 ## Components
 
 | Component | Language | Role |
 | --- | --- | --- |
-| `comprendo_core` | C++ | Chart model, HDF5 I/O, extractors, layout |
+| `comprendo_core` | C++ | Chart model, SQLite store, extractors, layout |
 | `comprendo` | C++ / raylib | Interactive 2D viewer |
-| `comprendo-cli` | C++ | `extract`, `import`, `validate`, `info` |
+| `comprendo-cli` | C++ | `extract`, `validate`, `info` |
 | `plugin/` | TypeScript | opencode `/chart` command and chart-building tools |
 
-The plugin never writes HDF5 itself. It writes an ephemeral JSON seed and
-annotation file, then invokes `comprendo-cli import`, which is the single HDF5
-writer. This keeps schema logic in one place and makes the pipeline testable
-without a running opencode instance.
+The chart is a single SQLite database, `.comprendo/chart.db`, described in
+[chart-schema.md](chart-schema.md). There is no bridge between the plugin and
+the CLI: each writes the database directly. Schema logic stays in one place
+because both apply the same DDL file, `schema/chart.sql`, and both check
+`application_id` and `user_version` before writing.
 
 ## Toolchain convention
 
@@ -43,23 +44,18 @@ never used.
 ## Data flow
 
 ```
-source tree
-    |
-    v
-Extractor (ctags baseline, clangd-22 enrichment)
-    |
-    v
-seed JSON (ephemeral)  --->  model annotations (plugin tools)
-    |                                   |
-    +---------------+-------------------+
-                    v
-          comprendo-cli import
-                    |
-                    v
-          .comprendo/chart.h5
-                    |
-                    v
-              comprendo (viewer)
+                     source tree
+                    /           \
+                   v             v
+  comprendo-cli extract       opencode plugin (/chart)
+  (ctags + clangd-22)         (model exploration, bun:sqlite)
+  provenance = Extractor      provenance = Model
+                   \             /
+                    v           v
+                .comprendo/chart.db   (SQLite, WAL)
+                         |
+                         v
+                comprendo (viewer, read-only)
 ```
 
 ## Extractor
@@ -86,25 +82,28 @@ Node identity is a 64-bit FNV-1a hash over `(kind, qualified_name, file,
 signature)`, implemented in-tree. This is stable across runs and distinguishes
 overloads without depending on clangd exposing USRs.
 
-## Plugin bridge
+## Plugin
 
-`/chart` resolves the CLI in this order: plugin option `cliPath`, environment
-variable `COMPRENDO_CLI`, then `comprendo-cli` on `PATH`. It then:
+The plugin does not invoke `comprendo-cli`. opencode plugins run on Bun, so the
+plugin opens the chart with the built-in `bun:sqlite` module. `/chart`:
 
-1. runs `comprendo-cli extract --root . --format json` to produce the seed;
-2. prompts the session to explore and annotate;
-3. exposes `chart_annotate_node`, `chart_annotate_cluster`, `chart_add_edge`,
-   and `chart_finish`;
-4. on `chart_finish`, runs `comprendo-cli import` to write
-   `.comprendo/chart.h5`;
-5. prints the chart path and the viewer command. It does not launch the viewer.
+1. recreates `.comprendo/chart.db`, applies `schema/chart.sql`, and sets the
+   connection pragmas (`foreign_keys`, `journal_mode = WAL`);
+2. prompts the session to explore and annotate the codebase;
+3. exposes `chart_add_node`, `chart_annotate_node`, `chart_annotate_cluster`,
+   `chart_add_edge`, and `chart_finish`; each tool call is one transaction and
+   writes rows with provenance `Model`;
+4. computes node ids with the FNV-1a recipe in
+   [chart-schema.md](chart-schema.md#ids), using `BigInt` (`safeIntegers`);
+5. on `chart_finish`, prints the chart path and the viewer command. It does
+   not launch the viewer.
 
-Annotation state is keyed by session id and cleared on finish. Re-running
-`/chart` overwrites the whole chart.
+Re-running `/chart` overwrites the whole chart. `comprendo-cli extract` is an
+independent writer of the same file; the viewer shows rows from either.
 
 ## Viewer
 
-The viewer is read-only. It loads `.comprendo/chart.h5`, computes a
+The viewer is read-only. It opens `.comprendo/chart.db` read-only, computes a
 deterministic layout, and renders with raylib:
 
 - `Camera2D` pan and zoom, kind-colored nodes, level-of-detail labels;
@@ -114,7 +113,8 @@ deterministic layout, and renders with raylib:
 - convex-hull cluster fills, side panel with summary/detail/file:line/edges;
 - search, kind filters, double-click drill-down, minimap;
 - Jolt particles for cosmetic interaction feedback only — never layout;
-- SFML DSP-generated hover/click/zoom tones, mutable.
+- SFML DSP-generated hover/click/zoom tones, mutable;
+- live reload when `PRAGMA data_version` changes while the plugin writes (M7).
 
 Profiler scopes wrap update and render; a Perfetto trace is dumped on exit or a
 hotkey. `Logger::init` logs the project version and git commit at startup.
@@ -138,7 +138,9 @@ centering it.
 
 ## Testing
 
-Catch2 covers the chart model, HDF5 round-trip, validation, ctags JSON
-fixtures, clangd-22 merge fixtures (skipped when the binary is absent), layout
-determinism, and a CTest integration test for `comprendo-cli validate`. The
-plugin is tested with vitest against a fake CLI.
+Catch2 covers the chart model, id test vectors, SQLite round-trip, schema
+version and identity checks, validation, ctags JSON fixtures, clangd-22 merge
+fixtures (skipped when the binary is absent), layout determinism, and a CTest
+integration test for `comprendo-cli validate`. The plugin is tested with
+`bun test` against a temporary database; a CTest gated on `bun` validates a
+plugin-written chart with `comprendo-cli validate`.

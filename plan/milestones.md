@@ -26,12 +26,20 @@ toolchain. Commits stay small and frequent.
 Acceptance: `cmake --preset clang-22 && cmake --build --preset clang-22 &&
 ctest --preset clang-22` succeeds.
 
-## M1 — Chart model and HDF5 I/O
+## M1 — Chart model and SQLite store (complete)
 
-- `Chart`, `Node`, `Edge`, `Cluster` types with stable FNV-1a ids.
-- `ChartIO` read/write via highfive, matching [chart-schema.md](chart-schema.md).
-- Validation with actionable error messages.
-- Tests: id stability, round-trip equality, every validation rule.
+- `Chart`, `Node`, `Edge`, `Cluster` types with stable FNV-1a ids and
+  documented test vectors.
+- SQLite amalgamation via FetchContent; thin RAII wrapper (`Sqlite::Database`,
+  `Statement`, `Transaction`).
+- `schema/chart.sql` as the shared DDL, embedded into the generated
+  `ChartSchema.hpp`.
+- `write_chart` / `read_chart` in `ChartStore`, matching
+  [chart-schema.md](chart-schema.md), including `application_id` and
+  `user_version` checks.
+- Validation with actionable error messages, mirroring the SQL constraints.
+- Tests: id vectors, round-trip equality, schema identity/version rejection,
+  atomic failed writes, every validation rule.
 
 Acceptance: round-trip test and validation tests pass.
 
@@ -66,7 +74,7 @@ Acceptance: identical input yields identical layout hash.
 
 ## M4 — Viewer MVP
 
-- Load `.comprendo/chart.h5`, render nodes and edges with `Camera2D`.
+- Load `.comprendo/chart.db` read-only, render nodes and edges with `Camera2D`.
 - Pan, zoom, select; inspector details arrive in M4b.
 - Level-of-detail labels and kind colors.
 
@@ -94,24 +102,28 @@ Acceptance: selecting a node populates the inspector from the loaded chart.
 
 ## M5 — CLI pipeline
 
-- `extract`, `import`, `validate`, `info` subcommands.
-- JSON seed and annotation formats documented.
+- `extract` (writes `chart.db` directly), `validate`, `info` subcommands.
 - CTest integration test for `validate`.
 
-Acceptance: `extract` → annotate → `import` → `validate` runs headlessly.
+Acceptance: `extract` → `validate` → `info` runs headlessly.
 
 ## M6 — opencode plugin
 
 - `plugin/` package with `/chart` command and chart tools.
-- CLI resolution: option → `COMPRENDO_CLI` → `PATH`.
-- Session-scoped annotation state; overwrite on re-run.
-- vitest tests against a fake CLI.
+- Writes `.comprendo/chart.db` itself via `bun:sqlite`; no dependency on
+  `comprendo-cli`. Applies `schema/chart.sql`; overwrite on re-run.
+- FNV-1a node ids in `BigInt`, checked against the
+  [chart-schema.md](chart-schema.md#ids) vectors.
+- `bun test` against a temporary database; a CTest gated on `bun` runs
+  `comprendo-cli validate` on a plugin-written chart.
 
-Acceptance: `/chart` writes `.comprendo/chart.h5` and prints the viewer command.
+Acceptance: `/chart` fills `.comprendo/chart.db`, the viewer opens it, and the
+plugin prints the viewer command.
 
 ## M7 — Polish
 
 - Convex-hull cluster fills, search, kind filters, drill-down, minimap.
 - SFML DSP tones; Jolt cosmetic particles.
+- Live reload on `PRAGMA data_version` change.
 - Profiler scopes and Perfetto dump; `clang-tidy-22` target.
 - Documentation pass and screenshots.

@@ -22,18 +22,26 @@ configure_file(
   @ONLY
 )
 
+file(READ ${CMAKE_SOURCE_DIR}/schema/chart.sql CHART_SCHEMA_SQL)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/schema/chart.sql)
+configure_file(
+  cmake/ChartSchema.hpp.in
+  ${CMAKE_BINARY_DIR}/generated/ChartSchema.hpp
+  @ONLY
+)
+
 include(cmake/dependencies.cmake)
 include(cmake/doxygen_setup.cmake)
 
-add_library(comprendo_core INTERFACE)
+add_library(comprendo_core STATIC src/Chart.cpp src/ChartStore.cpp src/Sqlite.cpp)
 target_include_directories(
   comprendo_core
-  INTERFACE ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/generated
+  PUBLIC ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/generated
 )
-target_link_libraries(comprendo_core INTERFACE fmt::fmt spdlog::spdlog)
+target_link_libraries(comprendo_core PUBLIC fmt::fmt spdlog::spdlog PRIVATE comprendo_sqlite3)
 target_compile_definitions(
   comprendo_core
-  INTERFACE COMPRENDO_PROFILER_ENABLED=$<BOOL:${COMPRENDO_PROFILER_ENABLED}>
+  PUBLIC COMPRENDO_PROFILER_ENABLED=$<BOOL:${COMPRENDO_PROFILER_ENABLED}>
 )
 
 add_executable(comprendo-cli src/cli_main.cpp)
@@ -46,8 +54,16 @@ endif()
 
 if(COMPRENDO_BUILD_TESTS)
   enable_testing()
-  add_executable(comprendo_tests tests/test_smoke.cpp)
-  target_link_libraries(comprendo_tests PRIVATE comprendo_core Catch2::Catch2WithMain)
+  add_executable(
+    comprendo_tests
+    tests/test_smoke.cpp
+    tests/test_chart.cpp
+    tests/test_chart_store.cpp
+  )
+  target_link_libraries(
+    comprendo_tests
+    PRIVATE comprendo_core comprendo_sqlite3 Catch2::Catch2WithMain
+  )
   catch_discover_tests(comprendo_tests)
 
   if(COMPRENDO_BUILD_VIEWER)

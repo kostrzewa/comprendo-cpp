@@ -15,7 +15,7 @@ Technologies to be used:
 -  https://github.com/gabime/spdlog for logging
 -  https://github.com/ph3at/libenvpp for handling environment variables
 -  https://github.com/ToruNiina/toml11.git for textual input files
--  HDF5 via https://github.com/highfive-devs/highfive for handling structured binary data input and output
+-  SQLite (amalgamation via FetchContent) as the chart store shared by the plugin and the C++ tools; the plugin writes it directly through `bun:sqlite`
 -  include/Profiler/Profiler.hpp for profiling (output to perfetto traces)
 -  include/Logger/Logger.hpp (for logging, uses spdlog) from which you should remove the depdendency on MPI and Kronos
 -  absolutely non-negiotable: doxygen documentation of all functions, classes, class members, class methods etc., see docs/doxygen and cmake/doxygen_setup.cmake
@@ -42,5 +42,6 @@ Use clang-format-22 to format code, format given by .clang-format
 ## Implementation plans
 
 - [architecture.md](architecture.md) — components, targets, extractor design, toolchain convention.
-- [chart-schema.md](chart-schema.md) — HDF5 layout, node/edge kinds, ids, validation.
+- [chart-schema.md](chart-schema.md) — SQLite schema, node/edge kinds, ids, validation.
 - [milestones.md](milestones.md) — M0–M7 with acceptance criteria and test gates.
+- [`schema/chart.sql`](../schema/chart.sql) — the chart DDL shared by C++ and the plugin.

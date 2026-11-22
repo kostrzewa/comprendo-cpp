@@ -3,8 +3,14 @@
 
 #include "Comprendo/Chart.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <numeric>
+#include <set>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -56,15 +62,42 @@ namespace Comprendo
     return fnv1a64(identity);
   }
 
+  void
+  canonicalize(Chart &chart)
+  {
+    if (chart.layout.size() == chart.nodes.size())
+    {
+      std::vector<std::size_t> order(chart.nodes.size());
+      std::ranges::iota(order, std::size_t {0});
+      std::ranges::sort(order, {}, [&chart](std::size_t index) { return chart.nodes[index].id; });
+      std::vector<Node> nodes;
+      std::vector<Position> layout;
+      nodes.reserve(order.size());
+      layout.reserve(order.size());
+      for (const std::size_t index : order)
+      {
+        nodes.push_back(std::move(chart.nodes[index]));
+        layout.push_back(chart.layout[index]);
+      }
+      chart.nodes = std::move(nodes);
+      chart.layout = std::move(layout);
+    }
+    else
+    {
+      std::ranges::sort(chart.nodes, {}, &Node::id);
+    }
+    std::ranges::sort(chart.clusters, {}, &Cluster::id);
+    std::ranges::sort(
+      chart.edges, {}, [](const Edge &edge) { return std::tuple {edge.src, edge.dst, edge.kind}; }
+    );
+  }
+
   ValidationResult
   validate(const Chart &chart)
   {
     ValidationResult result;
-    const auto add_error = [&result](std::string message)
-    {
-      result.ok = false;
-      result.errors.push_back(std::move(message));
-    };
+    const auto add_error
+      = [&result](std::string message) { result.errors.push_back(std::move(message)); };
 
     if (chart.schema_version != kChartSchemaVersion)
     {
@@ -88,29 +121,56 @@ namespace Comprendo
       }
     }
 
-    std::unordered_set<std::uint64_t> cluster_ids;
+    std::unordered_map<std::uint64_t, std::uint64_t> cluster_parents;
     for (const Cluster &cluster : chart.clusters)
     {
       if (cluster.id == 0)
       {
         add_error("cluster id must be non-zero");
       }
-      if (!cluster_ids.insert(cluster.id).second)
+      if (!cluster_parents.emplace(cluster.id, cluster.parent_id).second)
       {
         add_error(fmt::format("duplicate cluster id {}", cluster.id));
       }
     }
 
+    for (const Cluster &cluster : chart.clusters)
+    {
+      if (cluster.parent_id != 0 && !cluster_parents.contains(cluster.parent_id))
+      {
+        add_error(
+          fmt::format("cluster {} references missing parent {}", cluster.id, cluster.parent_id)
+        );
+        continue;
+      }
+      std::uint64_t ancestor = cluster.parent_id;
+      for (std::size_t steps = 0; ancestor != 0 && steps <= cluster_parents.size(); ++steps)
+      {
+        if (ancestor == cluster.id)
+        {
+          add_error(fmt::format("cluster {} is its own ancestor", cluster.id));
+          break;
+        }
+        const auto parent = cluster_parents.find(ancestor);
+        ancestor = parent == cluster_parents.end() ? 0 : parent->second;
+      }
+    }
+
     for (const Node &node : chart.nodes)
     {
-      if (node.cluster_id != 0 && cluster_ids.find(node.cluster_id) == cluster_ids.end())
+      if (node.cluster_id != 0 && !cluster_parents.contains(node.cluster_id))
       {
         add_error(fmt::format("node {} references missing cluster {}", node.id, node.cluster_id));
       }
     }
 
+    std::set<std::tuple<std::uint64_t, std::uint64_t, EdgeKind>> edge_keys;
     for (const Edge &edge : chart.edges)
     {
+      if (!edge_keys.emplace(edge.src, edge.dst, edge.kind).second)
+      {
+        add_error(fmt::format("duplicate edge {} -> {} of the same kind", edge.src, edge.dst));
+      }
       if (static_cast<std::uint8_t>(edge.kind) > static_cast<std::uint8_t>(EdgeKind::DataFlow))
       {
         add_error(fmt::format("edge {} -> {} has an out-of-range kind", edge.src, edge.dst));
@@ -119,11 +179,11 @@ namespace Comprendo
       {
         add_error(fmt::format("edge {} -> {} has an out-of-range provenance", edge.src, edge.dst));
       }
-      if (node_ids.find(edge.src) == node_ids.end())
+      if (!node_ids.contains(edge.src))
       {
         add_error(fmt::format("edge source {} does not exist", edge.src));
       }
-      if (node_ids.find(edge.dst) == node_ids.end())
+      if (!node_ids.contains(edge.dst))
       {
         add_error(fmt::format("edge destination {} does not exist", edge.dst));
       }
@@ -131,9 +191,9 @@ namespace Comprendo
 
     if (!chart.layout.empty() && chart.layout.size() != chart.nodes.size())
     {
-      add_error(fmt::format(
-        "layout has {} positions for {} nodes", chart.layout.size(), chart.nodes.size()
-      ));
+      add_error(
+        fmt::format("layout has {} positions for {} nodes", chart.layout.size(), chart.nodes.size())
+      );
     }
 
     return result;

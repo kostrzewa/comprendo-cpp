@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Chart model: nodes, edges, clusters, stable ids, and validation.
+
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -104,6 +107,10 @@ namespace Comprendo
     std::uint32_t complexity = 0;
     /// Annotation provenance.
     Provenance provenance = Provenance::Unknown;
+
+    /// Memberwise equality.
+    bool
+    operator==(const Node &) const = default;
   };
 
   /// An edge between two nodes.
@@ -121,6 +128,10 @@ namespace Comprendo
     std::string evidence;
     /// Annotation provenance.
     Provenance provenance = Provenance::Unknown;
+
+    /// Memberwise equality.
+    bool
+    operator==(const Edge &) const = default;
   };
 
   /// A group of related nodes.
@@ -136,6 +147,10 @@ namespace Comprendo
     std::uint32_t color = 0;
     /// Parent cluster id, or 0 for top level.
     std::uint64_t parent_id = 0;
+
+    /// Memberwise equality.
+    bool
+    operator==(const Cluster &) const = default;
   };
 
   /// A 2D position.
@@ -145,6 +160,10 @@ namespace Comprendo
     float x = 0.0F;
     /// Vertical coordinate.
     float y = 0.0F;
+
+    /// Memberwise equality.
+    bool
+    operator==(const Position &) const = default;
   };
 
   /// A complete chart.
@@ -170,22 +189,36 @@ namespace Comprendo
     std::vector<Cluster> clusters;
     /// Cached node positions, one per node when present.
     std::vector<Position> layout;
+
+    /// Memberwise equality.
+    bool
+    operator==(const Chart &) const = default;
   };
 
   /// Result of chart validation.
   struct ValidationResult
   {
-    /// True when no errors were found.
-    bool ok = true;
     /// Human-readable validation errors.
     std::vector<std::string> errors;
+
+    /// Check whether validation passed.
+    ///
+    /// \return True when no errors were found.
+    [[nodiscard]]
+    bool
+    ok() const
+    {
+      return errors.empty();
+    }
   };
 
   /// Compute the 64-bit FNV-1a hash of a byte range.
   ///
   /// \param data Bytes to hash.
   /// \return FNV-1a hash.
-  std::uint64_t fnv1a64(std::string_view data);
+  [[nodiscard]]
+  std::uint64_t
+  fnv1a64(std::string_view data);
 
   /// Compute a stable node id from its identity fields.
   ///
@@ -194,16 +227,29 @@ namespace Comprendo
   /// \param file Repository-relative file path.
   /// \param signature Declaration signature.
   /// \return Stable 64-bit node id.
-  std::uint64_t make_node_id(
+  [[nodiscard]]
+  std::uint64_t
+  make_node_id(
     NodeKind kind,
     std::string_view qualified_name,
     std::string_view file,
     std::string_view signature
   );
 
+  /// Sort a chart into canonical order.
+  ///
+  /// Nodes and clusters are ordered by id and edges by (src, dst, kind). When the
+  /// layout has one position per node, positions move with their nodes.
+  ///
+  /// \param chart Chart to reorder in place.
+  void
+  canonicalize(Chart &chart);
+
   /// Validate a chart's internal consistency.
   ///
   /// \param chart Chart to validate.
   /// \return Validation result with all detected errors.
-  ValidationResult validate(const Chart &chart);
+  [[nodiscard]]
+  ValidationResult
+  validate(const Chart &chart);
 } // namespace Comprendo

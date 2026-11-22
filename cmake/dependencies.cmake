@@ -133,20 +133,24 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(toml11)
 
 # ---------------------------------------------------------------------------
-# HDF5 bindings for structured binary I/O.
+# SQLite amalgamation: the chart store shared with the opencode plugin.
 # ---------------------------------------------------------------------------
-set(HIGHFIVE_USE_BOOST OFF CACHE BOOL "" FORCE)
-set(HIGHFIVE_USE_EIGEN OFF CACHE BOOL "" FORCE)
-set(HIGHFIVE_USE_XTENSOR OFF CACHE BOOL "" FORCE)
-set(HIGHFIVE_USE_OPENCV OFF CACHE BOOL "" FORCE)
-set(HIGHFIVE_USE_VTK OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
-  highfive
-  GIT_REPOSITORY https://github.com/highfive-devs/highfive.git
-  GIT_TAG v3.3.0
-  GIT_SHALLOW TRUE
+  sqlite3
+  URL https://www.sqlite.org/2025/sqlite-amalgamation-3500400.zip
+  URL_HASH SHA3_256=f131b68e6ba5fb891cc13ebb5ff9555054c77294cb92d8d1268bad5dba4fa2a1
 )
-FetchContent_MakeAvailable(highfive)
+FetchContent_MakeAvailable(sqlite3)
+
+find_package(Threads REQUIRED)
+add_library(comprendo_sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
+target_include_directories(comprendo_sqlite3 SYSTEM PUBLIC ${sqlite3_SOURCE_DIR})
+target_compile_definitions(
+  comprendo_sqlite3
+  PRIVATE SQLITE_DQS=0 SQLITE_DEFAULT_FOREIGN_KEYS=1 SQLITE_OMIT_LOAD_EXTENSION SQLITE_THREADSAFE=1
+)
+target_compile_options(comprendo_sqlite3 PRIVATE -w)
+target_link_libraries(comprendo_sqlite3 PUBLIC Threads::Threads)
 
 # ---------------------------------------------------------------------------
 # Tests.

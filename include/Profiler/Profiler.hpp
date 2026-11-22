@@ -96,6 +96,10 @@ namespace Comprendo
 #if !COMPRENDO_PROFILER_ENABLED
       return;
 #endif
+      if (m_scopes.empty())
+      {
+        return;
+      }
       const uint64_t parent_id = m_timers.empty() ? 0 : m_timers.back().scope_id;
       const uint64_t scope_id = get_or_create_scope(name, parent_id);
       m_timers.push_back({scope_id, std::chrono::high_resolution_clock::now()});
@@ -109,6 +113,10 @@ namespace Comprendo
 #if !COMPRENDO_PROFILER_ENABLED
       return;
 #endif
+      if (m_scopes.empty())
+      {
+        return;
+      }
       if (m_timers.empty())
       {
         Comprendo::Logger::error("[Profiler] Mismatched push/pop calls");
@@ -555,5 +563,28 @@ namespace Comprendo
     inline static bool m_tracing = true;
 
   }; // class Profiler
+
+  /// RAII guard that brackets a profiler scope with Profiler::push and Profiler::pop.
+  ///
+  /// Both calls are no-ops until Profiler::init has run, so library code may use
+  /// the guard unconditionally.
+  class ProfileScope
+  {
+  public:
+    /// Enter the scope \p name.
+    ///
+    /// \param name Scope name shown in the profile and trace.
+    explicit ProfileScope(const std::string &name) { Profiler::push(name); }
+
+    /// Leave the scope.
+    ~ProfileScope() { Profiler::pop(); }
+
+    ProfileScope(const ProfileScope &) = delete;
+    ProfileScope &
+    operator=(const ProfileScope &) = delete;
+    ProfileScope(ProfileScope &&) = delete;
+    ProfileScope &
+    operator=(ProfileScope &&) = delete;
+  };
 
 } // namespace Comprendo

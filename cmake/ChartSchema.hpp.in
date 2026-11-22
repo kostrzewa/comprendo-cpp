@@ -1,0 +1,16 @@
+#pragma once
+
+/// \file
+/// \brief Chart schema DDL embedded from schema/chart.sql at configure time.
+
+#include <cstdint>
+#include <string_view>
+
+namespace Comprendo
+{
+  /// SQLite `application_id` identifying a Comprendo chart ('CMPR').
+  inline constexpr std::int32_t kChartApplicationId = 0x434D5052;
+
+  /// Contents of schema/chart.sql, applied to every chart a C++ writer opens.
+  inline constexpr std::string_view kChartSchemaSql = R"comprendo_sql(@CHART_SCHEMA_SQL@)comprendo_sql";
+} // namespace Comprendo
