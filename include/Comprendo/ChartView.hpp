@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "Comprendo/Chart.hpp"
@@ -237,6 +239,59 @@ namespace Comprendo
     std::string
     display_label(std::size_t group) const;
 
+    /// Children of a group in display order: containers first, then by display
+    /// label (case-insensitive), then by key. Cached per grouping.
+    ///
+    /// \param group Group index.
+    /// \return Child group indices.
+    [[nodiscard]]
+    const std::vector<std::size_t> &
+    display_children(std::size_t group) const
+    {
+      return m_display_children[group];
+    }
+
+    /// Find groups by name.
+    ///
+    /// Case-insensitive substring match on the display label and on the first
+    /// node's qualified name. Ranked: exact label, label prefix, label substring,
+    /// qualified-name substring; then shorter labels first, then by label.
+    ///
+    /// \param query Text to look for; empty finds nothing.
+    /// \param limit Maximum number of results.
+    /// \return Matching group indices, best first.
+    [[nodiscard]]
+    std::vector<std::size_t>
+    search(std::string_view query, std::size_t limit) const;
+
+    /// Chart edges touching one node.
+    struct NodeEdges
+    {
+      /// Indices into Chart::edges of edges leaving the node.
+      std::vector<std::size_t> outgoing;
+      /// Indices into Chart::edges of edges arriving at the node.
+      std::vector<std::size_t> incoming;
+    };
+
+    /// Edges touching a node, independent of the grouping.
+    ///
+    /// \param node Index into Chart::nodes.
+    /// \return Outgoing and incoming edge indices in chart order.
+    [[nodiscard]]
+    const NodeEdges &
+    node_edges(std::size_t node) const
+    {
+      return m_node_edges[node];
+    }
+
+    /// Index of a node by id.
+    ///
+    /// \param id Node id.
+    /// \return Index into Chart::nodes, or nothing for unknown ids.
+    [[nodiscard]]
+    std::optional<std::size_t>
+    node_index(std::uint64_t id) const;
+
     /// Centre of a group in chart coordinates.
     ///
     /// \param group Group index.
@@ -316,5 +371,11 @@ namespace Comprendo
     Layout m_layout;
     /// Non-`Contains` edges mapped to groups.
     std::vector<GroupEdge> m_edges;
+    /// Children of every group in display order.
+    std::vector<std::vector<std::size_t>> m_display_children;
+    /// Node index by node id.
+    std::unordered_map<std::uint64_t, std::size_t> m_node_of_id;
+    /// Edges touching each node.
+    std::vector<NodeEdges> m_node_edges;
   };
 } // namespace Comprendo

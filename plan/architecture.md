@@ -270,7 +270,24 @@ hotkey. `Logger::init` logs the project version and git commit at startup.
 ## User interface
 
 The viewer uses Dear ImGui (docking branch) through rlImGui for its chrome: menu
-bar, dockable Explorer/Inspector/Log panels, and a status bar.
+bar, dockable Explorer/Inspector/Log panels, and a status bar. `Ui::draw` gets
+the `ChartView` (or null without a chart) and shares one `ViewerState` with the
+graph:
+
+- **Selection** is a hierarchy group index in `ViewerState`. Clicks in the
+  Explorer or Inspector set it and request a *focus* (the graph fits the group
+  and keeps it fitted until the user zooms or pans); clicks in the graph set it
+  and request a *reveal* (the Explorer opens the tree path and scrolls to it).
+- **Explorer**: Files/Namespaces toggle, filter (`Ctrl+F`) showing up to 500
+  ranked matches (`ChartView::search`, cached per query), otherwise the tree in
+  `ChartView::display_children` order; leaf lists above 256 rows go through
+  `ImGuiListClipper`, which is told to include a revealed row.
+- **Inspector**: fields of the selection's first node, summary and detail
+  (written by the model), declaring files of merged namespaces, children, and
+  incoming/outgoing non-`Contains` edges from `ChartView::node_edges`.
+- **Log**: the last 2000 messages from an spdlog ring-buffer sink attached at
+  startup.
+- **Status bar**: chart path, counts, grouping, zoom, FPS.
 
 The Explorer and the graph offer two groupings of the same chart, built in the
 viewer without changing the stored model:

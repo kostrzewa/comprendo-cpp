@@ -3,9 +3,12 @@
 
 #include "Comprendo/Ui.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -13,6 +16,8 @@
 #include <imgui_internal.h>
 #include <rlImGui.h>
 
+#include "Comprendo/Chart.hpp"
+#include "Comprendo/ChartView.hpp"
 #include "Logger/Logger.hpp"
 #include "Version.hpp"
 
@@ -36,6 +41,396 @@ namespace
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
     ImGui::TextUnformatted(text);
     ImGui::PopStyleColor();
+  }
+
+  /// Most search results listed by the Explorer.
+  constexpr std::size_t kSearchLimit = 500;
+
+  /// Child count above which Explorer leaf rows are clipped to the visible ones.
+  constexpr std::size_t kClipThreshold = 256;
+
+  /// Most children or edges listed per Inspector section.
+  constexpr std::size_t kInspectorListLimit = 300;
+
+  /// ImGui colour of a chart colour.
+  ///
+  /// \param rgb Colour.
+  /// \return Opaque ImGui colour.
+  ImVec4
+  imgui_color(Comprendo::Rgb rgb)
+  {
+    constexpr float kScale = 1.0F / 255.0F;
+    return {
+      static_cast<float>(rgb.r) * kScale,
+      static_cast<float>(rgb.g) * kScale,
+      static_cast<float>(rgb.b) * kScale,
+      1.0F,
+    };
+  }
+
+  /// Select a group from a panel and ask the graph to zoom to it.
+  ///
+  /// \param state Viewer state.
+  /// \param group Group index.
+  void
+  select_from_panel(Comprendo::ViewerState &state, std::size_t group)
+  {
+    state.selected = group;
+    state.focus_requested = true;
+  }
+
+  /// Name of a provenance value.
+  ///
+  /// \param provenance Provenance.
+  /// \return Display name.
+  const char *
+  provenance_name(Comprendo::Provenance provenance)
+  {
+    switch (provenance)
+    {
+    case Comprendo::Provenance::Extractor: return "extractor";
+    case Comprendo::Provenance::Model: return "model";
+    default: return "unknown";
+    }
+  }
+
+  /// Draw the children of one group: containers as nested tree nodes, then
+  /// leaves, clipped to the visible rows when there are many.
+  ///
+  /// \param view Chart view.
+  /// \param state Viewer state.
+  /// \param group Parent group.
+  /// \param on_path Groups to open because they lead to a revealed selection.
+  void
+  draw_explorer_children(
+    const Comprendo::ChartView &view,
+    Comprendo::ViewerState &state,
+    std::size_t group,
+    const std::vector<bool> &on_path
+  );
+
+  /// Draw one Explorer row and, when open, its children.
+  ///
+  /// \param view Chart view.
+  /// \param state Viewer state.
+  /// \param group Group of the row.
+  /// \param on_path Groups to open because they lead to a revealed selection.
+  void
+  draw_explorer_row(
+    const Comprendo::ChartView &view,
+    Comprendo::ViewerState &state,
+    std::size_t group,
+    const std::vector<bool> &on_path
+  )
+  {
+    const bool leaf = view.hierarchy().groups[group].children.empty();
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick
+      | ImGuiTreeNodeFlags_SpanAvailWidth;
+    if (leaf)
+    {
+      flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+    }
+    if (state.selected == group)
+    {
+      flags |= ImGuiTreeNodeFlags_Selected;
+    }
+    if (state.reveal_requested && on_path[group])
+    {
+      ImGui::SetNextItemOpen(true);
+    }
+    ImGui::PushStyleColor(
+      ImGuiCol_Text, imgui_color(Comprendo::kind_color(view.group_kind(group)))
+    );
+    const std::string label = fmt::format("{}##g{}", view.display_label(group), group);
+    const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
+    ImGui::PopStyleColor();
+    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+    {
+      select_from_panel(state, group);
+    }
+    if (state.reveal_requested && state.selected == group)
+    {
+      ImGui::SetScrollHereY(0.5F);
+    }
+    if (open && !leaf)
+    {
+      draw_explorer_children(view, state, group, on_path);
+      ImGui::TreePop();
+    }
+  }
+
+  void
+  draw_explorer_children(
+    const Comprendo::ChartView &view,
+    Comprendo::ViewerState &state,
+    std::size_t group,
+    const std::vector<bool> &on_path
+  )
+  {
+    const std::vector<std::size_t> &children = view.display_children(group);
+    const auto first_leaf = static_cast<std::size_t>(
+      std::ranges::find_if(
+        children, [&view](std::size_t c) { return view.hierarchy().groups[c].children.empty(); }
+      )
+      - children.begin()
+    );
+    for (std::size_t i = 0; i < first_leaf; ++i)
+    {
+      draw_explorer_row(view, state, children[i], on_path);
+    }
+    const std::size_t leaves = children.size() - first_leaf;
+    if (leaves <= kClipThreshold)
+    {
+      for (std::size_t i = first_leaf; i < children.size(); ++i)
+      {
+        draw_explorer_row(view, state, children[i], on_path);
+      }
+      return;
+    }
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(leaves));
+    if (state.reveal_requested && state.selected)
+    {
+      const auto found = std::ranges::find(
+        children.begin() + static_cast<std::ptrdiff_t>(first_leaf), children.end(), *state.selected
+      );
+      if (found != children.end())
+      {
+        clipper.IncludeItemByIndex(
+          static_cast<int>(found - children.begin() - static_cast<std::ptrdiff_t>(first_leaf))
+        );
+      }
+    }
+    while (clipper.Step())
+    {
+      for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
+      {
+        draw_explorer_row(view, state, children[first_leaf + static_cast<std::size_t>(i)], on_path);
+      }
+    }
+  }
+
+  /// Draw the Explorer tree of the current grouping.
+  ///
+  /// \param view Chart view.
+  /// \param state Viewer state.
+  void
+  draw_explorer_tree(const Comprendo::ChartView &view, Comprendo::ViewerState &state)
+  {
+    std::vector<bool> on_path(view.hierarchy().groups.size(), false);
+    if (state.reveal_requested && state.selected)
+    {
+      for (std::size_t group = view.hierarchy().groups[*state.selected].parent; group != 0;
+           group = view.hierarchy().groups[group].parent)
+      {
+        on_path[group] = true;
+      }
+    }
+    draw_explorer_children(view, state, 0, on_path);
+  }
+
+  /// Draw the Explorer's search results.
+  ///
+  /// \param view Chart view.
+  /// \param state Viewer state.
+  /// \param results Matching groups, best first.
+  void
+  draw_search_results(
+    const Comprendo::ChartView &view,
+    Comprendo::ViewerState &state,
+    const std::vector<std::size_t> &results
+  )
+  {
+    const std::string count = results.size() >= kSearchLimit
+      ? fmt::format("{}+ matches", kSearchLimit)
+      : fmt::format("{} matches", results.size());
+    text_disabled(count.c_str());
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(results.size()));
+    while (clipper.Step())
+    {
+      for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
+      {
+        const std::size_t group = results[static_cast<std::size_t>(i)];
+        ImGui::PushStyleColor(
+          ImGuiCol_Text, imgui_color(Comprendo::kind_color(view.group_kind(group)))
+        );
+        const std::string label = fmt::format("{}##s{}", view.display_label(group), group);
+        if (ImGui::Selectable(label.c_str(), state.selected == group))
+        {
+          select_from_panel(state, group);
+        }
+        ImGui::PopStyleColor();
+        const std::vector<std::size_t> &nodes = view.hierarchy().groups[group].nodes;
+        if (!nodes.empty())
+        {
+          const Comprendo::Node &node = view.chart().nodes[nodes.front()];
+          ImGui::SameLine();
+          text_disabled(fmt::format("{}  {}", Comprendo::to_string(node.kind), node.file).c_str());
+        }
+      }
+    }
+  }
+
+  /// Draw a label/value row of the Inspector's field table.
+  ///
+  /// \param label Field name.
+  /// \param value Field value.
+  void
+  field_row(const char *label, const std::string &value)
+  {
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    text_disabled(label);
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted(value.c_str());
+  }
+
+  /// Draw one Inspector edge list: chart edges of the selection, excluding
+  /// containment, each selecting its other endpoint when clicked.
+  ///
+  /// \param view Chart view.
+  /// \param state Viewer state.
+  /// \param title Section title.
+  /// \param edges Edge indices.
+  /// \param outgoing True to show destinations, false to show sources.
+  void
+  draw_edge_list(
+    const Comprendo::ChartView &view,
+    Comprendo::ViewerState &state,
+    const char *title,
+    const std::vector<std::size_t> &edges,
+    bool outgoing
+  )
+  {
+    const std::string header = fmt::format("{} ({})##{}", title, edges.size(), title);
+    if (edges.empty() || !ImGui::CollapsingHeader(header.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    {
+      return;
+    }
+    for (std::size_t i = 0; i < std::min(edges.size(), kInspectorListLimit); ++i)
+    {
+      const Comprendo::Edge &edge = view.chart().edges[edges[i]];
+      const auto other = view.node_index(outgoing ? edge.dst : edge.src);
+      if (!other)
+      {
+        continue;
+      }
+      const Comprendo::Node &node = view.chart().nodes[*other];
+      const std::string label = fmt::format(
+        "{}  {}##e{}{}", Comprendo::to_string(edge.kind), node.qualified_name, title, edges[i]
+      );
+      if (ImGui::Selectable(label.c_str()))
+      {
+        select_from_panel(state, view.hierarchy().group_of_node[*other]);
+      }
+    }
+  }
+
+  /// Draw the Inspector body for a selected group.
+  ///
+  /// \param view Chart view.
+  /// \param state Viewer state.
+  /// \param group Selected group.
+  void
+  draw_selection(const Comprendo::ChartView &view, Comprendo::ViewerState &state, std::size_t group)
+  {
+    const Comprendo::HierarchyGroup &entry = view.hierarchy().groups[group];
+    ImGui::PushStyleColor(
+      ImGuiCol_Text, imgui_color(Comprendo::kind_color(view.group_kind(group)))
+    );
+    ImGui::TextUnformatted(view.display_label(group).c_str());
+    ImGui::PopStyleColor();
+    if (entry.nodes.empty())
+    {
+      return;
+    }
+    const Comprendo::Node &node = view.chart().nodes[entry.nodes.front()];
+    if (ImGui::BeginTable("##fields", 2, ImGuiTableFlags_SizingFixedFit))
+    {
+      field_row("Kind", std::string {Comprendo::to_string(node.kind)});
+      field_row("Name", node.qualified_name);
+      field_row("Location", fmt::format("{}:{}-{}", node.file, node.line_start, node.line_end));
+      if (!node.signature.empty())
+      {
+        field_row("Signature", node.signature);
+      }
+      field_row("Lines", std::to_string(node.loc));
+      if (node.complexity > 0)
+      {
+        field_row("Complexity", std::to_string(node.complexity));
+      }
+      field_row("Source", provenance_name(node.provenance));
+      ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    ImGui::PushTextWrapPos(0.0F);
+    if (node.summary.empty())
+    {
+      text_disabled("No summary yet: annotate the chart with /chart in opencode.");
+    }
+    else
+    {
+      ImGui::TextUnformatted(node.summary.c_str());
+    }
+    ImGui::PopTextWrapPos();
+    if (!node.detail.empty() && ImGui::CollapsingHeader("Detail", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+      ImGui::PushTextWrapPos(0.0F);
+      ImGui::TextUnformatted(node.detail.c_str());
+      ImGui::PopTextWrapPos();
+    }
+
+    if (entry.nodes.size() > 1)
+    {
+      const std::string header = fmt::format("Declared in {} files", entry.nodes.size());
+      if (ImGui::CollapsingHeader(header.c_str()))
+      {
+        for (const std::size_t member : entry.nodes)
+        {
+          ImGui::Bullet();
+          ImGui::TextUnformatted(view.chart().nodes[member].file.c_str());
+        }
+      }
+    }
+
+    const std::vector<std::size_t> &children = view.display_children(group);
+    const std::string children_header = fmt::format("Contains ({})##children", children.size());
+    if (!children.empty() && ImGui::CollapsingHeader(children_header.c_str()))
+    {
+      for (std::size_t i = 0; i < std::min(children.size(), kInspectorListLimit); ++i)
+      {
+        const std::string label
+          = fmt::format("{}##c{}", view.display_label(children[i]), children[i]);
+        if (ImGui::Selectable(label.c_str()))
+        {
+          select_from_panel(state, children[i]);
+        }
+      }
+    }
+
+    std::vector<std::size_t> outgoing;
+    std::vector<std::size_t> incoming;
+    for (const std::size_t member : entry.nodes)
+    {
+      for (const std::size_t e : view.node_edges(member).outgoing)
+      {
+        if (view.chart().edges[e].kind != Comprendo::EdgeKind::Contains)
+        {
+          outgoing.push_back(e);
+        }
+      }
+      for (const std::size_t e : view.node_edges(member).incoming)
+      {
+        if (view.chart().edges[e].kind != Comprendo::EdgeKind::Contains)
+        {
+          incoming.push_back(e);
+        }
+      }
+    }
+    draw_edge_list(view, state, "Outgoing", outgoing, true);
+    draw_edge_list(view, state, "Incoming", incoming, false);
   }
 } // namespace
 
@@ -142,7 +537,7 @@ namespace Comprendo
   }
 
   void
-  Ui::draw(ViewerState &state)
+  Ui::draw(ViewerState &state, const ChartView *view)
   {
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const ImGuiID dockspace_id = ImGui::GetID("ComprendoDockSpace");
@@ -165,11 +560,11 @@ namespace Comprendo
       };
     }
     draw_menu_bar(state);
-    draw_explorer(state);
-    draw_inspector(state);
+    draw_explorer(state, view);
+    draw_inspector(state, view);
     draw_log(state);
     draw_about(state);
-    draw_status_bar();
+    draw_status_bar(state, view);
 
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Q))
     {
@@ -256,68 +651,81 @@ namespace Comprendo
   }
 
   void
-  Ui::draw_explorer(ViewerState &state)
+  Ui::draw_explorer(ViewerState &state, const ChartView *view)
   {
     if (!state.show_explorer)
     {
       return;
     }
-
     if (ImGui::Begin("Explorer", &state.show_explorer))
     {
-      ImGui::InputTextWithHint(
-        "##filter", "Filter symbols...", state.filter.data(), state.filter.size()
-      );
-      ImGui::Separator();
-      text_disabled("No chart loaded; showing project skeleton.");
-
-      if (ImGui::TreeNodeEx("Comprendo", ImGuiTreeNodeFlags_DefaultOpen))
+      if (view == nullptr)
       {
-        draw_tree_group("include", {"Logger", "Profiler"}, state);
-        draw_tree_group("src", {"viewer_main.cpp", "cli_main.cpp"}, state);
-        ImGui::TreePop();
+        text_disabled("No chart loaded.");
+      }
+      else
+      {
+        int grouping = state.grouping == Grouping::File ? 0 : 1;
+        ImGui::RadioButton("Files", &grouping, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Namespaces", &grouping, 1);
+        state.grouping = grouping == 0 ? Grouping::File : Grouping::Namespace;
+
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F))
+        {
+          ImGui::SetKeyboardFocusHere();
+        }
+        ImGui::SetNextItemWidth(-1.0F);
+        ImGui::InputTextWithHint(
+          "##filter", "Filter (Ctrl+F)", state.filter.data(), state.filter.size()
+        );
+        ImGui::Separator();
+
+        const std::string query {state.filter.data()};
+        if (ImGui::BeginChild("##explorer_items"))
+        {
+          if (query.empty())
+          {
+            draw_explorer_tree(*view, state);
+          }
+          else
+          {
+            if (
+              query != search_query_ || view != search_view_ || view->grouping() != search_grouping_
+            )
+            {
+              search_results_ = view->search(query, kSearchLimit);
+              search_query_ = query;
+              search_view_ = view;
+              search_grouping_ = view->grouping();
+            }
+            draw_search_results(*view, state, search_results_);
+          }
+        }
+        ImGui::EndChild();
       }
     }
     ImGui::End();
+    state.reveal_requested = false;
   }
 
   void
-  Ui::draw_tree_group(
-    const char *label, std::initializer_list<const char *> items, ViewerState &state
-  )
-  {
-    if (!ImGui::TreeNodeEx(label, ImGuiTreeNodeFlags_DefaultOpen))
-    {
-      return;
-    }
-
-    for (const char *item : items)
-    {
-      if (ImGui::Selectable(item))
-      {
-        state.selection = item;
-      }
-    }
-    ImGui::TreePop();
-  }
-
-  void
-  Ui::draw_inspector(ViewerState &state)
+  Ui::draw_inspector(ViewerState &state, const ChartView *view)
   {
     if (!state.show_inspector)
     {
       return;
     }
-
     if (ImGui::Begin("Inspector", &state.show_inspector))
     {
-      ImGui::TextUnformatted("Selection");
-      ImGui::Separator();
-      ImGui::PushTextWrapPos(0.0F);
-      ImGui::TextUnformatted(state.selection.c_str());
-      ImGui::PopTextWrapPos();
-      ImGui::Spacing();
-      text_disabled("Summary, details, and edges appear here once a chart is loaded.");
+      if (view == nullptr || !state.selected)
+      {
+        text_disabled("Nothing selected. Click a node in the graph or the Explorer.");
+      }
+      else
+      {
+        draw_selection(*view, state, *state.selected);
+      }
     }
     ImGui::End();
   }
@@ -332,7 +740,28 @@ namespace Comprendo
 
     if (ImGui::Begin("Log", &state.show_log))
     {
-      text_disabled("Log output will appear here.");
+      if (!state.log_sink)
+      {
+        text_disabled("Logging to the console only.");
+      }
+      else
+      {
+        const std::vector<std::string> lines = state.log_sink->last_formatted();
+        const bool at_bottom = ImGui::GetScrollY() >= ImGui::GetScrollMaxY();
+        ImGuiListClipper clipper;
+        clipper.Begin(static_cast<int>(lines.size()));
+        while (clipper.Step())
+        {
+          for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
+          {
+            ImGui::TextUnformatted(lines[static_cast<std::size_t>(i)].c_str());
+          }
+        }
+        if (at_bottom)
+        {
+          ImGui::SetScrollHereY(1.0F);
+        }
+      }
     }
     ImGui::End();
   }
@@ -361,7 +790,7 @@ namespace Comprendo
   }
 
   void
-  Ui::draw_status_bar()
+  Ui::draw_status_bar(const ViewerState &state, const ChartView *view)
   {
     // Fixed overlay at the bottom of the main viewport.
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -379,11 +808,23 @@ namespace Comprendo
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
     if (ImGui::Begin("##StatusBar", nullptr, flags))
     {
-      const std::string status = fmt::format(
-        "Comprendo {}  |  {:.1f} FPS  |  F11 fullscreen",
-        COMPRENDO_VERSION,
-        ImGui::GetIO().Framerate
-      );
+      const float fps = ImGui::GetIO().Framerate;
+      const std::string status = view == nullptr
+        ? fmt::format(
+            "Comprendo {}  |  no chart  |  {:.0f} FPS  |  F11 fullscreen", COMPRENDO_VERSION, fps
+          )
+        : fmt::format(
+            "Comprendo {}  |  {}  |  {} nodes, {} edges  |  by {}  |  zoom {:.3g}  |  {:.0f} FPS  "
+            "|  "
+            "F11 fullscreen",
+            COMPRENDO_VERSION,
+            state.chart_path,
+            view->chart().nodes.size(),
+            view->chart().edges.size(),
+            view->grouping() == Grouping::File ? "file" : "namespace",
+            state.zoom,
+            fps
+          );
       ImGui::TextUnformatted(status.c_str());
     }
     ImGui::End();

@@ -157,16 +157,34 @@ Acceptance: a real chart opens and is navigable.
 
 Acceptance: the viewer opens with the dock layout and the smoke test passes.
 
-## M4b — Panels wired to the chart
+## M4b — Panels wired to the chart (complete)
 
-- Explorer tree from chart nodes with filtering.
+- Explorer tree from chart nodes (containers first, then by label; large leaf
+  lists clipped to the visible rows) with a ranked filter, focused by `Ctrl+F`.
 - Grouping toggle: by file (stored `Contains` tree) or by namespace (namespace
   nodes merged by qualified name in the viewer), see
   [architecture](architecture.md#user-interface).
-- Inspector shows summary/detail/file:line/edges.
-- Status bar shows chart path, node/edge counts, and zoom.
+- Inspector shows kind, name, location, signature, size, provenance, summary,
+  detail, files of merged namespaces, children, and incoming/outgoing edges;
+  every listed group is clickable.
+- One selection shared by graph, Explorer, and Inspector: panel clicks focus the
+  graph on the group, graph clicks reveal it in the Explorer tree.
+- Status bar shows chart path, node/edge counts, grouping, zoom, and FPS.
+- Log panel shows the viewer's log (spdlog ring-buffer sink).
+- `--select NAME` selects and focuses the best match at startup.
+- Tests: display order, search ranking, node edge index; the chart smoke test
+  selects from the panels, focuses, filters, and regroups.
 
 Acceptance: selecting a node populates the inspector from the loaded chart.
+
+## M4c — Anti-aliased graph rendering
+
+- Smooth edges of disks, rings, and lines in the graph view at every zoom.
+- No change to the ImGui panels; no measurable frame-time regression on the
+  42k-node raylib chart.
+- Smoke test runs with anti-aliasing enabled.
+
+Acceptance: graph screenshots show smooth circle and line edges.
 
 ## M5 — CLI pipeline (complete)
 

@@ -1,9 +1,16 @@
 #pragma once
 
+/// \file
+/// \brief Dear ImGui docking shell of the viewer: menu, Explorer, Inspector, Log, status bar.
+
 #include <array>
 #include <cstddef>
-#include <initializer_list>
+#include <memory>
+#include <optional>
 #include <string>
+#include <vector>
+
+#include <spdlog/sinks/ringbuffer_sink.h>
 
 #include "Comprendo/ChartView.hpp"
 #include "Comprendo/Hierarchy.hpp"
@@ -34,8 +41,23 @@ namespace Comprendo
     /// Current explorer filter text.
     std::array<char, kFilterCapacity> filter {};
 
-    /// Label of the current selection.
-    std::string selection = "(nothing selected)";
+    /// Selected hierarchy group, shared by the graph, Explorer, and Inspector.
+    std::optional<std::size_t> selected;
+
+    /// Set when the Explorer or Inspector selects a group: the graph zooms to it.
+    bool focus_requested = false;
+
+    /// Set when the graph selects a group: the Explorer opens and scrolls to it.
+    bool reveal_requested = false;
+
+    /// Path of the loaded chart, for the status bar.
+    std::string chart_path;
+
+    /// Current zoom in screen pixels per chart unit, for the status bar.
+    float zoom = 1.0F;
+
+    /// Recent log messages shown by the Log panel; null shows a hint instead.
+    std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> log_sink;
 
     /// Grouping chosen in the View menu.
     Grouping grouping = Grouping::File;
@@ -70,8 +92,9 @@ namespace Comprendo
     /// Draw the dock space, menu bar, and panels.
     ///
     /// \param state Viewer state shared with the panels.
+    /// \param view Loaded chart, or null when none is loaded.
     void
-    draw(ViewerState &state);
+    draw(ViewerState &state, const ChartView *view);
 
     /// End the ImGui frame and render its draw data.
     static void
@@ -112,17 +135,21 @@ namespace Comprendo
     void
     draw_menu_bar(ViewerState &state);
 
-    /// Draw the explorer panel.
+    /// Draw the Explorer: grouping toggle, filter (Ctrl+F), and the tree or the
+    /// search results.
     ///
     /// \param state Viewer state.
-    static void
-    draw_explorer(ViewerState &state);
+    /// \param view Loaded chart, or null.
+    void
+    draw_explorer(ViewerState &state, const ChartView *view);
 
-    /// Draw the inspector panel.
+    /// Draw the Inspector: fields, summary, detail, children, and edges of the
+    /// selection.
     ///
     /// \param state Viewer state.
+    /// \param view Loaded chart, or null.
     static void
-    draw_inspector(ViewerState &state);
+    draw_inspector(ViewerState &state, const ChartView *view);
 
     /// Draw the log panel.
     ///
@@ -137,20 +164,25 @@ namespace Comprendo
     draw_about(ViewerState &state);
 
     /// Draw the status bar.
-    static void
-    draw_status_bar();
-
-    /// Draw one collapsible tree group.
     ///
-    /// \param label Group label.
-    /// \param items Selectable item labels.
-    /// \param state Viewer state updated on selection.
+    /// \param state Viewer state.
+    /// \param view Loaded chart, or null.
     static void
-    draw_tree_group(
-      const char *label, std::initializer_list<const char *> items, ViewerState &state
-    );
+    draw_status_bar(const ViewerState &state, const ChartView *view);
 
     /// True once the default layout has been built or loaded.
     bool layout_initialized_ = false;
+
+    /// Query of the cached search results.
+    std::string search_query_;
+
+    /// Chart of the cached search results.
+    const ChartView *search_view_ = nullptr;
+
+    /// Grouping of the cached search results.
+    Grouping search_grouping_ = Grouping::File;
+
+    /// Cached search results for the Explorer filter.
+    std::vector<std::size_t> search_results_;
   };
 } // namespace Comprendo

@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <cstdio>
 #include <exception>
 #include <expected>
@@ -14,10 +15,13 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
 #include <imgui.h>
+#include <spdlog/sinks/ringbuffer_sink.h>
+#include <spdlog/spdlog.h>
 
 #include "Comprendo/ChartStore.hpp"
 #include "Comprendo/ChartView.hpp"
@@ -74,14 +78,26 @@ namespace
   /// Fraction of the window left free around the chart when fitting.
   constexpr float kFitMargin = 0.08F;
 
+  /// Fraction of the graph area left free around a group the panels focus on.
+  constexpr float kFocusMargin = 0.6F;
+
   /// Number of frames rendered by the smoke test.
   constexpr int kSmokeTestFrames = 30;
 
   /// Frame on which the smoke test fits the chart and checks it is visible.
   constexpr int kSmokeChartFitFrame = 18;
 
+  /// Frame on which the smoke test selects a group from the panels and focuses it.
+  constexpr int kSmokeChartSelectFrame = 19;
+
   /// Frame on which the smoke test zooms into the chart.
   constexpr int kSmokeChartZoomFrame = 20;
+
+  /// Frame on which the smoke test types into the Explorer filter.
+  constexpr int kSmokeChartFilterFrame = 21;
+
+  /// Frame on which the smoke test clears the Explorer filter.
+  constexpr int kSmokeChartFilterClearFrame = 23;
 
   /// Frame on which the smoke test picks at the window centre.
   constexpr int kSmokeChartPickFrame = 22;
@@ -140,7 +156,12 @@ namespace
     std::string chart {Comprendo::kDefaultChartPath};
     /// True when the chart was named on the command line.
     bool chart_given = false;
+    /// Name of a symbol to select and focus at startup; empty for none.
+    std::string select;
   };
+
+  /// Messages kept for the Log panel.
+  constexpr std::size_t kLogPanelLines = 2000;
 
   /// Exit code for a malformed command line, matching `comprendo-cli`.
   constexpr int kExitUsage = 2;
@@ -168,6 +189,9 @@ namespace
     );
     CLI::Option *chart
       = app.add_option("chart", options.chart, "Chart to open")->capture_default_str();
+    app.add_option(
+      "--select", options.select, "Select and focus the best match for NAME at startup"
+    );
     try
     {
       app.parse(argc, argv);
@@ -261,17 +285,17 @@ namespace
     Comprendo::ChartView view;
     /// View camera.
     Comprendo::ViewCamera camera;
-    /// Selected group.
-    std::optional<std::size_t> selected;
     /// Group under the mouse.
     std::optional<std::size_t> hovered;
     /// Mouse position when the left button went down.
     Vector2 press {};
     /// True while a left-button press is being used to pan.
     bool dragging = false;
-    /// True until the user zooms or pans: the chart is refitted whenever the
-    /// graph area changes (startup layout, window resize, re-docked panels).
+    /// True until the user zooms or pans: the fit target is refitted whenever
+    /// the graph area changes (startup layout, window resize, re-docked panels).
     bool auto_fit = true;
+    /// Group the view is fitted to while auto-fitting; nothing for the whole chart.
+    std::optional<std::size_t> fit_group;
     /// Graph area of the last fit.
     Comprendo::ScreenRect fitted_area;
   };
@@ -359,18 +383,84 @@ namespace
       return;
     }
     std::optional<std::size_t> selected_node;
-    if (session.selected && !session.view.hierarchy().groups[*session.selected].nodes.empty())
+    if (state.selected && !session.view.hierarchy().groups[*state.selected].nodes.empty())
     {
-      selected_node = session.view.hierarchy().groups[*session.selected].nodes.front();
+      selected_node = session.view.hierarchy().groups[*state.selected].nodes.front();
     }
     session.view.set_grouping(state.grouping);
-    session.selected.reset();
+    session.fit_group.reset();
+    state.selected.reset();
     if (selected_node)
     {
-      session.selected = session.view.hierarchy().group_of_node[*selected_node];
+      state.selected = session.view.hierarchy().group_of_node[*selected_node];
+      state.reveal_requested = true;
     }
     session.hovered.reset();
     state.fit_requested = true;
+  }
+
+  /// Select and focus the best search match for a name, as `--select` asks.
+  ///
+  /// \param view Loaded chart.
+  /// \param name Name to look for; empty does nothing.
+  /// \param state Viewer state receiving the selection.
+  void
+  select_at_startup(
+    const Comprendo::ChartView &view, const std::string &name, Comprendo::ViewerState &state
+  )
+  {
+    if (name.empty())
+    {
+      return;
+    }
+    const std::vector<std::size_t> found = view.search(name, 1);
+    if (found.empty())
+    {
+      Comprendo::Logger::warn("--select: nothing matches '{}'", name);
+      return;
+    }
+    state.selected = found.front();
+    state.focus_requested = true;
+    state.reveal_requested = true;
+    Comprendo::Logger::info("Selected {}", view.display_label(found.front()));
+  }
+
+  /// Apply what the menu, panels, and input requested this frame: grouping
+  /// switch, fitting (kept while the view is auto-fitted), and focusing on the
+  /// selection; then record the zoom for the status bar.
+  ///
+  /// \param session Session to update.
+  /// \param state Viewer state holding the requests.
+  void
+  apply_requests(GraphSession &session, Comprendo::ViewerState &state)
+  {
+    apply_grouping(session, state);
+    if (state.fit_requested || (state.focus_requested && state.selected))
+    {
+      session.auto_fit = true;
+      session.fit_group = state.fit_requested ? std::nullopt : state.selected;
+      session.fitted_area = {};
+    }
+    state.fit_requested = false;
+    state.focus_requested = false;
+    if (session.auto_fit && state.graph_area.width > 0.0F && state.graph_area != session.fitted_area)
+    {
+      if (session.fit_group)
+      {
+        session.camera.fit(
+          session.view.group_centre(*session.fit_group),
+          session.view.layout().groups[*session.fit_group].radius,
+          kFocusMargin,
+          state.graph_area
+        );
+      }
+      else
+      {
+        fit_chart(session, state.graph_area);
+      }
+      session.fitted_area = state.graph_area;
+    }
+    state.zoom = session.camera.zoom;
   }
 
   /// Handle mouse and keyboard input for the graph: zoom, pan, select, fit, regroup.
@@ -419,9 +509,8 @@ namespace
       {
         if (!session.dragging)
         {
-          session.selected = session.view.pick(camera, point);
-          state.selection = session.selected ? describe(session.view, *session.selected)
-                                             : std::string {"(nothing selected)"};
+          state.selected = session.view.pick(camera, point);
+          state.reveal_requested = state.selected.has_value();
         }
         session.dragging = false;
       }
@@ -440,30 +529,20 @@ namespace
           : Comprendo::Grouping::File;
       }
     }
-    apply_grouping(session, state);
-    if (state.fit_requested)
-    {
-      session.auto_fit = true;
-      session.fitted_area = {};
-      state.fit_requested = false;
-    }
-    if (session.auto_fit && state.graph_area.width > 0.0F && state.graph_area != session.fitted_area)
-    {
-      fit_chart(session, state.graph_area);
-      session.fitted_area = state.graph_area;
-    }
+    apply_requests(session, state);
   }
 
   /// Draw the graph of a session.
   ///
   /// \param session Session to draw.
+  /// \param state Viewer state holding the selection.
   void
-  draw_session(const GraphSession &session)
+  draw_session(const GraphSession &session, const Comprendo::ViewerState &state)
   {
     Comprendo::GraphFrame frame;
     frame.items = session.view.visible(session.camera);
     frame.edges = session.view.visible_edges(frame.items);
-    frame.selected = session.selected;
+    frame.selected = state.selected;
     frame.hovered = session.hovered;
     Comprendo::draw_graph(session.view, session.camera, frame);
   }
@@ -500,13 +579,13 @@ namespace
   {
     if (session)
     {
-      draw_session(*session);
+      draw_session(*session, state);
     }
     else
     {
       draw_placeholder(build_info, note);
     }
-    ui_shell.draw(state);
+    ui_shell.draw(state, session ? &session->view : nullptr);
     if (session)
     {
       draw_tooltip(*session);
@@ -628,9 +707,19 @@ namespace
       session.camera.zoom_at(centre, 8.0F, kMinZoom, kMaxZoom);
       return true;
     case kSmokeChartPickFrame:
-      session.selected = session.view.pick(session.camera, centre);
-      Comprendo::Logger::info("Smoke: picked {}", session.selected ? "a group" : "nothing");
+      state.selected = session.view.pick(session.camera, centre);
+      state.reveal_requested = true;
+      Comprendo::Logger::info("Smoke: picked {}", state.selected ? "a group" : "nothing");
       return true;
+    case kSmokeChartSelectFrame:
+      state.selected = session.view.display_children(0).front();
+      state.focus_requested = true;
+      state.reveal_requested = true;
+      return true;
+    case kSmokeChartFilterFrame:
+      std::ranges::copy(std::string_view {"a"}, state.filter.begin());
+      return true;
+    case kSmokeChartFilterClearFrame: state.filter.fill('\0'); return true;
     case kSmokeChartNamespaceFrame: state.grouping = Comprendo::Grouping::Namespace; return true;
     case kSmokeChartNamespaceCheckFrame:
       return session.view.grouping() == Comprendo::Grouping::Namespace
@@ -665,7 +754,7 @@ namespace
       if (session)
       {
         passed = run_chart_step(frame, *session, state) && passed;
-        apply_grouping(*session, state);
+        apply_requests(*session, state);
       }
 
       BeginDrawing();
@@ -712,10 +801,15 @@ namespace
 
     std::optional<GraphSession> session;
     std::string note;
+    state.chart_path = options.chart;
+    state.log_sink = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(kLogPanelLines);
+    state.log_sink->set_pattern("[%T] [%l] %v");
+    spdlog::default_logger()->sinks().push_back(state.log_sink);
     if (auto loaded = load_session(options.chart))
     {
       session = std::move(*loaded);
       fit_chart(*session, state.graph_area);
+      select_at_startup(session->view, options.select, state);
     }
     else
     {

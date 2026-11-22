@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -39,6 +40,24 @@ namespace
     {.r = 222, .g = 98, .b = 92},   // Macro
     {.r = 214, .g = 130, .b = 186}, // TypeAlias
   }};
+
+  /// Lower-case ASCII letters, leaving other bytes (including UTF-8) unchanged.
+  ///
+  /// \param text Text to convert.
+  /// \return Lower-cased copy.
+  std::string
+  lowercase(std::string_view text)
+  {
+    std::string result {text};
+    for (char &c : result)
+    {
+      if (c >= 'A' && c <= 'Z')
+      {
+        c = static_cast<char>(c - 'A' + 'a');
+      }
+    }
+    return result;
+  }
 
   /// Squared distance between two points.
   ///
@@ -113,7 +132,90 @@ namespace Comprendo
   ChartView::ChartView(Chart chart, Grouping grouping, const LayoutOptions &options) :
     m_chart(std::move(chart)), m_grouping(grouping), m_options(options)
   {
+    m_node_of_id.reserve(m_chart.nodes.size());
+    for (std::size_t i = 0; i < m_chart.nodes.size(); ++i)
+    {
+      m_node_of_id.emplace(m_chart.nodes[i].id, i);
+    }
+    m_node_edges.resize(m_chart.nodes.size());
+    for (std::size_t e = 0; e < m_chart.edges.size(); ++e)
+    {
+      const auto src = m_node_of_id.find(m_chart.edges[e].src);
+      const auto dst = m_node_of_id.find(m_chart.edges[e].dst);
+      if (src != m_node_of_id.end() && dst != m_node_of_id.end())
+      {
+        m_node_edges[src->second].outgoing.push_back(e);
+        m_node_edges[dst->second].incoming.push_back(e);
+      }
+    }
     rebuild();
+  }
+
+  std::optional<std::size_t>
+  ChartView::node_index(std::uint64_t id) const
+  {
+    const auto found = m_node_of_id.find(id);
+    return found == m_node_of_id.end() ? std::nullopt : std::optional<std::size_t> {found->second};
+  }
+
+  std::vector<std::size_t>
+  ChartView::search(std::string_view query, std::size_t limit) const
+  {
+    const std::string needle = lowercase(query);
+    if (needle.empty() || limit == 0)
+    {
+      return {};
+    }
+    struct Match
+    {
+      int rank = 0;
+      std::size_t length = 0;
+      std::string label;
+      std::size_t group = 0;
+    };
+    std::vector<Match> matches;
+    for (std::size_t group = 1; group < m_hierarchy.groups.size(); ++group)
+    {
+      std::string label = lowercase(display_label(group));
+      const std::vector<std::size_t> &nodes = m_hierarchy.groups[group].nodes;
+      int rank = -1;
+      if (label == needle)
+      {
+        rank = 0;
+      }
+      else if (label.starts_with(needle))
+      {
+        rank = 1;
+      }
+      else if (label.contains(needle))
+      {
+        rank = 2;
+      }
+      else if (
+        !nodes.empty() && lowercase(m_chart.nodes[nodes.front()].qualified_name).contains(needle)
+      )
+      {
+        rank = 3;
+      }
+      if (rank >= 0)
+      {
+        matches.push_back(
+          {.rank = rank, .length = label.size(), .label = std::move(label), .group = group}
+        );
+      }
+    }
+    const auto key = [](const Match &m) { return std::tie(m.rank, m.length, m.label, m.group); };
+    const std::size_t keep = std::min(limit, matches.size());
+    std::ranges::partial_sort(
+      matches, matches.begin() + static_cast<std::ptrdiff_t>(keep), {}, key
+    );
+    std::vector<std::size_t> result;
+    result.reserve(keep);
+    for (std::size_t i = 0; i < keep; ++i)
+    {
+      result.push_back(matches[i].group);
+    }
+    return result;
   }
 
   void
@@ -133,18 +235,41 @@ namespace Comprendo
     m_hierarchy = build_hierarchy(m_chart, m_grouping);
     m_layout = compute_layout(m_chart, m_hierarchy, m_options);
 
-    std::unordered_map<std::uint64_t, std::size_t> node_of_id;
-    node_of_id.reserve(m_chart.nodes.size());
-    for (std::size_t i = 0; i < m_chart.nodes.size(); ++i)
+    m_display_children.assign(m_hierarchy.groups.size(), {});
+    std::vector<std::string> sort_label(m_hierarchy.groups.size());
+    for (std::size_t group = 0; group < m_hierarchy.groups.size(); ++group)
     {
-      node_of_id.emplace(m_chart.nodes[i].id, i);
+      sort_label[group] = lowercase(display_label(group));
     }
+    for (std::size_t group = 0; group < m_hierarchy.groups.size(); ++group)
+    {
+      std::vector<std::size_t> &children = m_display_children[group];
+      children = m_hierarchy.groups[group].children;
+      std::ranges::sort(
+        children,
+        [&](std::size_t left, std::size_t right)
+        {
+          const bool left_leaf = m_hierarchy.groups[left].children.empty();
+          const bool right_leaf = m_hierarchy.groups[right].children.empty();
+          if (left_leaf != right_leaf)
+          {
+            return right_leaf;
+          }
+          if (sort_label[left] != sort_label[right])
+          {
+            return sort_label[left] < sort_label[right];
+          }
+          return m_hierarchy.groups[left].key < m_hierarchy.groups[right].key;
+        }
+      );
+    }
+
     m_edges.clear();
     for (const Edge &edge : m_chart.edges)
     {
-      const auto src = node_of_id.find(edge.src);
-      const auto dst = node_of_id.find(edge.dst);
-      if (edge.kind != EdgeKind::Contains && src != node_of_id.end() && dst != node_of_id.end())
+      const auto src = m_node_of_id.find(edge.src);
+      const auto dst = m_node_of_id.find(edge.dst);
+      if (edge.kind != EdgeKind::Contains && src != m_node_of_id.end() && dst != m_node_of_id.end())
       {
         m_edges.push_back({
           .from = m_hierarchy.group_of_node[src->second],

@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <set>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -306,4 +308,72 @@ TEST_CASE("anonymous namespaces display as anonymous", "[view]")
   const ChartView view {chart, Grouping::File};
   CHECK(view.display_label(group_of(view, 10)) == "(anonymous)");
   CHECK(view.display_label(group_of(view, 5)) == "A");
+}
+
+/// The Explorer lists children in display_children() order; hierarchy order is
+/// by hash key, which would look random. Adds a childless file whose name sorts
+/// between the two existing files and checks the root lists the containers first
+/// (a.cpp, b.cpp) and then the leaf, and that class A lists m1 before m2.
+TEST_CASE("explorer children are containers first, then by label", "[view]")
+{
+  Chart chart = sample_chart();
+  chart.nodes.push_back(
+    {.id = 11,
+     .kind = NodeKind::File,
+     .name = "aa.cpp",
+     .qualified_name = "aa.cpp",
+     .file = "aa.cpp"}
+  );
+  const ChartView view {chart, Grouping::File};
+  std::vector<std::string> labels;
+  for (const std::size_t child : view.display_children(0))
+  {
+    labels.push_back(view.display_label(child));
+  }
+  CHECK(labels == std::vector<std::string> {"a.cpp", "b.cpp", "aa.cpp"});
+  CHECK(
+    view.display_children(group_of(view, 5))
+    == std::vector<std::size_t> {group_of(view, 7), group_of(view, 8)}
+  );
+}
+
+/// The Explorer filter must put the most likely match first and be
+/// case-insensitive. Searches the sample chart for "a" and "A" and checks the
+/// ranking: exact label (class A), label prefix (a.cpp), then qualified-name
+/// matches (m1, m2 via ns::A::...); also checks the limit and the empty query.
+TEST_CASE("search ranks exact, prefix, substring, qualified matches", "[view]")
+{
+  const ChartView view {sample_chart(), Grouping::File};
+  const std::vector<std::size_t> expected {
+    group_of(view, 5), group_of(view, 1), group_of(view, 7), group_of(view, 8)
+  };
+  CHECK(view.search("a", 10) == expected);
+  CHECK(view.search("A", 10) == expected);
+  CHECK(view.search("a", 2) == std::vector<std::size_t> {expected[0], expected[1]});
+  CHECK(view.search("", 10).empty());
+  CHECK(view.search("zzz", 10).empty());
+}
+
+/// The Inspector lists a selection's incoming and outgoing edges, which needs a
+/// per-node index independent of the grouping. Checks that method n1 has its two
+/// calls as outgoing edges and its containment as the only incoming edge, and
+/// that node ids map to indices (unknown ids to nothing).
+TEST_CASE("node edges and ids are indexed", "[view]")
+{
+  const ChartView view {sample_chart(), Grouping::File};
+  const auto n1 = view.node_index(9);
+  CHECK(n1 == std::optional<std::size_t> {8});
+  CHECK_FALSE(view.node_index(12345).has_value());
+  if (!n1)
+  {
+    return;
+  }
+  const ChartView::NodeEdges &edges = view.node_edges(*n1);
+  CHECK(edges.outgoing.size() == 2);
+  CHECK(edges.incoming.size() == 1);
+  for (const std::size_t e : edges.outgoing)
+  {
+    CHECK(view.chart().edges.at(e).kind == EdgeKind::Calls);
+  }
+  CHECK(view.chart().edges.at(edges.incoming.front()).kind == EdgeKind::Contains);
 }

@@ -45,4 +45,5 @@ Use clang-format-22 to format code, format given by .clang-format
 - [architecture.md](architecture.md) — components, targets, extractor design, toolchain convention.
 - [chart-schema.md](chart-schema.md) — SQLite schema, node/edge kinds, ids, validation.
 - [milestones.md](milestones.md) — M0–M7 with acceptance criteria and test gates.
+- [log.md](log.md) — progress log: one entry per milestone with decisions and commits.
 - [`schema/chart.sql`](../schema/chart.sql) — the chart DDL shared by C++ and the plugin.
