@@ -33,12 +33,28 @@ configure_file(
 include(cmake/dependencies.cmake)
 include(cmake/doxygen_setup.cmake)
 
-add_library(comprendo_core STATIC src/Chart.cpp src/ChartStore.cpp src/Sqlite.cpp)
+add_library(
+  comprendo_core
+  STATIC
+  src/Chart.cpp
+  src/ChartStore.cpp
+  src/CtagsExtractor.cpp
+  src/ExtractConfig.cpp
+  src/Files.cpp
+  src/Includes.cpp
+  src/Json.cpp
+  src/Process.cpp
+  src/Sqlite.cpp
+)
 target_include_directories(
   comprendo_core
   PUBLIC ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/generated
 )
-target_link_libraries(comprendo_core PUBLIC fmt::fmt spdlog::spdlog PRIVATE comprendo_sqlite3)
+target_link_libraries(
+  comprendo_core
+  PUBLIC fmt::fmt spdlog::spdlog
+  PRIVATE comprendo_sqlite3 toml11::toml11 libenvpp::libenvpp
+)
 target_compile_definitions(
   comprendo_core
   PUBLIC COMPRENDO_PROFILER_ENABLED=$<BOOL:${COMPRENDO_PROFILER_ENABLED}>
@@ -59,6 +75,17 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_smoke.cpp
     tests/test_chart.cpp
     tests/test_chart_store.cpp
+    tests/test_ctags_extractor.cpp
+    tests/test_extract_config.cpp
+    tests/test_files.cpp
+    tests/test_includes.cpp
+    tests/test_json.cpp
+    tests/test_process.cpp
+  )
+  target_include_directories(comprendo_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+  target_compile_definitions(
+    comprendo_tests
+    PRIVATE COMPRENDO_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
   )
   target_link_libraries(
     comprendo_tests

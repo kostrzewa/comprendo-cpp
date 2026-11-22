@@ -18,6 +18,7 @@
 #include "ChartSchema.hpp"
 #include "Comprendo/Chart.hpp"
 #include "Comprendo/ChartStore.hpp"
+#include "TempDir.hpp"
 
 namespace
 {
@@ -26,50 +27,7 @@ namespace
   using Comprendo::EdgeKind;
   using Comprendo::NodeKind;
   using Comprendo::Provenance;
-
-  /// A scratch directory removed when the test ends.
-  class TempDir
-  {
-  public:
-    /// Create an empty directory under the system temp directory.
-    ///
-    /// \param name Directory name unique to the test.
-    explicit TempDir(std::string_view name) :
-      m_path(std::filesystem::temp_directory_path() / "comprendo-tests" / name)
-    {
-      std::filesystem::remove_all(m_path);
-      std::filesystem::create_directories(m_path);
-    }
-
-    /// Remove the directory and its contents.
-    ~TempDir()
-    {
-      std::error_code ignored;
-      std::filesystem::remove_all(m_path, ignored);
-    }
-
-    TempDir(const TempDir &) = delete;
-    TempDir &
-    operator=(const TempDir &) = delete;
-    TempDir(TempDir &&) = delete;
-    TempDir &
-    operator=(TempDir &&) = delete;
-
-    /// Build a path inside the directory.
-    ///
-    /// \param name File name.
-    /// \return Path of \p name inside the directory.
-    [[nodiscard]]
-    std::filesystem::path
-    operator/(std::string_view name) const
-    {
-      return m_path / name;
-    }
-
-  private:
-    /// Directory path.
-    std::filesystem::path m_path;
-  };
+  using Comprendo::Testing::TempDir;
 
   /// Run SQL on a database file through the raw SQLite API.
   ///
@@ -204,7 +162,7 @@ TEST_CASE("populated chart round-trips", "[store]")
   const Chart chart = populated_chart();
   REQUIRE(Comprendo::validate(chart).ok());
 
-  const auto path = dir / "nested/dir/chart.db";
+  const auto path = dir / "nested/dir/chart.sqlite";
   const auto written = Comprendo::write_chart(path, chart);
   REQUIRE(written.has_value());
 
@@ -220,8 +178,8 @@ TEST_CASE("empty chart round-trips", "[store]")
   Chart chart;
   chart.project = "empty";
 
-  REQUIRE(Comprendo::write_chart(dir / "chart.db", chart).has_value());
-  const auto read = Comprendo::read_chart(dir / "chart.db");
+  REQUIRE(Comprendo::write_chart(dir / "chart.sqlite", chart).has_value());
+  const auto read = Comprendo::read_chart(dir / "chart.sqlite");
   REQUIRE(read.has_value());
   CHECK(*read == chart);
 }
@@ -233,8 +191,8 @@ TEST_CASE("chart without layout round-trips", "[store]")
   Chart chart = populated_chart();
   chart.layout.clear();
 
-  REQUIRE(Comprendo::write_chart(dir / "chart.db", chart).has_value());
-  const auto read = Comprendo::read_chart(dir / "chart.db");
+  REQUIRE(Comprendo::write_chart(dir / "chart.sqlite", chart).has_value());
+  const auto read = Comprendo::read_chart(dir / "chart.sqlite");
   REQUIRE(read.has_value());
   CHECK(read->layout.empty());
   CHECK(*read == canonical(chart));
@@ -244,7 +202,7 @@ TEST_CASE("chart without layout round-trips", "[store]")
 TEST_CASE("partial layout reads as empty", "[store]")
 {
   const TempDir dir {"partial-layout"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
   REQUIRE(
     exec_raw(path, "DELETE FROM layout WHERE rowid = (SELECT MIN(rowid) FROM layout)") == SQLITE_OK
@@ -260,7 +218,7 @@ TEST_CASE("partial layout reads as empty", "[store]")
 TEST_CASE("writing overwrites an existing chart", "[store]")
 {
   const TempDir dir {"overwrite"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
 
   Chart second;
@@ -277,7 +235,7 @@ TEST_CASE("writing overwrites an existing chart", "[store]")
 TEST_CASE("failed write leaves the existing chart untouched", "[store]")
 {
   const TempDir dir {"atomic"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   const Chart original = populated_chart();
   REQUIRE(Comprendo::write_chart(path, original).has_value());
 
@@ -288,7 +246,7 @@ TEST_CASE("failed write leaves the existing chart untouched", "[store]")
   REQUIRE_FALSE(written.has_value());
   CHECK_THAT(written.error(), ContainsSubstring("edge destination 2 does not exist"));
 
-  CHECK_FALSE(std::filesystem::exists(dir / "chart.db.tmp"));
+  CHECK_FALSE(std::filesystem::exists(dir / "chart.sqlite.tmp"));
   const auto read = Comprendo::read_chart(path);
   REQUIRE(read.has_value());
   CHECK(*read == canonical(original));
@@ -298,12 +256,12 @@ TEST_CASE("failed write leaves the existing chart untouched", "[store]")
 TEST_CASE("written chart carries identity pragmas", "[store]")
 {
   const TempDir dir {"identity"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   REQUIRE(Comprendo::write_chart(path, Chart {}).has_value());
 
   CHECK(query_raw(path, "PRAGMA application_id") == Comprendo::kChartApplicationId);
   CHECK(query_raw(path, "PRAGMA user_version") == Comprendo::kChartSchemaVersion);
-  CHECK_FALSE(std::filesystem::exists(dir / "chart.db-wal"));
+  CHECK_FALSE(std::filesystem::exists(dir / "chart.sqlite-wal"));
 
   constexpr std::size_t kHeaderBytes = 20;
   constexpr std::size_t kWriteVersionOffset = 18;
@@ -318,7 +276,7 @@ TEST_CASE("written chart carries identity pragmas", "[store]")
 TEST_CASE("schema DDL is idempotent", "[store]")
 {
   const TempDir dir {"idempotent"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   const std::string schema {Comprendo::kChartSchemaSql};
   REQUIRE(exec_raw(path, schema) == SQLITE_OK);
   REQUIRE(exec_raw(path, schema) == SQLITE_OK);
@@ -329,7 +287,7 @@ TEST_CASE("schema DDL is idempotent", "[store]")
 TEST_CASE("schema constraints enforce invariants", "[store]")
 {
   const TempDir dir {"constraints"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   REQUIRE(Comprendo::write_chart(path, Chart {}).has_value());
   const std::string node = "INSERT INTO nodes (id, kind, name, qualified_name, file, provenance) "
                            "VALUES ";
@@ -359,7 +317,7 @@ TEST_CASE("reading a missing chart fails", "[store]")
 TEST_CASE("reading a non-database file fails", "[store]")
 {
   const TempDir dir {"garbage"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   std::ofstream {path} << "this is not a database, just some text that is long enough";
 
   const auto read = Comprendo::read_chart(path);
@@ -383,7 +341,7 @@ TEST_CASE("reading a foreign database fails", "[store]")
 TEST_CASE("reading a newer schema version fails", "[store]")
 {
   const TempDir dir {"newer"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   REQUIRE(Comprendo::write_chart(path, Chart {}).has_value());
   REQUIRE(exec_raw(path, "PRAGMA user_version = 2") == SQLITE_OK);
 
@@ -398,7 +356,7 @@ TEST_CASE("reading a newer schema version fails", "[store]")
 TEST_CASE("reading leaves the file unchanged", "[store]")
 {
   const TempDir dir {"read-only"};
-  const auto path = dir / "chart.db";
+  const auto path = dir / "chart.sqlite";
   REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
   const auto size = std::filesystem::file_size(path);
   const auto modified = std::filesystem::last_write_time(path);

@@ -43,13 +43,23 @@ ctest --preset clang-22` succeeds.
 
 Acceptance: round-trip test and validation tests pass.
 
-## M2 — ctags extractor
+## M2 — ctags extractor (complete)
 
-- `Extractor` interface and `CtagsExtractor`.
-- File enumeration via `git ls-files` with fallback walk.
-- ctags JSON parsing; `Contains` and `Includes` edges.
-- `.comprendo/config.toml` via toml11: roots, excludes, ctags path.
-- Tests on fixture trees.
+- `Extractor` interface and `CtagsExtractor`
+  ([architecture](architecture.md#ctags-backend-m2)).
+- File enumeration via `git ls-files` with fallback walk; glob excludes.
+- In-tree `Json` parser/serializer; `run_process` (posix_spawn, both pipes
+  drained with poll).
+- ctags JSON parsing; kind mapping; `Contains` and `Includes` edges.
+- Prototype/definition matching: declaration-only functions (pure virtual,
+  defaulted, external) are charted at their declaration; `= delete` and
+  lambdas are skipped. Default language set is C++ only.
+- `.comprendo/config.toml` via toml11: roots, excludes, languages,
+  include paths, ctags path, batch size; `COMPRENDO_CTAGS` via libenvpp.
+- Tests: pure unit tests for each step (including each declaration-matching
+  tier), plus the `tests/fixtures/extract_basic` tree (C++ and, opted in,
+  Python; git listing and directory walk), skipped when Universal Ctags is
+  absent.
 
 Acceptance: fixture extraction produces the expected nodes and edges.
 
@@ -74,7 +84,7 @@ Acceptance: identical input yields identical layout hash.
 
 ## M4 — Viewer MVP
 
-- Load `.comprendo/chart.db` read-only, render nodes and edges with `Camera2D`.
+- Load `.comprendo/chart.sqlite` read-only, render nodes and edges with `Camera2D`.
 - Pan, zoom, select; inspector details arrive in M4b.
 - Level-of-detail labels and kind colors.
 
@@ -95,6 +105,9 @@ Acceptance: the viewer opens with the dock layout and the smoke test passes.
 ## M4b — Panels wired to the chart
 
 - Explorer tree from chart nodes with filtering.
+- Grouping toggle: by file (stored `Contains` tree) or by namespace (namespace
+  nodes merged by qualified name in the viewer), see
+  [architecture](architecture.md#user-interface).
 - Inspector shows summary/detail/file:line/edges.
 - Status bar shows chart path, node/edge counts, and zoom.
 
@@ -102,7 +115,7 @@ Acceptance: selecting a node populates the inspector from the loaded chart.
 
 ## M5 — CLI pipeline
 
-- `extract` (writes `chart.db` directly), `validate`, `info` subcommands.
+- `extract` (writes `chart.sqlite` directly), `validate`, `info` subcommands.
 - CTest integration test for `validate`.
 
 Acceptance: `extract` → `validate` → `info` runs headlessly.
@@ -110,14 +123,14 @@ Acceptance: `extract` → `validate` → `info` runs headlessly.
 ## M6 — opencode plugin
 
 - `plugin/` package with `/chart` command and chart tools.
-- Writes `.comprendo/chart.db` itself via `bun:sqlite`; no dependency on
+- Writes `.comprendo/chart.sqlite` itself via `bun:sqlite`; no dependency on
   `comprendo-cli`. Applies `schema/chart.sql`; overwrite on re-run.
 - FNV-1a node ids in `BigInt`, checked against the
   [chart-schema.md](chart-schema.md#ids) vectors.
 - `bun test` against a temporary database; a CTest gated on `bun` runs
   `comprendo-cli validate` on a plugin-written chart.
 
-Acceptance: `/chart` fills `.comprendo/chart.db`, the viewer opens it, and the
+Acceptance: `/chart` fills `.comprendo/chart.sqlite`, the viewer opens it, and the
 plugin prints the viewer command.
 
 ## M7 — Polish

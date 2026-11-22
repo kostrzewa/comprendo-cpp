@@ -18,7 +18,7 @@ chart, and a raylib viewer renders it for navigation.
 | `comprendo-cli` | C++ | `extract`, `validate`, `info` |
 | `plugin/` | TypeScript | opencode `/chart` command and chart-building tools |
 
-The chart is a single SQLite database, `.comprendo/chart.db`, described in
+The chart is a single SQLite database, `.comprendo/chart.sqlite`, described in
 [chart-schema.md](chart-schema.md). There is no bridge between the plugin and
 the CLI: each writes the database directly. Schema logic stays in one place
 because both apply the same DDL file, `schema/chart.sql`, and both check
@@ -52,7 +52,7 @@ never used.
   provenance = Extractor      provenance = Model
                    \             /
                     v           v
-                .comprendo/chart.db   (SQLite, WAL)
+                .comprendo/chart.sqlite   (SQLite, WAL)
                          |
                          v
                 comprendo (viewer, read-only)
@@ -82,12 +82,60 @@ Node identity is a 64-bit FNV-1a hash over `(kind, qualified_name, file,
 signature)`, implemented in-tree. This is stable across runs and distinguishes
 overloads without depending on clangd exposing USRs.
 
+### ctags backend (M2)
+
+Pipeline, each step a separately tested unit in `comprendo_core`:
+
+1. **Configuration** (`ExtractConfig`): defaults, then
+   `<root>/.comprendo/config.toml`, then the environment (`COMPRENDO_CTAGS`, via
+   libenvpp). Unknown TOML sections or keys are errors.
+
+   ```toml
+   [extract]
+   roots = ["."]                                   # subdirectories to scan
+   excludes = [".git/**", ".comprendo/**", "build/**"]
+   languages = ["C++"]                             # ctags names; .h counts as C++
+   include_paths = ["include", "src", "."]
+   ctags = "ctags"
+   ctags_batch = 256                               # files per ctags call
+   ```
+
+2. **Enumeration** (`enumerate_files`): `git ls-files --cached --others
+   --exclude-standard` inside a work tree, otherwise a directory walk skipping
+   `.git`. Globs: `*` and `?` within a segment, `**` across segments; a pattern
+   without `/` matches the file name at any depth.
+3. **Language detection**: `ctags --print-language`, filtered by `languages`.
+   Universal Ctags 5.9 has no `--` marker, so paths starting with `-` are
+   skipped with a warning.
+4. **Tags**: `ctags --output-format=json --fields=+KnSesp`, parsed with the
+   in-tree `Json` parser (also used by the LSP client in M2b).
+5. **Includes** (`scan_includes`, `resolve_include`): C-family files only;
+   quoted includes resolve next to the includer first, then through
+   `include_paths`; only project files produce edges.
+6. **Chart building** (`build_ctags_chart`, pure): one File node per source
+   file; one node per charted tag. Locals, parameters, labels, include
+   references, and anonymous callables (ctags `__anon*` lambdas) are not
+   charted. Prototypes (requested with `--kinds-C++=+p`) are matched to
+   definitions with the same qualified name: identical signature, then
+   identical parameter types (names and default values stripped) and
+   qualifiers, then the only definition with the same arity and qualifiers.
+   Matched and `= delete` prototypes are dropped, so a function declared in a
+   header and defined in a source file appears once, at its definition; pure
+   virtual, defaulted, and externally defined functions appear at their
+   declaration. Functions in class-like scopes become methods; Python `member` tags are methods;
+   enumerators are fields; unknown kinds become `Other`. Qualified names join
+   the ctags scope with `::` (C family) or `.` (others). Namespaces are per
+   file, so `Contains` is a tree: each symbol's parent is its enclosing scope
+   (matching kind and same file preferred, across files otherwise, e.g. an
+   out-of-line method under its class in the header), or its file. Duplicate
+   ids keep the first tag in `(path, line)` order.
+
 ## Plugin
 
 The plugin does not invoke `comprendo-cli`. opencode plugins run on Bun, so the
 plugin opens the chart with the built-in `bun:sqlite` module. `/chart`:
 
-1. recreates `.comprendo/chart.db`, applies `schema/chart.sql`, and sets the
+1. recreates `.comprendo/chart.sqlite`, applies `schema/chart.sql`, and sets the
    connection pragmas (`foreign_keys`, `journal_mode = WAL`);
 2. prompts the session to explore and annotate the codebase;
 3. exposes `chart_add_node`, `chart_annotate_node`, `chart_annotate_cluster`,
@@ -103,7 +151,7 @@ independent writer of the same file; the viewer shows rows from either.
 
 ## Viewer
 
-The viewer is read-only. It opens `.comprendo/chart.db` read-only, computes a
+The viewer is read-only. It opens `.comprendo/chart.sqlite` read-only, computes a
 deterministic layout, and renders with raylib:
 
 - `Camera2D` pan and zoom, kind-colored nodes, level-of-detail labels;
@@ -122,7 +170,20 @@ hotkey. `Logger::init` logs the project version and git commit at startup.
 ## User interface
 
 The viewer uses Dear ImGui (docking branch) through rlImGui for its chrome: menu
-bar, dockable Explorer/Inspector/Log panels, and a status bar. The graph canvas
+bar, dockable Explorer/Inspector/Log panels, and a status bar.
+
+The Explorer and the graph offer two groupings of the same chart, built in the
+viewer without changing the stored model:
+
+- **By file** — the stored `Contains` tree: file → namespace (per file) →
+  class → member.
+- **By namespace** — namespace nodes with equal `qualified_name` (one per file
+  in the chart) are merged into a single virtual group, and their children are
+  re-parented under it; files then appear only as a node attribute. Anonymous
+  namespaces (`__anon*`) stay per file and display as "(anonymous)".
+
+Node ids are unaffected, so selection, the inspector, and model annotations
+work identically in both views. The graph canvas
 is the transparent central dock node
 (`ImGuiDockNodeFlags_PassthruCentralNode`), so raylib renders the graph behind
 the panels. Camera and fullscreen shortcuts are gated on

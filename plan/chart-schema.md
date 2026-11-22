@@ -2,7 +2,7 @@
 
 Cross-references: [requirements](comprendo-cpp.md) · [architecture](architecture.md) · [milestones](milestones.md)
 
-The chart is a single SQLite database, by default `.comprendo/chart.db`. Two
+The chart is a single SQLite database, by default `.comprendo/chart.sqlite`. Two
 independent writers fill it: the opencode plugin (through `bun:sqlite`) and
 `comprendo-cli extract`. The viewer opens it read-only. The DDL in
 [`schema/chart.sql`](../schema/chart.sql) is the single source of truth for both
