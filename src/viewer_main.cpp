@@ -4,9 +4,10 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <expected>
 #include <string>
-#include <string_view>
 
+#include <CLI/CLI.hpp>
 #include <fmt/format.h>
 
 #include "Comprendo/Ui.hpp"
@@ -31,7 +32,7 @@ namespace
   constexpr int kTargetFps = 60;
 
   /// Background color.
-  constexpr Color kBackground{24, 24, 32, 255};
+  constexpr Color kBackground {24, 24, 32, 255};
 
   /// Title font size in pixels.
   constexpr int kTitleFontSize = 40;
@@ -91,26 +92,37 @@ namespace
     bool smoke_test = false;
   };
 
+  /// Exit code for a malformed command line, matching `comprendo-cli`.
+  constexpr int kExitUsage = 2;
+
   /// Parse viewer command-line options.
+  ///
+  /// `--help` and `--version` print to standard output and stop the program, as
+  /// do malformed command lines, which print to standard error.
   ///
   /// \param argc Number of command-line arguments.
   /// \param argv Command-line argument vector.
-  /// \return Parsed options.
-  Options
+  /// \return Parsed options, or the exit code to stop with.
+  std::expected<Options, int>
   parse_options(int argc, char **argv)
   {
+    CLI::App app {"Interactive viewer for Comprendo code charts.", "comprendo"};
+    app.set_version_flag(
+      "--version", fmt::format("comprendo {} (git {})", COMPRENDO_VERSION, COMPRENDO_GIT_COMMIT)
+    );
     Options options;
-    for (int i = 1; i < argc; ++i)
+    app.add_flag(
+      "--smoke-test",
+      options.smoke_test,
+      "Render a hidden window for a fixed number of frames, exercising resize and fullscreen"
+    );
+    try
     {
-      const std::string_view arg{argv[i]};
-      if (arg == "--smoke-test")
-      {
-        options.smoke_test = true;
-      }
-      else
-      {
-        Comprendo::Logger::warn("Unknown argument: {}", arg);
-      }
+      app.parse(argc, argv);
+    }
+    catch (const CLI::ParseError &error)
+    {
+      return std::unexpected(app.exit(error) == 0 ? 0 : kExitUsage);
     }
     return options;
   }
@@ -142,9 +154,8 @@ namespace
   void
   handle_window_shortcuts()
   {
-    const bool toggle_fullscreen =
-      IsKeyPressed(KEY_F11) ||
-      ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_F));
+    const bool toggle_fullscreen = IsKeyPressed(KEY_F11)
+      || ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_F));
     const bool leave_fullscreen = IsKeyPressed(KEY_ESCAPE) && is_fullscreen();
     if (toggle_fullscreen || leave_fullscreen)
     {
@@ -206,8 +217,8 @@ namespace
   bool
   check_resize()
   {
-    const bool resized =
-      (GetScreenWidth() == kSmokeResizeWidth) && (GetScreenHeight() == kSmokeResizeHeight);
+    const bool resized
+      = (GetScreenWidth() == kSmokeResizeWidth) && (GetScreenHeight() == kSmokeResizeHeight);
     Comprendo::Ui::log_viewport_state("Smoke: viewport");
     Comprendo::Logger::info("Smoke: resized to {}x{}", GetScreenWidth(), GetScreenHeight());
     return resized && window_and_render_match();
@@ -220,8 +231,8 @@ namespace
   check_fullscreen()
   {
     const int monitor = GetCurrentMonitor();
-    const bool native = (GetScreenWidth() == GetMonitorWidth(monitor)) &&
-                        (GetScreenHeight() == GetMonitorHeight(monitor));
+    const bool native = (GetScreenWidth() == GetMonitorWidth(monitor))
+      && (GetScreenHeight() == GetMonitorHeight(monitor));
     const bool fullscreen = is_fullscreen();
     Comprendo::Ui::log_viewport_state("Smoke: viewport");
     log_fullscreen_state("Smoke: fullscreen");
@@ -259,29 +270,19 @@ namespace
   {
     switch (frame)
     {
-    case kSmokeResizeFrame:
-      SetWindowSize(kSmokeResizeWidth, kSmokeResizeHeight);
-      return true;
+    case kSmokeResizeFrame: SetWindowSize(kSmokeResizeWidth, kSmokeResizeHeight); return true;
     case kSmokeStartupViewportFrame:
       Comprendo::Ui::log_viewport_state("Smoke: viewport");
       return true;
-    case kSmokePanelsCheckFrame:
-      return check_panels();
-    case kSmokeResizeCheckFrame:
-      return check_resize();
+    case kSmokePanelsCheckFrame: return check_panels();
+    case kSmokeResizeCheckFrame: return check_resize();
     case kSmokeFullscreenFrame:
-    case kSmokeWindowedFrame:
-      ToggleBorderlessWindowed();
-      return true;
-    case kSmokeFullscreenCheckFrame:
-      return check_fullscreen();
+    case kSmokeWindowedFrame: ToggleBorderlessWindowed(); return true;
+    case kSmokeFullscreenCheckFrame: return check_fullscreen();
     case kSmokeFullscreenViewportCheckFrame:
-    case kSmokeWindowedViewportCheckFrame:
-      return check_viewport();
-    case kSmokeWindowedCheckFrame:
-      return check_windowed();
-    default:
-      return true;
+    case kSmokeWindowedViewportCheckFrame: return check_viewport();
+    case kSmokeWindowedCheckFrame: return check_windowed();
+    default: return true;
     }
   }
 
@@ -321,8 +322,13 @@ namespace
 int
 main(int argc, char **argv)
 {
+  const auto parsed = parse_options(argc, argv);
+  if (!parsed)
+  {
+    return parsed.error();
+  }
+  const Options options = *parsed;
   Comprendo::Logger::init();
-  const Options options = parse_options(argc, argv);
 
   unsigned int flags = FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIDDEN;
 
@@ -341,8 +347,8 @@ main(int argc, char **argv)
     ClearWindowState(FLAG_WINDOW_HIDDEN);
   }
 
-  const std::string build_info =
-    fmt::format("v{} (git {})", COMPRENDO_VERSION, COMPRENDO_GIT_COMMIT);
+  const std::string build_info
+    = fmt::format("v{} (git {})", COMPRENDO_VERSION, COMPRENDO_GIT_COMMIT);
 
   bool passed = true;
   if (options.smoke_test)

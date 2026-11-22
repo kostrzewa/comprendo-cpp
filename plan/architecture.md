@@ -132,10 +132,14 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
 
 ## CLI
 
-`comprendo-cli` is a thin `main` around `run_cli` in `comprendo_core`. Results
-go to stdout; the logger (startup banner with version and commit) goes to
-stderr. Exit codes: `0` success, `1` failure (invalid chart, extraction or I/O
-error), `2` malformed command line.
+`comprendo-cli` is a thin `main` around `run_cli` in `comprendo_core`, which
+parses with CLI11 (generated `--help` for the tool and each subcommand,
+`--version`). Results go to stdout; the logger (startup banner with version
+and commit) goes to stderr. Exit codes: `0` success (including `--help` and
+`--version`), `1` failure (invalid chart, extraction or I/O error), `2`
+malformed command line. The viewer parses its options (`--smoke-test`,
+`--help`, `--version`) with CLI11 as well and uses the same exit code `2` for
+malformed command lines, before creating a window.
 
 | Command | Behaviour |
 | --- | --- |

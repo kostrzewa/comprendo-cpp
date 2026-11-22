@@ -59,7 +59,7 @@ target_include_directories(
 target_link_libraries(
   comprendo_core
   PUBLIC fmt::fmt spdlog::spdlog
-  PRIVATE comprendo_sqlite3 toml11::toml11 libenvpp::libenvpp
+  PRIVATE comprendo_sqlite3 toml11::toml11 libenvpp::libenvpp CLI11::CLI11
 )
 target_compile_definitions(
   comprendo_core
@@ -71,7 +71,7 @@ target_link_libraries(comprendo-cli PRIVATE comprendo_core)
 
 if(COMPRENDO_BUILD_VIEWER)
   add_executable(comprendo src/viewer_main.cpp src/Ui.cpp)
-  target_link_libraries(comprendo PRIVATE comprendo_core raylib rlimgui)
+  target_link_libraries(comprendo PRIVATE comprendo_core raylib rlimgui CLI11::CLI11)
 endif()
 
 if(COMPRENDO_BUILD_TESTS)
@@ -127,6 +127,11 @@ if(COMPRENDO_BUILD_TESTS)
   endif()
 
   if(COMPRENDO_BUILD_VIEWER)
+    add_test(NAME viewer_rejects_unknown_option COMMAND comprendo --no-such-option)
+    set_tests_properties(
+      viewer_rejects_unknown_option
+      PROPERTIES PASS_REGULAR_EXPRESSION "not expected: --no-such-option"
+    )
     find_program(XVFB_RUN xvfb-run)
     if(XVFB_RUN)
       add_test(NAME viewer_smoke COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test)

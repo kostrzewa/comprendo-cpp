@@ -15,6 +15,7 @@ Technologies to be used:
 -  https://github.com/gabime/spdlog for logging
 -  https://github.com/ph3at/libenvpp for handling environment variables
 -  https://github.com/ToruNiina/toml11.git for textual input files
+-  https://github.com/CLIUtils/CLI11 for command-line argument parsing (`comprendo-cli` and the viewer)
 -  SQLite (amalgamation via FetchContent) as the chart store shared by the plugin and the C++ tools; the plugin writes it directly through `bun:sqlite`
 -  include/Profiler/Profiler.hpp for profiling (output to perfetto traces)
 -  include/Logger/Logger.hpp (for logging, uses spdlog) from which you should remove the depdendency on MPI and Kronos

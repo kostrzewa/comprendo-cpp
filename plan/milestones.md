@@ -117,8 +117,9 @@ Acceptance: selecting a node populates the inspector from the loaded chart.
 
 - `extract` (writes `chart.sqlite` directly), `validate`, `info` subcommands;
   see [architecture](architecture.md#cli).
-- Command dispatch in `comprendo_core` (`run_cli`) with Catch2 tests on
-  captured streams; `comprendo-cli` logs to stderr, results to stdout.
+- Command dispatch in `comprendo_core` (`run_cli`, parsed with CLI11) with
+  Catch2 tests on captured streams; `comprendo-cli` logs to stderr, results to
+  stdout. The viewer's options use CLI11 too.
 - `check_chart_file`: SQLite integrity and foreign-key checks plus `validate()`.
 - CTest integration: `cli_validate_rejects_non_chart`, and
   `cli_extract` → `cli_validate` / `cli_info` on the fixture (gated on ctags).
