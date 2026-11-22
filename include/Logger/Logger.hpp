@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -23,11 +24,24 @@ namespace Comprendo::Logger
     explicit LoggerError(const std::string &msg) : std::runtime_error("Logger::error: " + msg) { }
   };
 
+  /// Default spdlog pattern: timestamp, level, message.
+  inline constexpr const char *kDefaultPattern = "[%D %T.%e] [%^%=7l%$] %v";
+
+  /// Console stream receiving log output.
+  enum class ConsoleStream : std::uint8_t
+  {
+    /// Standard output (interactive programs such as the viewer).
+    Stdout,
+    /// Standard error (tools whose standard output carries results).
+    Stderr,
+  };
+
   /// Initialize the global logger.
   ///
   /// \param level   One of "debug", "info", "warn", "error" (default "info").
   /// \param log_file Optional file sink; empty means console only.
   /// \param pattern spdlog pattern used for every sink.
+  /// \param console Console stream for the console sink.
   ///
   /// The startup banner always contains the project version and the git commit
   /// hash so every log file can be traced back to a revision.
@@ -35,7 +49,8 @@ namespace Comprendo::Logger
   init(
     std::string level = "info",
     std::string log_file = "",
-    std::string pattern = "[%D %T.%e] [%^%=7l%$] %v"
+    std::string pattern = kDefaultPattern,
+    ConsoleStream console = ConsoleStream::Stdout
   )
   {
     const std::vector<std::pair<std::string, spdlog::level::level_enum>> levels = {
@@ -64,7 +79,15 @@ namespace Comprendo::Logger
       sinks.push_back(file_sink);
     }
 
-    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    spdlog::sink_ptr console_sink;
+    if (console == ConsoleStream::Stderr)
+    {
+      console_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+    }
+    else
+    {
+      console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    }
     console_sink->set_level(selected);
     sinks.push_back(console_sink);
 

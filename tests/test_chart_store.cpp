@@ -303,6 +303,39 @@ TEST_CASE("schema constraints enforce invariants", "[store]")
   CHECK(exec_raw(path, "UPDATE nodes SET cluster_id = 5 WHERE id = 1") != SQLITE_OK);
 }
 
+/// The thorough file check accepts a good chart and catches what read_chart() cannot.
+TEST_CASE("check_chart_file finds integrity problems", "[store]")
+{
+  const TempDir dir {"check-file"};
+  const auto path = dir / "chart.sqlite";
+  REQUIRE(Comprendo::write_chart(path, populated_chart()).has_value());
+  CHECK(Comprendo::check_chart_file(path).ok());
+
+  REQUIRE(
+    exec_raw(
+      path,
+      "PRAGMA foreign_keys = OFF; "
+      "INSERT INTO edges (src, dst, kind, provenance) VALUES (123, 456, 3, 1);"
+    )
+    == SQLITE_OK
+  );
+  const Comprendo::ValidationResult result = Comprendo::check_chart_file(path);
+  REQUIRE_FALSE(result.ok());
+  bool foreign_key = false;
+  bool dangling = false;
+  for (const std::string &error : result.errors)
+  {
+    foreign_key = foreign_key || error.contains("references a missing row of table nodes");
+    dangling = dangling || error.contains("edge source 123 does not exist");
+  }
+  CHECK(foreign_key);
+  CHECK(dangling);
+
+  const Comprendo::ValidationResult missing = Comprendo::check_chart_file(dir / "absent.sqlite");
+  REQUIRE_FALSE(missing.ok());
+  CHECK_THAT(missing.errors.front(), ContainsSubstring("does not exist"));
+}
+
 /// Reading a file that does not exist reports it by name.
 TEST_CASE("reading a missing chart fails", "[store]")
 {

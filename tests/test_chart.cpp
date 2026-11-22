@@ -49,6 +49,18 @@ namespace
   }
 } // namespace
 
+/// Kind names match plan/chart-schema.md and flag out-of-range values.
+TEST_CASE("kind names", "[chart]")
+{
+  CHECK(Comprendo::to_string(NodeKind::Other) == "Other");
+  CHECK(Comprendo::to_string(NodeKind::Method) == "Method");
+  CHECK(Comprendo::to_string(NodeKind::TypeAlias) == "TypeAlias");
+  CHECK(Comprendo::to_string(static_cast<NodeKind>(14)) == "Invalid");
+  CHECK(Comprendo::to_string(EdgeKind::Contains) == "Contains");
+  CHECK(Comprendo::to_string(EdgeKind::DataFlow) == "DataFlow");
+  CHECK(Comprendo::to_string(static_cast<EdgeKind>(7)) == "Invalid");
+}
+
 /// FNV-1a matches the published 64-bit test vectors.
 TEST_CASE("fnv1a64 matches reference vectors", "[chart][id]")
 {

@@ -4,6 +4,7 @@
 #include "Comprendo/Chart.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -26,10 +27,56 @@ namespace
 
   /// Field separator used when building node identity strings.
   constexpr char kSeparator = '\x1f';
+
+  /// NodeKind names indexed by value.
+  constexpr std::array<std::string_view, 14> kNodeKindNames = {
+    "Other",
+    "File",
+    "Module",
+    "Namespace",
+    "Class",
+    "Struct",
+    "Union",
+    "Enum",
+    "Function",
+    "Method",
+    "Field",
+    "Variable",
+    "Macro",
+    "TypeAlias"
+  };
+
+  /// EdgeKind names indexed by value.
+  constexpr std::array<std::string_view, 7> kEdgeKindNames
+    = {"Other", "Contains", "Includes", "Calls", "Inherits", "Uses", "DataFlow"};
+
+  /// Look up the name of an enum value in a table.
+  ///
+  /// \param names Names indexed by value.
+  /// \param value Enum value.
+  /// \return The name, or "Invalid" when out of range.
+  template <std::size_t N>
+  std::string_view
+  kind_name(const std::array<std::string_view, N> &names, std::uint8_t value)
+  {
+    return value < names.size() ? names.at(value) : std::string_view {"Invalid"};
+  }
 } // namespace
 
 namespace Comprendo
 {
+  std::string_view
+  to_string(NodeKind kind)
+  {
+    return kind_name(kNodeKindNames, std::to_underlying(kind));
+  }
+
+  std::string_view
+  to_string(EdgeKind kind)
+  {
+    return kind_name(kEdgeKindNames, std::to_underlying(kind));
+  }
+
   std::uint64_t
   fnv1a64(std::string_view data)
   {

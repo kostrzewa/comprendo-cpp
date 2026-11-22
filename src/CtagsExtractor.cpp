@@ -904,9 +904,8 @@ namespace Comprendo
     read_sources(config.root, *sources);
 
     Chart chart = build_ctags_chart(*sources, *tags, config.include_paths);
-    const std::filesystem::path root = std::filesystem::absolute(config.root).lexically_normal();
-    chart.project
-      = root.has_filename() ? root.filename().string() : root.parent_path().filename().string();
+    const std::filesystem::path root = std::filesystem::weakly_canonical(config.root);
+    chart.project = root.filename().string();
     chart.source_root = root.string();
     chart.git_commit = describe_commit(config.root);
     chart.generator = fmt::format("comprendo {} ({})", COMPRENDO_VERSION, name());

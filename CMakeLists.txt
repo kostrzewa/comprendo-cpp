@@ -31,13 +31,19 @@ configure_file(
 )
 
 include(cmake/dependencies.cmake)
-include(cmake/doxygen_setup.cmake)
+
+option(COMPRENDO_BUILD_DOXYGEN "Build html and latex documentation. Requires a texlive and doxygen installation" OFF)
+if(COMPRENDO_BUILD_DOXYGEN)    
+  find_package(Doxygen REQUIRED doxygen)    
+  include(cmake/doxygen_setup.cmake)
+endif()  
 
 add_library(
   comprendo_core
   STATIC
   src/Chart.cpp
   src/ChartStore.cpp
+  src/Cli.cpp
   src/CtagsExtractor.cpp
   src/ExtractConfig.cpp
   src/Files.cpp
@@ -75,6 +81,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_smoke.cpp
     tests/test_chart.cpp
     tests/test_chart_store.cpp
+    tests/test_cli.cpp
     tests/test_ctags_extractor.cpp
     tests/test_extract_config.cpp
     tests/test_files.cpp
@@ -92,6 +99,32 @@ if(COMPRENDO_BUILD_TESTS)
     PRIVATE comprendo_core comprendo_sqlite3 Catch2::Catch2WithMain
   )
   catch_discover_tests(comprendo_tests)
+
+  add_test(
+    NAME cli_validate_rejects_non_chart
+    COMMAND comprendo-cli validate ${CMAKE_SOURCE_DIR}/CMakeLists.txt
+  )
+  set_tests_properties(
+    cli_validate_rejects_non_chart
+    PROPERTIES PASS_REGULAR_EXPRESSION "invalid chart"
+  )
+
+  find_program(UNIVERSAL_CTAGS ctags)
+  if(UNIVERSAL_CTAGS)
+    set(CLI_TEST_CHART ${CMAKE_BINARY_DIR}/cli-test/chart.sqlite)
+    add_test(
+      NAME cli_extract
+      COMMAND
+        comprendo-cli extract --root ${CMAKE_SOURCE_DIR}/tests/fixtures/extract_basic --output
+        ${CLI_TEST_CHART}
+    )
+    add_test(NAME cli_validate COMMAND comprendo-cli validate ${CLI_TEST_CHART})
+    add_test(NAME cli_info COMMAND comprendo-cli info ${CLI_TEST_CHART})
+    set_tests_properties(cli_extract PROPERTIES FIXTURES_SETUP cli_chart)
+    set_tests_properties(cli_validate cli_info PROPERTIES FIXTURES_REQUIRED cli_chart)
+    set_tests_properties(cli_validate PROPERTIES PASS_REGULAR_EXPRESSION ": valid")
+    set_tests_properties(cli_info PROPERTIES PASS_REGULAR_EXPRESSION "Contains +[0-9]+")
+  endif()
 
   if(COMPRENDO_BUILD_VIEWER)
     find_program(XVFB_RUN xvfb-run)

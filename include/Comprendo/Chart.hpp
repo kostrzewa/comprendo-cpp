@@ -212,6 +212,22 @@ namespace Comprendo
     }
   };
 
+  /// Name of a node kind as listed in plan/chart-schema.md.
+  ///
+  /// \param kind Node kind.
+  /// \return Name such as "Function", or "Invalid" for out-of-range values.
+  [[nodiscard]]
+  std::string_view
+  to_string(NodeKind kind);
+
+  /// Name of an edge kind as listed in plan/chart-schema.md.
+  ///
+  /// \param kind Edge kind.
+  /// \return Name such as "Calls", or "Invalid" for out-of-range values.
+  [[nodiscard]]
+  std::string_view
+  to_string(EdgeKind kind);
+
   /// Compute the 64-bit FNV-1a hash of a byte range.
   ///
   /// \param data Bytes to hash.

@@ -113,19 +113,26 @@ Acceptance: the viewer opens with the dock layout and the smoke test passes.
 
 Acceptance: selecting a node populates the inspector from the loaded chart.
 
-## M5 — CLI pipeline
+## M5 — CLI pipeline (complete)
 
-- `extract` (writes `chart.sqlite` directly), `validate`, `info` subcommands.
-- CTest integration test for `validate`.
+- `extract` (writes `chart.sqlite` directly), `validate`, `info` subcommands;
+  see [architecture](architecture.md#cli).
+- Command dispatch in `comprendo_core` (`run_cli`) with Catch2 tests on
+  captured streams; `comprendo-cli` logs to stderr, results to stdout.
+- `check_chart_file`: SQLite integrity and foreign-key checks plus `validate()`.
+- CTest integration: `cli_validate_rejects_non_chart`, and
+  `cli_extract` → `cli_validate` / `cli_info` on the fixture (gated on ctags).
 
 Acceptance: `extract` → `validate` → `info` runs headlessly.
 
 ## M6 — opencode plugin
 
 - `plugin/` package with `/chart` command and chart tools.
-- Writes `.comprendo/chart.sqlite` itself via `bun:sqlite`; no dependency on
-  `comprendo-cli`. Applies `schema/chart.sql`; overwrite on re-run.
-- FNV-1a node ids in `BigInt`, checked against the
+- Writes `.comprendo/chart.sqlite` itself via `bun:sqlite`; no code
+  dependency on `comprendo-cli`. The `/chart` prompt asks the model to run
+  `comprendo-cli extract` via its shell tool when available, then annotates
+  the extracted nodes (looked up by qualified name and file).
+- FNV-1a node ids in `BigInt` for model-added nodes, checked against the
   [chart-schema.md](chart-schema.md#ids) vectors.
 - `bun test` against a temporary database; a CTest gated on `bun` runs
   `comprendo-cli validate` on a plugin-written chart.

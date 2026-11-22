@@ -449,7 +449,7 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
   SECTION("header fields describe the extraction")
   {
     CHECK(chart->project == "ctags-basic");
-    CHECK(chart->source_root == std::filesystem::absolute(dir.path()).lexically_normal().string());
+    CHECK(chart->source_root == std::filesystem::weakly_canonical(dir.path()).string());
     CHECK_THAT(chart->generator, ContainsSubstring("(ctags)"));
     CHECK(chart->generated_at.size() == std::string_view {"2026-01-01T00:00:00Z"}.size());
   }

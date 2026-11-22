@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <iterator>
 #include <ranges>
 #include <string>
 #include <string_view>
@@ -582,5 +583,68 @@ namespace Comprendo
       return std::unexpected(fmt::format("cannot read {}: {}", path.string(), read.error()));
     }
     return chart;
+  }
+
+  ValidationResult
+  check_chart_file(const std::filesystem::path &path)
+  {
+    const ProfileScope profile {"check_chart_file"};
+    ValidationResult result;
+
+    if (std::filesystem::is_regular_file(path))
+    {
+      if (auto db = Sqlite::Database::open(path, Sqlite::OpenMode::ReadOnly))
+      {
+        auto integrity = for_each_row(
+          *db,
+          "PRAGMA integrity_check",
+          [&result](const Statement &stmt)
+          {
+            if (std::string message = stmt.column_text(0); message != "ok")
+            {
+              result.errors.push_back(fmt::format("integrity check: {}", message));
+            }
+          }
+        );
+        auto foreign_keys = integrity.and_then(
+          [&]
+          {
+            return for_each_row(
+              *db,
+              "PRAGMA foreign_key_check",
+              [&result](const Statement &stmt)
+              {
+                result.errors.push_back(
+                  fmt::format(
+                    "row {} of table {} references a missing row of table {}",
+                    stmt.column_int(1),
+                    stmt.column_text(0),
+                    stmt.column_text(2)
+                  )
+                );
+              }
+            );
+          }
+        );
+        if (!foreign_keys)
+        {
+          result.errors.push_back(foreign_keys.error());
+        }
+      }
+    }
+
+    auto chart = read_chart(path);
+    if (!chart)
+    {
+      result.errors.push_back(chart.error());
+      return result;
+    }
+    ValidationResult rules = validate(*chart);
+    result.errors.insert(
+      result.errors.end(),
+      std::make_move_iterator(rules.errors.begin()),
+      std::make_move_iterator(rules.errors.end())
+    );
+    return result;
   }
 } // namespace Comprendo

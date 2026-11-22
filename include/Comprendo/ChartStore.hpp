@@ -35,4 +35,16 @@ namespace Comprendo
   [[nodiscard]]
   std::expected<Chart, std::string>
   read_chart(const std::filesystem::path &path);
+
+  /// Check a chart file thoroughly, as `comprendo-cli validate` does.
+  ///
+  /// Runs SQLite's `integrity_check` and `foreign_key_check`, the identity and
+  /// version checks of read_chart(), and validate() on the loaded chart, so
+  /// charts written with foreign keys disabled are still caught.
+  ///
+  /// \param path Database file to check.
+  /// \return All problems found; ok() when the chart is valid.
+  [[nodiscard]]
+  ValidationResult
+  check_chart_file(const std::filesystem::path &path);
 } // namespace Comprendo

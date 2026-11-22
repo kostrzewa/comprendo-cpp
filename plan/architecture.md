@@ -130,24 +130,49 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    out-of-line method under its class in the header), or its file. Duplicate
    ids keep the first tag in `(path, line)` order.
 
+## CLI
+
+`comprendo-cli` is a thin `main` around `run_cli` in `comprendo_core`. Results
+go to stdout; the logger (startup banner with version and commit) goes to
+stderr. Exit codes: `0` success, `1` failure (invalid chart, extraction or I/O
+error), `2` malformed command line.
+
+| Command | Behaviour |
+| --- | --- |
+| `extract [--root DIR] [--output FILE]` | Load `DIR/.comprendo/config.toml`, run the ctags extractor, write FILE (default `DIR/.comprendo/chart.sqlite`). |
+| `validate [FILE]` | `check_chart_file`: `integrity_check`, `foreign_key_check`, identity/version, `validate()`; lists every problem on stderr. |
+| `info [FILE]` | Header fields, node and edge counts per kind, clusters, layout. |
+
+`FILE` defaults to `.comprendo/chart.sqlite` in the working directory. The
+plugin does not call the CLI; `/chart` may instruct the model to run
+`comprendo-cli extract` through its shell tool so annotations start from the
+extracted nodes, which the plugin looks up by qualified name and file rather
+than recomputing ids.
+
 ## Plugin
 
 The plugin does not invoke `comprendo-cli`. opencode plugins run on Bun, so the
 plugin opens the chart with the built-in `bun:sqlite` module. `/chart`:
 
-1. recreates `.comprendo/chart.sqlite`, applies `schema/chart.sql`, and sets the
-   connection pragmas (`foreign_keys`, `journal_mode = WAL`);
-2. prompts the session to explore and annotate the codebase;
-3. exposes `chart_add_node`, `chart_annotate_node`, `chart_annotate_cluster`,
-   `chart_add_edge`, and `chart_finish`; each tool call is one transaction and
-   writes rows with provenance `Model`;
-4. computes node ids with the FNV-1a recipe in
+1. prompts the session to run `comprendo-cli extract` through its shell tool
+   when the CLI is available, so the chart starts from the complete extracted
+   structure (this rewrites `.comprendo/chart.sqlite`);
+2. opens `.comprendo/chart.sqlite`, creating it and applying
+   `schema/chart.sql` when absent, and sets the connection pragmas
+   (`foreign_keys`, `journal_mode = WAL`);
+3. prompts the session to explore and annotate the codebase;
+4. exposes `chart_find_node`, `chart_add_node`, `chart_annotate_node`,
+   `chart_annotate_cluster`, `chart_add_edge`, and `chart_finish`; each tool
+   call is one transaction and writes rows with provenance `Model`. Existing
+   nodes are found by qualified name and file (`chart_find_node`), never by
+   recomputing ids, because extractor signatures use ctags' exact text;
+5. computes ids only for nodes the model adds, with the FNV-1a recipe in
    [chart-schema.md](chart-schema.md#ids), using `BigInt` (`safeIntegers`);
-5. on `chart_finish`, prints the chart path and the viewer command. It does
+6. on `chart_finish`, prints the chart path and the viewer command. It does
    not launch the viewer.
 
-Re-running `/chart` overwrites the whole chart. `comprendo-cli extract` is an
-independent writer of the same file; the viewer shows rows from either.
+Without the CLI, the model builds the chart from scratch through
+`chart_add_node`. The viewer shows rows from either writer.
 
 ## Viewer
 
