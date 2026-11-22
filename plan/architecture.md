@@ -244,9 +244,17 @@ chart, hierarchy, and layout and answers the frame's questions:
 
 `GraphRenderer` draws in screen space (no `Camera2D`), in passes: container
 fills and rings, edges, disks and points, selection and hover rings, then
-labels at a fixed pixel size, placed greedily without overlap. Circles use a
-segment count proportional to their screen radius, so containers stay round when
-zoomed in far.
+labels at a fixed pixel size, placed greedily without overlap.
+
+Shapes are anti-aliased analytically: each disk, ring, point, and line is a
+single quad, and a GLSL 3.30 fragment shader sets coverage to the signed pixel
+distance to the shape's edge, clamped to one pixel. The vertex texture
+coordinate carries the pixel offset from the centre; the shape parameters travel
+in the vertex normal, which raylib normalizes, so they are encoded as the
+direction (radius, half-width, ±1) and rescaled by the last component. raylib's
+default batch only feeds the attributes of its default shader, so the renderer
+owns a render batch created while its shader is active. Without GLSL 3.30 it
+falls back to raylib polygons whose segment count grows with the screen radius.
 
 Interaction: mouse wheel zooms about the cursor, left-drag or right/middle-drag
 pans, left-click selects, hovering shows a tooltip (label, kind, file:line).

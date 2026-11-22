@@ -27,3 +27,15 @@ commit. Newest last.
   Fitting and focusing now share one sticky auto-fit target that is reapplied
   whenever the graph area changes, until the user zooms or pans.
 - Added milestone M4c (anti-aliased graph rendering) at the user's request.
+- Commit: `c42920e`.
+
+## 2026-11-23 — M4c anti-aliased graph rendering
+
+- Disks, rings, points, and lines are single shader quads with analytic
+  coverage (exact distance to the edge in pixels), replacing triangle fans.
+- Two raylib pitfalls found from screenshots, not tests: the default batch does
+  not feed the normal attribute to custom shaders (fixed with an own batch),
+  and `rlNormal3f` normalizes its input (shape parameters now travel as a
+  direction whose last component restores the scale).
+- Frame time on the raylib chart unchanged on the software rasterizer
+  (15.2 ms); smoke tests now run without the 60 FPS limiter.

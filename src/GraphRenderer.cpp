@@ -4,13 +4,17 @@
 #include "Comprendo/GraphRenderer.hpp"
 
 #include <raylib.h>
+#include <rlgl.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "Logger/Logger.hpp"
 
 namespace
 {
@@ -144,19 +148,224 @@ namespace
     return view.layout().groups[group].radius * camera.zoom;
   }
 
+  /// Vertex shader of the anti-aliased shapes: passes the shape parameters in
+  /// the vertex normal through to the fragment shader.
+  constexpr const char *kVertexShader = R"glsl(#version 330
+in vec3 vertexPosition;
+in vec2 vertexTexCoord;
+in vec3 vertexNormal;
+in vec4 vertexColor;
+uniform mat4 mvp;
+out vec2 fragTexCoord;
+out vec3 fragShape;
+out vec4 fragColor;
+void main()
+{
+  fragTexCoord = vertexTexCoord;
+  fragShape = vertexNormal;
+  fragColor = vertexColor;
+  gl_Position = mvp * vec4(vertexPosition, 1.0);
+}
+)glsl";
+
+  /// Fragment shader of the anti-aliased shapes.
+  ///
+  /// texcoord is the pixel offset from the shape's centre (circles) or from the
+  /// line's centre line (lines, in y). raylib normalizes vertex normals, so the
+  /// shape is encoded as a direction whose last component restores the scale:
+  /// normal = normalize(radius px, half-width px, 1) for circles and
+  /// normalize(0, half-width px, -1) for lines. A half-width of 0 on a circle
+  /// means a filled disk. Coverage is the signed pixel distance to the edge
+  /// clamped to one pixel: exact box-filter anti-aliasing for straight and gently
+  /// curved edges at every zoom.
+  constexpr const char *kFragmentShader = R"glsl(#version 330
+in vec2 fragTexCoord;
+in vec3 fragShape;
+in vec4 fragColor;
+out vec4 finalColor;
+void main()
+{
+  float scale = 1.0 / abs(fragShape.z);
+  float radius = fragShape.x * scale;
+  float half_width = fragShape.y * scale;
+  float coverage;
+  if (fragShape.z < 0.0)
+  {
+    coverage = clamp(half_width + 0.5 - abs(fragTexCoord.y), 0.0, 1.0);
+  }
+  else
+  {
+    float distance = length(fragTexCoord);
+    if (half_width > 0.0)
+    {
+      coverage = clamp(half_width + 0.5 - abs(distance - radius), 0.0, 1.0);
+    }
+    else
+    {
+      coverage = clamp(radius + 0.5 - distance, 0.0, 1.0);
+    }
+  }
+  if (coverage <= 0.0)
+  {
+    discard;
+  }
+  finalColor = vec4(fragColor.rgb, fragColor.a * coverage);
+}
+)glsl";
+
+  /// Quads per draw call of the graph's render batch.
+  constexpr int kBatchQuads = 8192;
+
+  /// Pixels added around every shape quad for the anti-aliased fringe.
+  constexpr float kFringe = 1.5F;
+
+  /// Radius of a point drawn as a tiny smooth disk.
+  constexpr float kPointRadius = 0.75F;
+
+  /// Draws disks, rings, and lines, anti-aliased through the shape shader or as
+  /// raylib polygons when the shader is unavailable.
+  struct Painter
+  {
+    /// True to emit shader quads, false for polygon fallback.
+    bool antialiased = false;
+
+    /// Emit one quad around a circle with its shape parameters.
+    ///
+    /// \param centre Screen centre.
+    /// \param radius Screen radius.
+    /// \param ring_half_width Half the ring width in pixels, 0 for a filled disk.
+    /// \param color Colour.
+    static void
+    circle_quad(Vector2 centre, float radius, float ring_half_width, Color color)
+    {
+      const float extent = radius + ring_half_width + kFringe;
+      rlCheckRenderBatchLimit(4);
+      rlBegin(RL_QUADS);
+      rlColor4ub(color.r, color.g, color.b, color.a);
+      rlNormal3f(radius, ring_half_width, 1.0F);
+      rlTexCoord2f(-extent, -extent);
+      rlVertex2f(centre.x - extent, centre.y - extent);
+      rlTexCoord2f(-extent, extent);
+      rlVertex2f(centre.x - extent, centre.y + extent);
+      rlTexCoord2f(extent, extent);
+      rlVertex2f(centre.x + extent, centre.y + extent);
+      rlTexCoord2f(extent, -extent);
+      rlVertex2f(centre.x + extent, centre.y - extent);
+      rlEnd();
+    }
+
+    /// Draw a filled disk.
+    ///
+    /// \param centre Screen centre.
+    /// \param radius Screen radius.
+    /// \param color Fill colour.
+    void
+    disk(Vector2 centre, float radius, Color color) const
+    {
+      if (antialiased)
+      {
+        circle_quad(centre, radius, 0.0F, color);
+      }
+      else
+      {
+        fill_circle(centre, radius, color);
+      }
+    }
+
+    /// Draw a ring centred on a circle.
+    ///
+    /// \param centre Screen centre.
+    /// \param radius Screen radius of the ring's centre line.
+    /// \param width Ring width in pixels.
+    /// \param color Ring colour.
+    void
+    ring(Vector2 centre, float radius, float width, Color color) const
+    {
+      if (antialiased)
+      {
+        circle_quad(centre, radius, width / 2.0F, color);
+      }
+      else
+      {
+        outline_circle(centre, radius, color);
+      }
+    }
+
+    /// Draw a point as a tiny disk.
+    ///
+    /// \param centre Screen position.
+    /// \param color Colour.
+    void
+    point(Vector2 centre, Color color) const
+    {
+      if (antialiased)
+      {
+        circle_quad(centre, kPointRadius, 0.0F, color);
+      }
+      else
+      {
+        DrawRectangleV({.x = centre.x - 0.5F, .y = centre.y - 0.5F}, {.x = 1.0F, .y = 1.0F}, color);
+      }
+    }
+
+    /// Draw a straight line.
+    ///
+    /// \param from Start point.
+    /// \param to End point.
+    /// \param width Line width in pixels.
+    /// \param color Line colour.
+    void
+    line(Vector2 from, Vector2 to, float width, Color color) const
+    {
+      if (!antialiased)
+      {
+        DrawLineEx(from, to, width, color);
+        return;
+      }
+      const float dx = to.x - from.x;
+      const float dy = to.y - from.y;
+      const float length = std::sqrt((dx * dx) + (dy * dy));
+      if (length <= 0.0F)
+      {
+        return;
+      }
+      const float half = (width / 2.0F) + kFringe;
+      const Vector2 normal {.x = -dy / length * half, .y = dx / length * half};
+      rlCheckRenderBatchLimit(4);
+      rlBegin(RL_QUADS);
+      rlColor4ub(color.r, color.g, color.b, color.a);
+      rlNormal3f(0.0F, width / 2.0F, -1.0F);
+      rlTexCoord2f(0.0F, -half);
+      rlVertex2f(from.x - normal.x, from.y - normal.y);
+      rlTexCoord2f(0.0F, half);
+      rlVertex2f(from.x + normal.x, from.y + normal.y);
+      rlTexCoord2f(0.0F, half);
+      rlVertex2f(to.x + normal.x, to.y + normal.y);
+      rlTexCoord2f(0.0F, -half);
+      rlVertex2f(to.x - normal.x, to.y - normal.y);
+      rlEnd();
+    }
+  };
+
   /// Draw a two-pixel ring around a group.
   ///
+  /// \param painter Shape painter.
   /// \param view Chart view.
   /// \param camera View camera.
   /// \param group Group index.
   /// \param color Ring colour.
   void
-  draw_highlight(const ChartView &view, const ViewCamera &camera, std::size_t group, Color color)
+  draw_highlight(
+    const Painter &painter,
+    const ChartView &view,
+    const ViewCamera &camera,
+    std::size_t group,
+    Color color
+  )
   {
     const Vector2 centre = screen_centre(view, camera, group);
     const float radius = std::max(screen_radius(view, camera, group), 1.0F) + kHighlightGap;
-    outline_circle(centre, radius, color);
-    outline_circle(centre, radius + 1.0F, color);
+    painter.ring(centre, radius + 0.5F, 2.0F, color);
   }
 
   /// Draw labels of groups large enough to carry one.
@@ -212,9 +421,43 @@ namespace
 
 namespace Comprendo
 {
-  void
-  draw_graph(const ChartView &view, const ViewCamera &camera, const GraphFrame &frame)
+  GraphRenderer::GraphRenderer() :
+    m_shader(LoadShaderFromMemory(kVertexShader, kFragmentShader)),
+    m_antialiased(IsShaderValid(m_shader) && m_shader.id != rlGetShaderIdDefault())
   {
+    if (m_antialiased)
+    {
+      BeginShaderMode(m_shader);
+      m_batch = rlLoadRenderBatch(1, kBatchQuads);
+      EndShaderMode();
+      Logger::info("Graph anti-aliasing: shader");
+    }
+    else
+    {
+      Logger::warn("Graph anti-aliasing unavailable (GLSL 3.30 shader failed); drawing polygons");
+    }
+  }
+
+  GraphRenderer::~GraphRenderer()
+  {
+    if (m_antialiased)
+    {
+      rlUnloadRenderBatch(m_batch);
+      UnloadShader(m_shader);
+    }
+  }
+
+  void
+  GraphRenderer::draw(const ChartView &view, const ViewCamera &camera, const GraphFrame &frame)
+  {
+    const Painter painter {.antialiased = m_antialiased};
+    if (m_antialiased)
+    {
+      rlSetRenderBatchActive(&m_batch);
+      BeginShaderMode(m_shader);
+      rlSetTexture(rlGetTextureIdDefault());
+      rlDisableBackfaceCulling();
+    }
     for (const DrawItem &item : frame.items)
     {
       if (item.style == DrawStyle::Container)
@@ -222,13 +465,13 @@ namespace Comprendo
         const Vector2 centre = screen_centre(view, camera, item.group);
         const float radius = screen_radius(view, camera, item.group);
         const Color color = group_color(view, item.group);
-        fill_circle(centre, radius, Fade(color, kContainerFill));
-        outline_circle(centre, radius, Fade(color, kContainerRing));
+        painter.disk(centre, radius, Fade(color, kContainerFill));
+        painter.ring(centre, radius, 1.0F, Fade(color, kContainerRing));
       }
     }
     for (const VisibleEdge &edge : frame.edges)
     {
-      DrawLineEx(
+      painter.line(
         screen_centre(view, camera, edge.from),
         screen_centre(view, camera, edge.to),
         kEdgeWidth,
@@ -241,20 +484,27 @@ namespace Comprendo
       const Color color = group_color(view, item.group);
       if (item.style == DrawStyle::Disk)
       {
-        fill_circle(centre, screen_radius(view, camera, item.group), color);
+        painter.disk(centre, screen_radius(view, camera, item.group), color);
       }
       else if (item.style == DrawStyle::Point)
       {
-        DrawRectangleV({.x = centre.x - 0.5F, .y = centre.y - 0.5F}, {.x = 1.0F, .y = 1.0F}, color);
+        painter.point(centre, color);
       }
     }
     if (frame.hovered && frame.hovered != frame.selected)
     {
-      draw_highlight(view, camera, *frame.hovered, kHoveredColor);
+      draw_highlight(painter, view, camera, *frame.hovered, kHoveredColor);
     }
     if (frame.selected)
     {
-      draw_highlight(view, camera, *frame.selected, kSelectedColor);
+      draw_highlight(painter, view, camera, *frame.selected, kSelectedColor);
+    }
+    if (m_antialiased)
+    {
+      rlSetRenderBatchActive(nullptr);
+      rlEnableBackfaceCulling();
+      rlSetTexture(0);
+      EndShaderMode();
     }
     draw_labels(view, camera, frame.items);
   }

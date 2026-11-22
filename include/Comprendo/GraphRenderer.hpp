@@ -3,6 +3,9 @@
 /// \file
 /// \brief raylib drawing of a ChartView: groups, edges, highlights, and labels.
 
+#include <raylib.h>
+#include <rlgl.h>
+
 #include <cstddef>
 #include <optional>
 #include <vector>
@@ -24,17 +27,60 @@ namespace Comprendo
     std::optional<std::size_t> hovered;
   };
 
-  /// Draw a frame of the graph in screen space, between raylib's
-  /// BeginDrawing() and EndDrawing().
+  /// Draws the graph with analytic anti-aliasing.
   ///
-  /// Draws in passes so each layer stays readable: container fills and rings,
-  /// edges, leaf disks and points, highlight rings, then labels at a fixed pixel
-  /// size for groups large enough to carry them (at most a fixed number per
-  /// frame). Lines stay one pixel wide at every zoom.
-  ///
-  /// \param view Chart view.
-  /// \param camera View camera.
-  /// \param frame Items, edges, and highlights of this frame.
-  void
-  draw_graph(const ChartView &view, const ViewCamera &camera, const GraphFrame &frame);
+  /// Disks, rings, and lines are drawn as single quads whose fragment shader
+  /// computes coverage from the exact distance to the shape's edge in pixels,
+  /// so edges are smooth at every zoom and a circle costs two triangles instead
+  /// of a fan of up to 720. When the shader cannot be compiled (no GLSL 3.30),
+  /// the renderer falls back to raylib's polygon shapes without anti-aliasing.
+  class GraphRenderer
+  {
+  public:
+    /// Load the anti-aliasing shader; the raylib window must already exist.
+    GraphRenderer();
+
+    /// Unload the shader; call before the window closes.
+    ~GraphRenderer();
+
+    GraphRenderer(const GraphRenderer &) = delete;
+    GraphRenderer &
+    operator=(const GraphRenderer &) = delete;
+    GraphRenderer(GraphRenderer &&) = delete;
+    GraphRenderer &
+    operator=(GraphRenderer &&) = delete;
+
+    /// Whether the anti-aliasing shader is in use.
+    ///
+    /// \return False when drawing falls back to polygon shapes.
+    [[nodiscard]]
+    bool
+    antialiased() const
+    {
+      return m_antialiased;
+    }
+
+    /// Draw a frame of the graph in screen space, between raylib's
+    /// BeginDrawing() and EndDrawing().
+    ///
+    /// Draws in passes so each layer stays readable: container fills and rings,
+    /// edges, leaf disks and points, highlight rings, then labels at a fixed
+    /// pixel size for groups large enough to carry them (greedily placed without
+    /// overlap). Lines stay one pixel wide at every zoom.
+    ///
+    /// \param view Chart view.
+    /// \param camera View camera.
+    /// \param frame Items, edges, and highlights of this frame.
+    void
+    draw(const ChartView &view, const ViewCamera &camera, const GraphFrame &frame);
+
+  private:
+    /// Anti-aliasing shader.
+    Shader m_shader {};
+    /// Render batch whose vertex layout feeds the shader's normal attribute;
+    /// raylib's default batch only binds the attributes of its default shader.
+    rlRenderBatch m_batch {};
+    /// True when m_shader compiled and is used.
+    bool m_antialiased = false;
+  };
 } // namespace Comprendo

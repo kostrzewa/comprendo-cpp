@@ -177,12 +177,17 @@ Acceptance: the viewer opens with the dock layout and the smoke test passes.
 
 Acceptance: selecting a node populates the inspector from the loaded chart.
 
-## M4c — Anti-aliased graph rendering
+## M4c — Anti-aliased graph rendering (complete)
 
-- Smooth edges of disks, rings, and lines in the graph view at every zoom.
+- Smooth edges of disks, rings, and lines in the graph view at every zoom:
+  every shape is one quad whose GLSL 3.30 fragment shader computes coverage
+  from the exact pixel distance to the edge (`GraphRenderer`); polygons remain
+  as a fallback when the shader cannot be compiled.
 - No change to the ImGui panels; no measurable frame-time regression on the
-  42k-node raylib chart.
-- Smoke test runs with anti-aliasing enabled.
+  42k-node raylib chart (15.2 ms vs 15.2 ms per frame on xvfb's software
+  rasterizer; on a GPU the quads replace fans of up to 720 triangles).
+- Smoke test runs with anti-aliasing enabled (fails otherwise when a chart is
+  given) and reports the average frame time; smoke tests run unthrottled.
 
 Acceptance: graph screenshots show smooth circle and line edges.
 

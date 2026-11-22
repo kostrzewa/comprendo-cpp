@@ -536,15 +536,20 @@ namespace
   ///
   /// \param session Session to draw.
   /// \param state Viewer state holding the selection.
+  /// \param renderer Graph renderer.
   void
-  draw_session(const GraphSession &session, const Comprendo::ViewerState &state)
+  draw_session(
+    const GraphSession &session,
+    const Comprendo::ViewerState &state,
+    Comprendo::GraphRenderer &renderer
+  )
   {
     Comprendo::GraphFrame frame;
     frame.items = session.view.visible(session.camera);
     frame.edges = session.view.visible_edges(frame.items);
     frame.selected = state.selected;
     frame.hovered = session.hovered;
-    Comprendo::draw_graph(session.view, session.camera, frame);
+    renderer.draw(session.view, session.camera, frame);
   }
 
   /// Show a tooltip for the group under the mouse.
@@ -568,18 +573,20 @@ namespace
   /// \param note Placeholder note shown without a chart.
   /// \param ui_shell Viewer UI shell.
   /// \param state Viewer state.
+  /// \param renderer Graph renderer.
   void
   draw_frame(
     const std::optional<GraphSession> &session,
     const std::string &build_info,
     std::string_view note,
     Comprendo::Ui &ui_shell,
-    Comprendo::ViewerState &state
+    Comprendo::ViewerState &state,
+    Comprendo::GraphRenderer &renderer
   )
   {
     if (session)
     {
-      draw_session(*session, state);
+      draw_session(*session, state, renderer);
     }
     else
     {
@@ -737,6 +744,7 @@ namespace
   /// \param note Placeholder note shown without a chart.
   /// \param ui_shell Viewer UI shell.
   /// \param state Viewer state.
+  /// \param renderer Graph renderer; with a chart it must be anti-aliased.
   /// \return True when every check passed.
   bool
   run_smoke_test(
@@ -744,10 +752,13 @@ namespace
     std::optional<GraphSession> &session,
     std::string_view note,
     Comprendo::Ui &ui_shell,
-    Comprendo::ViewerState &state
+    Comprendo::ViewerState &state,
+    Comprendo::GraphRenderer &renderer
   )
   {
-    bool passed = true;
+    bool passed = !session || renderer.antialiased();
+    Comprendo::Logger::info("Smoke: anti-aliasing {}", renderer.antialiased() ? "on" : "off");
+    std::chrono::steady_clock::duration drawing {};
     for (int frame = 0; frame < kSmokeTestFrames; ++frame)
     {
       passed = run_smoke_step(frame) && passed;
@@ -759,11 +770,17 @@ namespace
 
       BeginDrawing();
       ClearBackground(kBackground);
+      const auto start = std::chrono::steady_clock::now();
       Comprendo::Ui::begin_frame();
-      draw_frame(session, build_info, note, ui_shell, state);
+      draw_frame(session, build_info, note, ui_shell, state, renderer);
       Comprendo::Ui::end_frame();
       EndDrawing();
+      drawing += std::chrono::steady_clock::now() - start;
     }
+    Comprendo::Logger::info(
+      "Smoke: {:.2f} ms per frame drawn",
+      std::chrono::duration<double, std::milli>(drawing).count() / kSmokeTestFrames
+    );
     return passed;
   }
 } // namespace
@@ -784,11 +801,13 @@ namespace
     SetConfigFlags(flags);
     InitWindow(kWindowWidth, kWindowHeight, "Comprendo");
     SetWindowMinSize(kMinWindowWidth, kMinWindowHeight);
-    SetTargetFPS(kTargetFps);
+    SetTargetFPS(options.smoke_test ? 0 : kTargetFps);
 
     Comprendo::Ui ui_shell;
     Comprendo::ViewerState state;
     ui_shell.init(!options.smoke_test);
+    std::optional<Comprendo::GraphRenderer> renderer;
+    renderer.emplace();
 
     // Let the window manager place the window before it becomes visible.
     if (!options.smoke_test)
@@ -821,7 +840,7 @@ namespace
     if (options.smoke_test)
     {
       passed = !(options.chart_given && !session);
-      passed = run_smoke_test(build_info, session, note, ui_shell, state) && passed;
+      passed = run_smoke_test(build_info, session, note, ui_shell, state, *renderer) && passed;
     }
     else
     {
@@ -845,13 +864,14 @@ namespace
         {
           handle_graph_input(*session, state);
         }
-        draw_frame(session, build_info, note, ui_shell, state);
+        draw_frame(session, build_info, note, ui_shell, state, *renderer);
         Comprendo::Ui::end_frame();
 
         EndDrawing();
       }
     }
 
+    renderer.reset();
     Comprendo::Ui::shutdown();
     CloseWindow();
     return passed ? 0 : 1;
