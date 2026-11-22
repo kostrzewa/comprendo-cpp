@@ -31,7 +31,10 @@ cmake --build --preset clang-22 -j"$(nproc)"
 ctest --preset clang-22 --output-on-failure
 ```
 
-Use `clang-22-release` for optimized builds. `compile_commands.json` lives in
+Use `clang-22-release` for optimized builds; it defaults `CMAKE_C_FLAGS` and
+`CMAKE_CXX_FLAGS` to `-march=native -mtune=native` (override them for portable
+binaries). `comprendo_core` is built with `-ffp-contract=off` so layouts are
+bit-identical across builds and CPUs; keep it. `compile_commands.json` lives in
 the build directory; pass `--compile-commands-dir=<build>` to `clangd-22`.
 
 UI: Dear ImGui `v1.92.7-docking` + rlImGui `Raylib_5_5`. The graph is the

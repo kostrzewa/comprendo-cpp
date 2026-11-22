@@ -178,6 +178,47 @@ plugin opens the chart with the built-in `bun:sqlite` module. `/chart`:
 Without the CLI, the model builds the chart from scratch through
 `chart_add_node`. The viewer shows rows from either writer.
 
+## Layout
+
+`build_hierarchy(chart, grouping)` nests nodes into groups: by file (the stored
+`Contains` tree, smallest parent id when several, cycles cut) or by namespace
+(named namespaces merged by qualified name, anonymous ones per file, file
+contents moved to the root). `compute_layout(chart, hierarchy, options)` then
+places every group as a disk, bottom-up:
+
+1. children start on a golden-angle spiral, largest first, with SplitMix64
+   jitter seeded by `options.seed ^ group.key` (no trigonometry, so results do
+   not depend on libm);
+2. a fixed number of iterations (fewer for groups above 1024 children, scaled
+   with 1/sqrt(n)) apply Barnes–Hut repulsion weighted by disk area (`QuadTree`,
+   theta 0.8), springs for non-`Contains` edges aggregated at the deepest common
+   group, and linear gravity; steps are force/mass capped by a temperature
+   cooling geometrically from the group extent to a tenth of the leaf spacing,
+   followed by one collision sweep;
+3. overlaps are removed by parallel Jacobi sweeps (each pair's overlap split by
+   mass, so a large disk is not overshot by the pushes of many small ones) until
+   shallow, then by an exact uniform expansion, so siblings never overlap;
+4. the group radius encloses its children plus padding; absolute positions are
+   assigned top-down from the origin.
+
+`QuadTree` sorts bodies along a Morton curve (radix sort of keys packing the
+42-bit Morton code above the 22-bit body index) and stores leaves of up to 16
+bodies as structure-of-arrays blocks (zero-mass padding lanes). Each leaf walks
+the tree once against its bounding box and evaluates the collected far cells
+and near leaves with a branch-free 16-lane kernel (`m * d / |d|^2`, no square
+root), which compiles to packed SSE. The simulation runs in single precision:
+group-local coordinates stay below about 1e4, where float resolves 1e-3.
+
+Groups of 2048+ bodies evaluate their leaves and sweeps on all cores; smaller
+groups of the same depth are laid out concurrently. Every leaf and body writes
+only its own entries and sums in a fixed order, so the result is independent of
+the thread count, and debug and release builds produce identical golden files. Gravity 3 was chosen from measurements on Catch2, imgui, and raylib:
+lower values leave every nesting level sparse (the slack compounds with depth),
+higher values compress large groups so that overlap removal dominates.
+
+The layout is computed by the viewer for its current grouping; the chart's
+`layout` table remains an optional cache.
+
 ## Viewer
 
 The viewer is read-only. It opens `.comprendo/chart.sqlite` read-only, computes a

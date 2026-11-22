@@ -47,9 +47,13 @@ add_library(
   src/CtagsExtractor.cpp
   src/ExtractConfig.cpp
   src/Files.cpp
+  src/Hierarchy.cpp
   src/Includes.cpp
   src/Json.cpp
+  src/Layout.cpp
   src/Process.cpp
+  src/QuadTree.cpp
+  src/RadixSort.cpp
   src/Sqlite.cpp
 )
 target_include_directories(
@@ -65,6 +69,9 @@ target_compile_definitions(
   comprendo_core
   PUBLIC COMPRENDO_PROFILER_ENABLED=$<BOOL:${COMPRENDO_PROFILER_ENABLED}>
 )
+# Never fuse a*b+c into FMA: fused and unfused rounding differ, which would make
+# layouts depend on the target CPU and break golden files across builds.
+target_compile_options(comprendo_core PRIVATE -ffp-contract=off)
 
 add_executable(comprendo-cli src/cli_main.cpp)
 target_link_libraries(comprendo-cli PRIVATE comprendo_core)
@@ -85,14 +92,20 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_ctags_extractor.cpp
     tests/test_extract_config.cpp
     tests/test_files.cpp
+    tests/test_hierarchy.cpp
     tests/test_includes.cpp
     tests/test_json.cpp
+    tests/test_layout.cpp
     tests/test_process.cpp
+    tests/test_quadtree.cpp
+    tests/test_radix_sort.cpp
+    tests/test_random.cpp
   )
   target_include_directories(comprendo_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
   target_compile_definitions(
     comprendo_tests
     PRIVATE COMPRENDO_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
+            COMPRENDO_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden"
   )
   target_link_libraries(
     comprendo_tests

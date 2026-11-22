@@ -74,13 +74,60 @@ Acceptance: fixture extraction produces the expected nodes and edges.
 Acceptance: fixture call graph resolves overloads and virtual calls that ctags
 collapses.
 
-## M3 — Deterministic layout
+## M3 — Deterministic layout (complete)
 
-- splitmix64-seeded initialization, fixed-iteration force-directed layout.
-- Cluster-first placement, children around centroid.
-- Tests: golden hash of quantized positions, bounds, no NaN.
+- `build_hierarchy`: file grouping (stored `Contains` tree) and namespace
+  grouping (namespaces merged by qualified name), order independent, cycles cut.
+- `compute_layout`: hierarchical, bottom-up disk layout per group with
+  SplitMix64-seeded golden-angle spiral start, Barnes–Hut repulsion
+  (`QuadTree`), springs for edges between sibling subtrees, gravity, collision
+  sweeps, and exact overlap removal; see
+  [architecture](architecture.md#layout).
+- Large groups run fewer iterations and compute forces on all cores without
+  changing the result.
+- Tests: SplitMix64 vectors, hierarchy rules, Barnes–Hut accuracy against exact
+  sums, geometric invariants (finite, contained, non-overlapping), order
+  independence, seed sensitivity, edge attraction, 3000-sibling scale, golden
+  files (`tests/golden/layout_*.txt`, identical in debug and release).
 
-Acceptance: identical input yields identical layout hash.
+Acceptance: identical input yields identical layout; golden files match.
+
+## M3b — Layout performance (complete)
+
+- Blocked, vectorized Barnes–Hut: bodies sorted along a Morton curve, tree
+  built top-down over that order, leaves of up to 16 bodies stored as
+  structure-of-arrays blocks padded with zero-mass lanes; one tree walk per
+  leaf builds an interaction list evaluated by a branch-free 16-lane kernel.
+  Verified in the release binary: the kernel compiles to packed SSE
+  (`subps`/`mulps`/`maxps`/`divps`, fully unrolled, no scalar fallback).
+- Single precision throughout the simulation (`Vec2`, `Body`, kernel,
+  options); Morton quantization stays in double.
+- Leaves evaluated on all cores; parallel Jacobi overlap relaxation with
+  mass-weighted pushes; independent groups of one depth laid out concurrently.
+- Geometric cooling, so large groups settle before the final overlap removal.
+- Tests: float kernel against a double brute-force sum, leaf evaluation order
+  independence (bit-identical), coincident bodies, neighbour query with reach.
+
+- Morton order by LSD radix sort (`radix_sort`, six 11-bit passes, constant
+  digits skipped) of keys packing the 42-bit Morton code above a 22-bit body
+  index; the order equals the previous (code, index) comparison sort, verified
+  with the golden files.
+- Fixed `morton_code`: it used 3D spreading masks, so tree splits did not read
+  true quadrants (forces stayed correct, the tree was less efficient); now
+  tested with hand-computed codes.
+
+Measured in release on 16 cores, `-march=native` (file / namespace grouping),
+M3 → M3b: Catch2 10k nodes 0.35 / 0.67 s → 0.064 / 0.20 s; imgui 9k nodes
+0.50 / 0.50 s → 0.062 / 0.12 s; raylib 42k nodes 2.5 / 5.3 s → 0.38 / 0.50 s.
+Zero overlaps in all cases. The radix sort cut raylib's sort time from
+0.30 s to 0.08 s of CPU time; the Morton fix accounts for the rest of the last
+step's gain.
+
+- The `clang-22-release` preset defaults `CMAKE_C_FLAGS`/`CMAKE_CXX_FLAGS` to
+  `-march=native -mtune=native`; set other flags for portable builds.
+- `comprendo_core` always builds with `-ffp-contract=off`. Allowing FMA was
+  measured at 0–7% faster but changes the layout (both golden files fail), so
+  layouts would differ between debug and release and between CPUs.
 
 ## M4 — Viewer MVP
 

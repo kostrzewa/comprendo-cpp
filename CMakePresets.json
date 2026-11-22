@@ -29,7 +29,9 @@
       "inherits": "clang-22",
       "binaryDir": "${sourceDir}/build/clang-22-release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_FLAGS": "-march=native -mtune=native",
+        "CMAKE_CXX_FLAGS": "-march=native -mtune=native"
       }
     }
   ],
