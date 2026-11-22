@@ -113,7 +113,7 @@ relevant document and the milestone status in `plan/milestones.md`.
 
 - Make small, frequent commits. Do not commit unless the user asks. Run the build
 and tests before committing.
-- No agent attribution in commits.
+- No agent attribution in commit messages!
 
 ## Layout
 
