@@ -613,3 +613,5 @@ commit. Newest last.
   (frame 29), then the panel is opened (frame 31). Checked under xvfb:
   select `compute_layout` with the panel closed, open View → Source, and it
   shows Layout.cpp at lines 598–686.
+
+- Commit: `6b3bf32`.
