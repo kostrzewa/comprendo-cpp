@@ -489,3 +489,5 @@ commit. Newest last.
   names the license and the libraries and points to the notices.
 - `plugin.json` gained `author` (the user's edit, JSON typo fixed);
   `claude plugin validate --strict` passes.
+
+- Commit: `4dce511`.
