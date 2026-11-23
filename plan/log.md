@@ -469,3 +469,5 @@ commit. Newest last.
   and both opencode `package.json` files.
 - `claude plugin validate --strict` now only warns about the missing
   `author`.
+
+- Commit: `0007433`.
