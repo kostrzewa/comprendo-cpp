@@ -318,3 +318,4 @@ commit. Newest last.
   only one trunk per destination remains; inside, fibres meet at the rim.
   Checked with screenshots of the user's chart, hovering through XTest.
 
+- Commit: `592c8e6`.
