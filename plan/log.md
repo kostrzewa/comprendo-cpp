@@ -564,3 +564,13 @@ commit. Newest last.
   the View menu survives restarts both ways.
 
 - Commit: `3d7c5e5`.
+
+## 2026-11-23 — M12e window icon
+
+- The viewer sets the ¿? icon on its window: CMake copies
+  `claude_plugin/assets/icon.png` to `<build>/comprendo-icon.png`; at startup
+  it is converted to RGBA, resized to 16, 32, 48, 128, and 256 px, and passed
+  to `SetWindowIcons` while the window is still hidden. A missing file only
+  logs a warning.
+- Verified under xvfb: `xprop _NET_WM_ICON` on the window lists all five
+  sizes, and the decoded 48 px icon shows ¿?.

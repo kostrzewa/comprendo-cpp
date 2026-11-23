@@ -104,6 +104,10 @@ target_link_libraries(comprendo-cli PRIVATE comprendo_core)
 if(COMPRENDO_BUILD_VIEWER)
   add_executable(comprendo src/viewer_main.cpp src/Ui.cpp src/GraphRenderer.cpp)
   target_link_libraries(comprendo PRIVATE comprendo_core raylib rlimgui CLI11::CLI11)
+  # The window icon is the plugin icon (rendered from docs/graphics/comprendo-icon.svg).
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/claude_plugin/assets/icon.png ${CMAKE_BINARY_DIR}/comprendo-icon.png COPYONLY
+  )
   # raylib bundles GLFW; the viewer asks it for key names on the user's keyboard layout.
   target_include_directories(comprendo PRIVATE ${raylib_SOURCE_DIR}/src/external/glfw/include)
   target_compile_definitions(comprendo PRIVATE GLFW_INCLUDE_NONE)

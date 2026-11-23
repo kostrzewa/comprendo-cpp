@@ -4,6 +4,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -16,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -345,6 +347,43 @@ namespace
       // raylib's codes for printable keys are their US-layout characters.
       return key >= KEY_SPACE && key <= KEY_GRAVE ? static_cast<char>(key) : '\0';
     }
+  }
+
+  /// Give the window the Comprendo icon (the blocky ¿?) in several sizes, so
+  /// window managers and task bars can pick a sharp one. Without the icon file
+  /// the window keeps the default icon.
+  ///
+  /// \param file PNG copied next to the viewer at build time.
+  void
+  set_window_icon(const std::filesystem::path &file)
+  {
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(file, error))
+    {
+      Comprendo::Logger::warn("Window icon {} not found", file.string());
+      return;
+    }
+    Image source = LoadImage(file.c_str());
+    if (!IsImageValid(source))
+    {
+      Comprendo::Logger::warn("Cannot load window icon {}", file.string());
+      return;
+    }
+    ImageFormat(&source, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    constexpr std::array<int, 5> kSizes = {16, 32, 48, 128, 256};
+    std::vector<Image> icons;
+    for (const int size : kSizes)
+    {
+      Image icon = ImageCopy(source);
+      ImageResize(&icon, size, size);
+      icons.push_back(icon);
+    }
+    SetWindowIcons(icons.data(), static_cast<int>(icons.size()));
+    for (const Image &icon : icons)
+    {
+      UnloadImage(icon);
+    }
+    UnloadImage(source);
   }
 
   /// Read the viewer settings (font, text size, panels) into the state; an
@@ -1442,6 +1481,7 @@ namespace
 
     SetConfigFlags(flags);
     InitWindow(kWindowWidth, kWindowHeight, "Comprendo");
+    set_window_icon(std::filesystem::path {GetApplicationDirectory()} / "comprendo-icon.png");
     SetWindowMinSize(kMinWindowWidth, kMinWindowHeight);
     SetTargetFPS(options.smoke_test ? 0 : kTargetFps);
 

@@ -530,6 +530,9 @@ graph:
   docked panels and covered the minimap): chart file, counts, grouping,
   zoom, FPS, dropping items from the left when space is short; the tooltip
   has the full path and version.
+- **Window icon**: `comprendo-icon.png` next to the executable (copied from
+  `claude_plugin/assets/icon.png` at configure time), resized to 16–256 px
+  and set before the hidden window is first shown.
 - **Panel visibility** (Explorer, Inspector, Log, minimap) is part of
   `ViewerSettings` and so persists per user with the font and text size.
 

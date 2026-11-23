@@ -383,4 +383,7 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   the same settings; the Log is hidden by default. The status moved from a
   bottom overlay, which docked panels covered and which covered the minimap,
   to the right end of the menu bar.
+- e. (done) The window uses the Comprendo icon: `claude_plugin/assets/icon.png`
+  is copied next to the viewer (`comprendo-icon.png`) and set in sizes
+  16–256 px with `SetWindowIcons` (X11 `_NET_WM_ICON`).
 
