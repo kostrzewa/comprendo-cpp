@@ -256,10 +256,11 @@ TEST_CASE("clangd backend falls back to ctags only when optional", "[clangd][fix
 }
 
 /// The point of the clangd backend is resolving what ctags cannot: overloads,
-/// calls through a base reference, and inheritance. Extracts the fixture with a
-/// generated compilation database and real clangd-22, then checks main calls the
-/// double overload of scale but not the int one, total calls the virtual
-/// Shape::area declaration with the call site as evidence, and Circle inherits Shape.
+/// calls through a base reference, inheritance, and uses of types and fields.
+/// Extracts the fixture with real clangd-22, then checks main calls the double
+/// overload of scale but not the int one, total calls the virtual Shape::area
+/// with the call site as evidence, Circle inherits Shape, and the use edges
+/// (without a method "using" its own class or a base specifier counted twice).
 TEST_CASE("clangd resolves calls and inheritance in the basic fixture", "[clangd][fixture]")
 {
   if (!have_program("ctags") || !have_program("clangd-22"))
@@ -299,5 +300,20 @@ TEST_CASE("clangd resolves calls and inheritance in the basic fixture", "[clangd
     CHECK(virtual_call->provenance == Comprendo::Provenance::Extractor);
   }
   CHECK(find_edge(*chart, EdgeKind::Inherits, "geo::Circle ", "geo::Shape ") != nullptr);
+  CHECK(find_edge(*chart, EdgeKind::Uses, "geo::Circle ", "geo::Shape ") == nullptr);
+  CHECK(
+    find_edge(*chart, EdgeKind::Uses, "geo::Circle::area () const", "geo::Circle::radius_ ")
+    != nullptr
+  );
+  CHECK(find_edge(*chart, EdgeKind::Uses, "geo::Circle::area () const", "geo::Circle ") == nullptr);
+  CHECK(find_edge(*chart, EdgeKind::Uses, "main ()", "geo::Circle ") != nullptr);
+  const Edge *field_use = find_edge(
+    *chart, EdgeKind::Uses, "geo::distance (const Point & a,const Point & b)", "geo::Point::x "
+  );
+  CHECK(field_use != nullptr);
+  if (field_use != nullptr)
+  {
+    CHECK(field_use->weight == 2.0F);
+  }
   CHECK(chart->generator.contains("clangd"));
 }

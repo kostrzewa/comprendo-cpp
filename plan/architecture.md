@@ -75,8 +75,8 @@ otherwise; `backend = "clangd"` (or `extract --backend clangd`) makes those
 failures errors. Merge rules:
 
 - ctags supplies the full node set;
-- clangd adds `Calls` and `Inherits` edges, resolving overloads and calls
-  through base classes to the exact chart node;
+- clangd adds `Calls`, `Inherits`, and `Uses` edges, resolving overloads and
+  calls through base classes to the exact chart node;
 - `Includes` edges come from parsing `#include` directives;
 - `Contains` edges come from ctags scope fields and file membership.
 
@@ -155,7 +155,9 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
 4. **Queries**: for each function and method, `prepareCallHierarchy` at the
    name's column (`find_name_column` on the ctags line) and
    `callHierarchy/outgoingCalls`; for each class, struct, and union,
-   `prepareTypeHierarchy` and `typeHierarchy/supertypes`. Queries run grouped
+   `prepareTypeHierarchy` and `typeHierarchy/supertypes`; for each class,
+   struct, union, enum, type alias, field, and variable,
+   `textDocument/references`. Queries run grouped
    by file because clangd keeps only a few ASTs; in chart (id) order nearly
    every query reparsed its file (2 min vs 28 s on this repository).
 5. **Mapping** (`NodeLocator`): a result's URI and selection line map to the
@@ -164,9 +166,19 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    outside the project (standard library, dependencies) are dropped.
 6. **Edges**: merged per (src, dst, kind); `Calls` weight is the number of call
    sites, evidence the first call site (`file:line`); `Inherits` points from
-   derived to base. Provenance `Extractor`; the generator names both backends.
+   derived to base. Each reference outside the symbol's own definition becomes
+   a `Uses` edge from the innermost function, method, or class containing it,
+   except from the symbol's own members (an out-of-line `Circle::area` names
+   `Circle` in its qualifier) and when an `Inherits` edge already links the
+   pair (base specifiers). Provenance `Extractor`; the generator names both
+   backends.
 
-Not used: `references`, `hover`, and `Uses` edges (see M7).
+Known limitation: calls and uses involving symbols declared only in headers
+without a source file (e.g. `Extractor.hpp`) occasionally differ between runs
+(3 of 4600 edges on this repository), despite `sync`. clangd's single-threaded
+`--sync` mode would avoid the race at several times the run time. `hover` is
+not used: its text repeats the source, and `summary`/`detail` belong to the
+model.
 
 ## CLI
 

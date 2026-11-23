@@ -261,9 +261,11 @@ Done:
   tree and writes a Perfetto trace; the viewer records `frame`, `input`, and
   `draw` scopes.
 
+- clangd `Uses` edges from `textDocument/references` (types, fields,
+  variables); hover text dropped (it repeats the source).
+
 Open:
 
-- clangd `Uses` edges (`references`) and hover text for node details.
 - Screenshots for the documentation.
 - SFML DSP tones; Jolt cosmetic particles.
 

@@ -37,7 +37,7 @@ To annotate the chart, add the plugin to opencode (see \ref plugin) and run
 | Backend | What it adds |
 | --- | --- |
 | `ctags` | Files, namespaces, classes, functions, members, macros, aliases; `Contains` tree; `Includes` edges |
-| `clangd` | Everything from `ctags`, plus `Calls` (overloads and virtual calls resolved) and `Inherits` edges from clangd-22 |
+| `clangd` | Everything from `ctags`, plus `Calls` (overloads and virtual calls resolved), `Inherits`, and `Uses` (types, fields, variables) edges from clangd-22 |
 | `auto` (default) | `clangd` when `compile_commands.json` is found and clangd runs, otherwise `ctags` with a warning |
 
 The compilation database is looked up in the root, `build/`, then the first

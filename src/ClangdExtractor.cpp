@@ -75,6 +75,21 @@ namespace
   constexpr std::array<NodeKind, 3> kTypeKinds
     = {NodeKind::Class, NodeKind::Struct, NodeKind::Union};
 
+  /// Kinds whose references become `Uses` edges.
+  constexpr std::array<NodeKind, 7> kUsedKinds = {
+    NodeKind::Class,
+    NodeKind::Struct,
+    NodeKind::Union,
+    NodeKind::Enum,
+    NodeKind::TypeAlias,
+    NodeKind::Field,
+    NodeKind::Variable,
+  };
+
+  /// Kinds that can contain a reference: the innermost one is the user.
+  constexpr std::array<NodeKind, 5> kContainerKinds
+    = {NodeKind::Function, NodeKind::Method, NodeKind::Class, NodeKind::Struct, NodeKind::Union};
+
   /// Check whether a byte can continue a C/C++ identifier.
   ///
   /// \param c Byte.
@@ -237,7 +252,7 @@ namespace
       {
         const Comprendo::Node &node = m_chart->nodes[index];
         const bool queried_kind = std::ranges::contains(kCallableKinds, node.kind)
-          || std::ranges::contains(kTypeKinds, node.kind);
+          || std::ranges::contains(kUsedKinds, node.kind);
         if (queried_kind && m_uris.contains(node.file))
         {
           order.push_back(index);
@@ -257,8 +272,14 @@ namespace
       std::size_t queries = 0;
       for (const std::size_t index : order)
       {
-        const bool callable = std::ranges::contains(kCallableKinds, m_chart->nodes[index].kind);
-        auto queried = callable ? outgoing_calls(index) : supertypes(index);
+        const NodeKind kind = m_chart->nodes[index].kind;
+        auto queried = std::ranges::contains(kCallableKinds, kind) ? outgoing_calls(index)
+          : std::ranges::contains(kTypeKinds, kind) ? supertypes(index)
+                                                    : std::expected<void, std::string> {};
+        if (queried && std::ranges::contains(kUsedKinds, kind))
+        {
+          queried = references(index);
+        }
         if (!queried)
         {
           return queried;
@@ -341,9 +362,24 @@ namespace
     std::optional<std::size_t>
     resolve(const Json &item, std::span<const NodeKind> kinds) const
     {
-      const auto path = Comprendo::uri_to_path(item.string_or_empty("uri"));
+      const auto file = project_path(item.string_or_empty("uri"));
       const auto line = selection_line(item);
-      if (!path || !line)
+      if (!file || !line)
+      {
+        return std::nullopt;
+      }
+      return m_locator.locate(*file, *line + 1, item.string_or_empty("detail"), kinds);
+    }
+
+    /// Convert a file URI to a repository-relative path.
+    ///
+    /// \param uri File URI reported by clangd.
+    /// \return The path, or nothing for files outside the project.
+    std::optional<std::string>
+    project_path(std::string_view uri) const
+    {
+      const auto path = Comprendo::uri_to_path(uri);
+      if (!path)
       {
         return std::nullopt;
       }
@@ -353,9 +389,69 @@ namespace
       {
         return std::nullopt;
       }
-      return m_locator.locate(
-        relative.generic_string(), *line + 1, item.string_or_empty("detail"), kinds
-      );
+      return relative.generic_string();
+    }
+
+    /// Record which functions and types use a type, field, or variable.
+    ///
+    /// Each reference outside the symbol's own definition becomes a `Uses`
+    /// edge from the innermost function, method, or class containing it,
+    /// except from the symbol's own members (`Circle::area` naming `Circle`
+    /// in its qualifier). Base-class specifiers are dropped later, since the
+    /// `Inherits` edge already covers them.
+    ///
+    /// \param index Node index.
+    /// \return Nothing, or an error message.
+    std::expected<void, std::string>
+    references(std::size_t index)
+    {
+      const Comprendo::Node &node = m_chart->nodes[index];
+      const std::vector<std::string> &lines = m_lines.at(node.file);
+      if (node.line_start == 0 || node.line_start > lines.size())
+      {
+        return {};
+      }
+      const auto column = Comprendo::find_name_column(lines[node.line_start - 1], node.name);
+      if (!column)
+      {
+        return {};
+      }
+      const Json position = position_params(m_uris.at(node.file), node.line_start - 1, *column);
+      Json::Object params = *position.as_object();
+      params.emplace_back("context", Json {Json::Object {{"includeDeclaration", false}}});
+      auto found = m_client->request("textDocument/references", Json {std::move(params)});
+      if (!found)
+      {
+        return std::unexpected(found.error());
+      }
+      const Json::Array *locations = found->as_array();
+      if (locations == nullptr)
+      {
+        return {};
+      }
+      for (const Json &location : *locations)
+      {
+        const auto file = project_path(location.string_or_empty("uri"));
+        const Json *range = location.find("range");
+        const auto line = range == nullptr ? std::nullopt : range_start_line(*range);
+        if (!file || !line)
+        {
+          continue;
+        }
+        const std::uint32_t at = *line + 1;
+        if (*file == node.file && at >= node.line_start && at <= node.line_end)
+        {
+          continue;
+        }
+        const auto user = m_locator.locate(*file, at, "", kContainerKinds);
+        const bool member_of_target
+          = user && m_chart->nodes[*user].qualified_name.starts_with(node.qualified_name + "::");
+        if (user && *user != index && !member_of_target)
+        {
+          add_edge(*user, index, Comprendo::EdgeKind::Uses, 1.0F, fmt::format("{}:{}", *file, at));
+        }
+      }
+      return {};
     }
 
     /// Record an edge, merging repeated ones.
@@ -677,9 +773,14 @@ namespace Comprendo
 
     std::size_t calls = 0;
     std::size_t inherits = 0;
+    std::size_t uses = 0;
     for (const auto &[key, found] : session.edges())
     {
       const auto &[src, dst, kind] = key;
+      if (kind == EdgeKind::Uses && session.edges().contains({src, dst, EdgeKind::Inherits}))
+      {
+        continue;
+      }
       chart.edges.push_back({
         .src = src,
         .dst = dst,
@@ -688,10 +789,12 @@ namespace Comprendo
         .evidence = found.evidence,
         .provenance = Provenance::Extractor,
       });
-      (kind == EdgeKind::Calls ? calls : inherits) += 1;
+      (kind == EdgeKind::Calls ? calls : kind == EdgeKind::Uses ? uses : inherits) += 1;
     }
     canonicalize(chart);
-    Logger::info("clangd: {} call edges, {} inheritance edges", calls, inherits);
+    Logger::info(
+      "clangd: {} call edges, {} inheritance edges, {} use edges", calls, inherits, uses
+    );
     return {};
   }
 

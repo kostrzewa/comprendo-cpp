@@ -129,3 +129,16 @@ commit. Newest last.
   `comprendo` now does; a clangd extraction of the fixture shows the clangd
   phases next to the ctags ones in Perfetto.
 
+- Commit: `3925655`.
+
+## 2026-11-23 — M7g clangd use edges
+
+- `textDocument/references` for types, fields, and variables: 2379 use edges
+  on this repository for about 4 s more (33 s in total, debug build).
+- First results were noisy in two ways, both now filtered: out-of-line members
+  "used" their own class through the qualifier, and base specifiers duplicated
+  `Inherits`.
+- Comparing two runs found 3 of about 4600 edges differing, all around the
+  header-only `Extractor.hpp`; `sync` narrows but does not close clangd's
+  indexing race. Recorded as a known limitation.
+
