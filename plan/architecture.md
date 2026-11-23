@@ -286,15 +286,19 @@ prompt, embedded schema):
   input: <JSON Schema>, execute }))`, `execute` returning `{ content }`;
   `ChartError`s come back as `error: ...` content (2.x does not document tool
   errors);
-- `/chart` via `ctx.command.transform`, using `add` (2.x) or `update` (the
-  1.19 preview of the v2 runtime);
+- `/chart` via `ctx.command.transform`: in 2.x the editor only has `add`,
+  and plugin commands must be code (a template-only command fails with
+  "execute is not a function"), so `execute({ sessionID, prompt, delivery })`
+  sends the filled-in template with `ctx.session.prompt`; the 1.19 preview's
+  `update` takes the template;
 - project directory from `ctx.location.directory`, else the process cwd;
 - no `@opencode/plugin` import, so no dependencies; loaded by directory path
   under the `plugins` config key.
 
-Verified with unit tests against a fake context and by loading it in the v2
-runtime of opencode 1.19.5 (`/chart` registers; that preview has no tool
-registry). Not yet run on opencode 2.x.
+Verified on opencode 2.2.7 with `--standalone` in a scratch project: the
+plugin loads, a model call to `chart_overview` (through Code Mode) writes
+the chart, and `/chart` executes through the session command API. Also
+loads in opencode 1.19.5's v2 preview (template `/chart`, no tools).
 
 ## Layout
 

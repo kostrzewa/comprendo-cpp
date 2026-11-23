@@ -42,10 +42,34 @@ export interface ToolEditor {
   add(tool: ToolDefinition): void;
 }
 
+/** What a 2.x command receives when invoked. */
+export interface CommandInput {
+  /** Session the command runs in. */
+  sessionID: string;
+  /** Text typed after the command name. */
+  prompt: { text: string };
+  /** How the resulting prompt is delivered, passed through unchanged. */
+  delivery?: unknown;
+}
+
+/** A 2.x command: code that runs when the user invokes it. */
+export interface CommandDefinition {
+  /** Command name, without the slash. */
+  name: string;
+  /** Shown in the command list. */
+  description: string;
+  /**
+   * Run the command.
+   *
+   * @param input Session and arguments.
+   */
+  execute(input: CommandInput): Promise<void>;
+}
+
 /** The v2 command editor: `add` (2.x) or `update` (the 1.19 preview). */
 export interface CommandEditor {
-  /** Register a command (2.x). */
-  add?(command: { name: string; description: string; template: string }): void;
+  /** Register a command (2.x); plugin commands are code, not templates. */
+  add?(command: CommandDefinition): void;
   /** Create or change a command (1.19 preview of the v2 API). */
   update?(name: string, change: (command: { template: string; description?: string }) => void): void;
 }
@@ -58,6 +82,10 @@ export interface SetupContext {
   tool?: { transform(edit: (editor: ToolEditor) => void): Promise<unknown> | unknown };
   /** Command registry. */
   command?: { transform(edit: (editor: CommandEditor) => void): Promise<unknown> | unknown };
+  /** Session control, used to send the /chart prompt. */
+  session?: {
+    prompt(input: { sessionID: string; text: string; delivery?: unknown }): Promise<unknown>;
+  };
 }
 
 /** Name of the slash command. */
@@ -93,13 +121,37 @@ export function chartTools(directory: string): ToolDefinition[] {
 }
 
 /**
+ * Fill the `/chart` template with the user's arguments.
+ *
+ * @param text Text typed after `/chart`.
+ * @returns Prompt for the model.
+ */
+export function chartPrompt(text: string): string {
+  return CHART_COMMAND.template.replaceAll("$ARGUMENTS", text.trim() === "" ? "(none)" : text.trim());
+}
+
+/**
  * Register `/chart` with whichever command editor the host provides.
  *
+ * opencode 2.x plugin commands are code: `execute` sends the filled-in
+ * template to the session as a prompt. The 1.19 preview takes a template.
+ *
  * @param editor Command editor.
+ * @param ctx Setup context, for prompting the session.
  */
-function addChartCommand(editor: CommandEditor): void {
+function addChartCommand(editor: CommandEditor, ctx: SetupContext): void {
   if (typeof editor.add === "function") {
-    editor.add({ name: COMMAND_NAME, ...CHART_COMMAND });
+    editor.add({
+      name: COMMAND_NAME,
+      description: CHART_COMMAND.description,
+      async execute(input) {
+        await ctx.session?.prompt({
+          sessionID: input.sessionID,
+          text: chartPrompt(input.prompt?.text ?? ""),
+          delivery: input.delivery,
+        });
+      },
+    });
   } else if (typeof editor.update === "function") {
     editor.update(COMMAND_NAME, (command) => {
       command.template = CHART_COMMAND.template;
@@ -124,7 +176,7 @@ export async function setup(ctx: SetupContext): Promise<void> {
       editor.add(tool);
     }
   });
-  await ctx.command?.transform(addChartCommand);
+  await ctx.command?.transform((editor) => addChartCommand(editor, ctx));
 }
 
 /** Plugin definition, as `Plugin.define({ id, setup })` would return it. */

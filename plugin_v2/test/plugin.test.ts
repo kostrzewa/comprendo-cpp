@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import plugin, { type CommandEditor, type ToolDefinition } from "../index.ts";
+import plugin, { type CommandDefinition, type CommandEditor, type ToolDefinition } from "../index.ts";
 
 /** Scratch project directory of the current test. */
 let project = "";
@@ -26,12 +26,20 @@ afterEach(() => {
  * @param command Command editor to hand the plugin.
  * @returns Registered tools.
  */
-async function register(command: CommandEditor): Promise<ToolDefinition[]> {
+async function register(
+  command: CommandEditor,
+  prompts: { sessionID: string; text: string; delivery?: unknown }[] = [],
+): Promise<ToolDefinition[]> {
   const tools: ToolDefinition[] = [];
   await plugin.setup({
     location: { directory: project },
     tool: { transform: (edit) => edit({ add: (tool) => tools.push(tool) }) },
     command: { transform: (edit) => edit(command) },
+    session: {
+      prompt: async (input) => {
+        prompts.push(input);
+      },
+    },
   });
   return tools;
 }
@@ -60,15 +68,23 @@ describe("opencode 2.x plugin", () => {
     }
   });
 
-  // `/chart` must be registered whichever command editor the host offers: the
-  // documented 2.x `add`, or the `update` of the 1.19 v2 preview. Registers
-  // against both fake editors and checks the name, description, and that the
-  // template is the shared /chart prompt.
+  // opencode 2.x plugin commands are code (invoking a template-only command
+  // fails with "execute is not a function"), while the 1.19 preview takes a
+  // template. Registers against both fake editors, invokes the 2.x command with
+  // arguments, and checks it prompts the session with the filled-in template
+  // and the delivery passed through; the preview gets the template itself.
   test("registers /chart with either command editor", async () => {
-    const added: { name: string; template: string }[] = [];
-    await register({ add: (command) => added.push(command) });
+    const added: CommandDefinition[] = [];
+    const prompts: { sessionID: string; text: string; delivery?: unknown }[] = [];
+    await register({ add: (command) => added.push(command) }, prompts);
     expect(added.map((command) => command.name)).toEqual(["chart"]);
-    expect(added[0]?.template).toContain("chart_finish");
+    await added[0]!.execute({ sessionID: "ses_1", prompt: { text: "focus on src/net" }, delivery: "queue" });
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]!.sessionID).toBe("ses_1");
+    expect(prompts[0]!.delivery).toBe("queue");
+    expect(prompts[0]!.text).toContain("chart_finish");
+    expect(prompts[0]!.text).toContain("focus on src/net");
+    expect(prompts[0]!.text).not.toContain("$ARGUMENTS");
 
     const updated: Record<string, { template: string; description?: string }> = {};
     await register({

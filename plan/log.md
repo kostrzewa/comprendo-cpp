@@ -349,3 +349,17 @@ commit. Newest last.
 - Not yet run on opencode 2.x: installing it was left to the user.
 
 - Commit: `386073f`.
+
+## 2026-11-23 — M10 verified on opencode 2.2.7
+
+- Tested only with `--standalone` (private server), in a scratch project, at
+  the user's request; the global config was not modified (checked by mtime
+  and its v1 `plugin` key). Test sessions were removed afterwards.
+- Findings: plugin commands must provide `execute` (template-only commands
+  fail when invoked); `execute` receives `{ sessionID, prompt: { text },
+  delivery }`, and `ctx.session.prompt({ sessionID, text, delivery })` sends a
+  prompt. Tools run through Code Mode by default. `/chart` now prompts the
+  session with the filled-in template.
+- The global v1 `plugin` entry (a file path) is rejected by 2.x ("configured
+  plugin path must be a directory"); use `plugins` with `plugin_v2` there.
+
