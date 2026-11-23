@@ -492,6 +492,23 @@ namespace Comprendo
       return group;
     };
 
+    const std::size_t focus_group
+      = focus && *focus < m_hierarchy.groups.size() ? *focus : std::size_t {0};
+    std::vector<bool> in_focus(m_hierarchy.groups.size(), false);
+    if (focus_group != 0)
+    {
+      std::vector<std::size_t> stack {focus_group};
+      while (!stack.empty())
+      {
+        const std::size_t group = stack.back();
+        stack.pop_back();
+        in_focus[group] = true;
+        const std::vector<std::size_t> &children = m_hierarchy.groups[group].children;
+        stack.insert(stack.end(), children.begin(), children.end());
+      }
+    }
+    const std::uint32_t refined_depth = m_depth[focus_group] + 1;
+
     std::vector<VisibleEdge> edges;
     for (const GroupEdge &edge : m_edges)
     {
@@ -499,15 +516,34 @@ namespace Comprendo
       {
         continue;
       }
-      const bool focused
-        = focus && *focus != 0 && (contains(*focus, edge.from) || contains(*focus, edge.to));
-      const bool members = filter.member_edges || focused;
-      if (!members && edge.lifted_from == 0)
+      std::size_t from = 0;
+      std::size_t to = 0;
+      if (in_focus[edge.from] != in_focus[edge.to])
+      {
+        // Crossing the selection: both ends one level below the selection.
+        if (contains(in_focus[edge.from] ? edge.to : edge.from, focus_group))
+        {
+          continue;
+        }
+        from = ancestor_at_depth(edge.from, refined_depth);
+        to = ancestor_at_depth(edge.to, refined_depth);
+      }
+      else if (filter.member_edges)
+      {
+        from = edge.from;
+        to = edge.to;
+      }
+      else
+      {
+        from = edge.lifted_from;
+        to = edge.lifted_to;
+      }
+      if (from == 0 || to == 0)
       {
         continue;
       }
-      const std::size_t from = representative(members ? edge.from : edge.lifted_from);
-      const std::size_t to = representative(members ? edge.to : edge.lifted_to);
+      from = representative(from);
+      to = representative(to);
       if (from != 0 && to != 0 && from != to)
       {
         edges.push_back({.from = from, .to = to, .kind = edge.kind, .weight = edge.weight});
@@ -645,6 +681,7 @@ namespace Comprendo
       }
     }
     std::vector<GroupConnection> result;
+    result.reserve(counts.size());
     for (const auto &[key, edges] : counts)
     {
       result.push_back({.group = key.first, .kind = key.second, .edges = edges});
@@ -662,6 +699,16 @@ namespace Comprendo
       }
     );
     return m_connections.emplace(std::pair {group, outgoing}, std::move(result)).first->second;
+  }
+
+  std::size_t
+  ChartView::ancestor_at_depth(std::size_t group, std::uint32_t depth) const
+  {
+    while (m_depth[group] > depth)
+    {
+      group = m_hierarchy.groups[group].parent;
+    }
+    return group;
   }
 
   bool

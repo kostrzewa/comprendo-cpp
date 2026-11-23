@@ -444,23 +444,30 @@ namespace Comprendo
 
     /// Non-`Contains` edges between visible groups.
     ///
-    /// By default edges are aggregated: each chart edge is first lifted to the
-    /// two sibling groups directly below the deepest group containing both
+    /// By default edges are aggregated: each chart edge is lifted to the two
+    /// sibling groups directly below the deepest group containing both
     /// endpoints (two clusters, two subclusters of one cluster, two files of
     /// one directory, ...), so one line stands for all edges between their
     /// contents and edges inside a group appear only once that group is
     /// expanded; edges where one endpoint contains the other are dropped. With
-    /// ViewFilter::member_edges, and for edges touching \p focus or its
-    /// contents, the endpoints' own groups are used instead. Either way each
-    /// endpoint is then attached to its deepest drawn ancestor-or-self, or to
-    /// the off-screen group below an expanded parent (so lines to groups outside
-    /// the view keep pointing at them); edges whose endpoints share that group
-    /// are dropped, and parallel edges of one kind are merged with summed weight.
+    /// ViewFilter::member_edges the endpoints' own groups are used instead.
+    ///
+    /// Edges crossing the boundary of \p focus (one endpoint inside it) are
+    /// refined by one level: both endpoints become their ancestor-or-self one
+    /// level below \p focus, or stay themselves when shallower. Selecting a
+    /// cluster thus shows its files' connections, a file its classes', and a
+    /// leaf its own connections to the members it uses. Crossing edges to an
+    /// ancestor of \p focus are dropped.
+    ///
+    /// Each endpoint is then attached to its deepest drawn ancestor-or-self, or
+    /// to the off-screen group below an expanded parent (so lines to groups
+    /// outside the view keep pointing at them); edges whose endpoints share
+    /// that group are dropped, and parallel edges of one kind are merged with
+    /// summed weight.
     ///
     /// \param items Result of visible().
     /// \param filter Hidden kinds and the edge display mode.
-    /// \param focus Group whose own edges are always shown member to member,
-    ///        usually the selection.
+    /// \param focus Selected group whose crossing edges are refined.
     /// \return Edges sorted by (from, to, kind).
     [[nodiscard]]
     std::vector<VisibleEdge>
@@ -552,6 +559,15 @@ namespace Comprendo
       /// Sibling ancestor-or-self of `to`, paired with `lifted_from`.
       std::size_t lifted_to = 0;
     };
+
+    /// Ancestor-or-self of a group at a depth.
+    ///
+    /// \param group Group index.
+    /// \param depth Depth below the root.
+    /// \return The ancestor at \p depth, or \p group itself when it is shallower.
+    [[nodiscard]]
+    std::size_t
+    ancestor_at_depth(std::size_t group, std::uint32_t depth) const;
 
     /// Depth of each group below the root (the root has depth 0).
     std::vector<std::uint32_t> m_depth;

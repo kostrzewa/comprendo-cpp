@@ -102,8 +102,10 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 Connections are aggregated by default: a line between two clusters (or two
 subclusters, files, classes, ...) stands for every relationship between their
 contents, thicker the more there are, and the relationships inside a group
-appear once you zoom into it. The selected object always shows its own
-connections individually. View → Member connections draws every relationship
+appear once you zoom into it. Selecting an object refines its
+connections by one level: a selected cluster shows the connections of its
+files, a selected file those of its classes, and a selected method or other
+leaf its connections to the members it uses. View → Member connections draws every relationship
 between its endpoints instead.
 
 For a cluster, directory, file, or namespace the Inspector lists its

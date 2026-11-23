@@ -368,8 +368,12 @@ Input is ignored while ImGui uses the mouse or keyboard.
   (1 + ½·log2 w, at most 4×); edges where one endpoint contains the other are
   dropped. An endpoint group culled off screen (its parent expanded) keeps
   its real position, so lines to clusters outside the view stay visible when
-  zooming in. The selection's own edges stay member to member; View → Member
-  connections (`ViewFilter::member_edges`) shows all edges that way;
+  zooming in. Edges crossing the selection's boundary are refined by one level:
+  both ends become their ancestor-or-self one level below the selection
+  (`ancestor_at_depth`), so a cluster shows its files' connections, a file its
+  classes', and a leaf member detail; crossing edges to an ancestor of the
+  selection are dropped. View → Member connections
+  (`ViewFilter::member_edges`) shows all other edges member to member;
 - search; View → Show kind filters (`ViewFilter`, applied in `visible`,
   `visible_edges`, and `pick`); double click selects and centres the object
   in the graph area with a 0.25 s ease-out move at the current zoom

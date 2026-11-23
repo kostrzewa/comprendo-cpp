@@ -300,4 +300,7 @@ Open (waiting for a decision, see [log](log.md)):
 - c. (done) The Inspector's lists share the window's full height.
 - d. (done) Double-clicking a container row in the Explorer (directory,
   cluster, file, ...) unfolds or folds it.
+- e. (done) The selection refines its crossing edges by one level of the
+  hierarchy (both ends one level below the selection) instead of showing
+  every member edge; leaves show member detail.
 

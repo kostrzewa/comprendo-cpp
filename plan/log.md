@@ -251,3 +251,13 @@ commit. Newest last.
   diagnosis and is removed; ImGui's `OpenOnDoubleClick` does the unfolding.
 
 - Commit: `41a5687`.
+
+## 2026-11-23 — M9e progressive aggregation for the selection
+
+- Selecting a cluster brought back every member edge (the M8d exception for
+  the selection). Now both ends of edges crossing the selection are refined to
+  one level below it, as agreed with the user: cluster → files, file →
+  classes, class → methods, leaf → member detail.
+- The selection's subtree is marked once per frame instead of calling
+  `contains()` per edge.
+

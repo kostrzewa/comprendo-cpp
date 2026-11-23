@@ -494,38 +494,75 @@ TEST_CASE("minimap maps between overview and chart", "[view]")
 }
 
 /// Thousands of member-to-member lines drown the chart, so by default edges
-/// are summarized between sibling groups, while the selection keeps its own
-/// connections. In the fully expanded sample, checks the two calls from n1 to
-/// A's methods become one call line of weight 2 between b.cpp and a.cpp; then
-/// focuses n1 and class A and checks both calls are drawn member to member.
+/// are summarized between sibling groups. In the fully expanded sample, checks
+/// the two calls from n1 to A's methods become one call line of weight 2
+/// between b.cpp and a.cpp, and checks contains() on the hierarchy the lines
+/// are lifted along.
 TEST_CASE("edges are aggregated between sibling groups by default", "[view]")
 {
   const ChartView view {sample_chart(), Grouping::File};
   const auto items = view.visible(fitted(view), {.point_pixels = 0.0F, .expand_pixels = 0.0F});
-  const auto calls = [](const std::vector<Comprendo::VisibleEdge> &edges)
+  const auto aggregated = view.visible_edges(items);
+  const auto call = std::ranges::find(aggregated, EdgeKind::Calls, &Comprendo::VisibleEdge::kind);
+  CHECK(std::ranges::count(aggregated, EdgeKind::Calls, &Comprendo::VisibleEdge::kind) == 1);
+  CHECK(call != aggregated.end());
+  if (call != aggregated.end())
   {
-    std::vector<Comprendo::VisibleEdge> result;
-    std::ranges::copy_if(
-      edges,
-      std::back_inserter(result),
-      [](const auto &edge) { return edge.kind == EdgeKind::Calls; }
-    );
-    return result;
-  };
-
-  const auto aggregated = calls(view.visible_edges(items));
-  CHECK(aggregated.size() == 1);
-  if (aggregated.size() == 1)
-  {
-    CHECK(aggregated.front().from == group_of(view, 2));
-    CHECK(aggregated.front().to == group_of(view, 1));
-    CHECK(aggregated.front().weight == 2.0F);
+    CHECK(call->from == group_of(view, 2));
+    CHECK(call->to == group_of(view, 1));
+    CHECK(call->weight == 2.0F);
   }
-  CHECK(calls(view.visible_edges(items, {}, group_of(view, 9))).size() == 2);
-  CHECK(calls(view.visible_edges(items, {}, group_of(view, 5))).size() == 2);
   CHECK(view.contains(group_of(view, 1), group_of(view, 7)));
   CHECK_FALSE(view.contains(group_of(view, 7), group_of(view, 1)));
   CHECK(view.contains(0, group_of(view, 9)));
+}
+
+/// Selecting a group must show its connections one level finer than the
+/// aggregated view, following the hierarchy down to member detail at a leaf.
+/// Clusters the sample (cluster, file, namespace, class, method) and selects,
+/// in turn, b's cluster, b.cpp, class B, and method n1, checking the call lines
+/// end at files, namespaces, methods, and finally the called methods.
+TEST_CASE("selection refines its crossing edges by one level", "[view]")
+{
+  Chart chart = sample_chart();
+  chart.clusters.push_back({.id = 100, .label = "Alpha"});
+  chart.clusters.push_back({.id = 200, .label = "Beta"});
+  chart.nodes.at(0).cluster_id = 100;
+  chart.nodes.at(1).cluster_id = 200;
+  const ChartView view {chart, Grouping::Cluster};
+  const auto items = view.visible(fitted(view), {.point_pixels = 0.0F, .expand_pixels = 0.0F});
+  const auto &groups = view.hierarchy().groups;
+  const auto cluster = [&](std::uint64_t id)
+  {
+    return static_cast<std::size_t>(
+      std::ranges::find(groups, id, &Comprendo::HierarchyGroup::cluster) - groups.begin()
+    );
+  };
+  using Pair = std::pair<std::size_t, std::size_t>;
+  const auto call_pairs = [&](std::optional<std::size_t> focus)
+  {
+    std::vector<std::pair<Pair, float>> pairs;
+    for (const auto &edge : view.visible_edges(items, {}, focus))
+    {
+      if (edge.kind == EdgeKind::Calls)
+      {
+        pairs.push_back({{edge.from, edge.to}, edge.weight});
+      }
+    }
+    return pairs;
+  };
+  using Calls = std::vector<std::pair<Pair, float>>;
+
+  CHECK(call_pairs(std::nullopt) == Calls {{{cluster(200), cluster(100)}, 2.0F}});
+  CHECK(call_pairs(cluster(200)) == Calls {{{group_of(view, 2), group_of(view, 1)}, 2.0F}});
+  CHECK(call_pairs(group_of(view, 2)) == Calls {{{group_of(view, 4), group_of(view, 3)}, 2.0F}});
+  CHECK(
+    call_pairs(group_of(view, 6))
+    == Calls {
+      {{group_of(view, 9), group_of(view, 7)}, 1.0F}, {{group_of(view, 9), group_of(view, 8)}, 1.0F}
+    }
+  );
+  CHECK(call_pairs(group_of(view, 9)) == call_pairs(group_of(view, 6)));
 }
 
 /// Lines between clusters must not vanish when the user zooms into one of
