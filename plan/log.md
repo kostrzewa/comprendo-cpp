@@ -240,3 +240,4 @@ commit. Newest last.
   double click that ImGui did not handle. Not reproducible here without input
   automation, so the fix is guarded to be harmless if ImGui does toggle.
 
+- Commit: `6ce841d`.
