@@ -677,3 +677,5 @@ commit. Newest last.
 
 - The tint behind the selected symbol's lines (28% blue-grey) made the code
   hard to read; it is now 12%, and a 3 px bar in the gutter marks the range.
+
+- Commit: `7251068`.
