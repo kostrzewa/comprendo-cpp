@@ -148,7 +148,7 @@ namespace
   /// Frame on which the smoke test checks the centring target.
   constexpr int kSmokeCentreCheckFrame = 37;
 
-  /// Frame on which the smoke test returns to the normal layout (C again).
+  /// Frame on which the smoke test returns to the normal layout (C over the centred group).
   constexpr int kSmokeNormalFrame = 38;
 
   /// Frame on which the smoke test checks the normal layout is back.
@@ -580,10 +580,13 @@ namespace
     Comprendo::Layout to;
     /// GetTime() at the start.
     double start = 0.0;
-    /// Group the camera follows (the selection), if any.
+    /// Group the camera follows (the target of C), if any.
     std::optional<std::size_t> follow;
     /// Screen position of the followed group when the switch began.
     Comprendo::Vec2 from_screen;
+    /// Keep the followed group at from_screen (it was picked under the mouse,
+    /// so it stays under the cursor) instead of bringing it to the middle.
+    bool hold = false;
   };
 
   /// A loaded chart with its camera, selection, and mouse state.
@@ -959,6 +962,7 @@ namespace
       .start = GetTime(),
       .follow = target,
       .from_screen = from_screen,
+      .hold = session.hovered.has_value(),
     };
     Comprendo::Logger::info(
       "{} ({:.1f} ms)",
@@ -988,12 +992,12 @@ namespace
     if (change.follow && *change.follow < session.view.layout().groups.size())
     {
       const Comprendo::ScreenRect area = graph_area(state);
-      const Comprendo::Vec2 middle {
-        .x = area.x + (area.width / 2.0F), .y = area.y + (area.height / 2.0F)
-      };
+      const Comprendo::Vec2 end = change.hold
+        ? change.from_screen
+        : Comprendo::Vec2 {.x = area.x + (area.width / 2.0F), .y = area.y + (area.height / 2.0F)};
       const Comprendo::Vec2 wanted {
-        .x = change.from_screen.x + ((middle.x - change.from_screen.x) * eased),
-        .y = change.from_screen.y + ((middle.y - change.from_screen.y) * eased),
+        .x = change.from_screen.x + ((end.x - change.from_screen.x) * eased),
+        .y = change.from_screen.y + ((end.y - change.from_screen.y) * eased),
       };
       const Comprendo::Vec2 now
         = session.camera.world_to_screen(session.view.group_centre(*change.follow));
@@ -1581,9 +1585,30 @@ namespace
         == Comprendo::Position {.x = 0.0F, .y = 0.0F};
     }
     case kSmokeNormalFrame:
-      state.panel_hovered = session.view.centred_group();
+    {
+      // C over the centred group in the graph restores the normal layout and
+      // keeps that group under the cursor; the switch is run to its end here.
+      const std::optional<std::size_t> centred = session.view.centred_group();
+      if (!centred)
+      {
+        return false;
+      }
+      const auto on_screen = [&session, group = *centred]
+      { return session.camera.world_to_screen(session.view.group_centre(group)); };
+      const Comprendo::Vec2 before = on_screen();
+      session.hovered = centred;
       state.centre_requested = true;
-      return true;
+      apply_layout_request(session, state);
+      session.hovered.reset();
+      if (!session.layout_change || !session.layout_change->hold)
+      {
+        return false;
+      }
+      session.layout_change->start -= kRecentreSeconds;
+      step_layout_change(session, state);
+      const Comprendo::Vec2 after = on_screen();
+      return !session.layout_change && std::hypot(after.x - before.x, after.y - before.y) < 0.5F;
+    }
     case kSmokeNormalCheckFrame: return !session.view.centred_group().has_value();
     case kSmokeChartJumpFrame:
     {

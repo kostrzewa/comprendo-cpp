@@ -714,3 +714,12 @@ commit. Newest last.
   was selected), then C again → normal layout.
 
 - Commit: `99700bc`.
+
+## 2026-11-23 — C keeps the hovered object under the cursor
+
+- Pressing C over a graph object brought it to the middle of the graph, far
+  from the cursor. `LayoutChange::hold` now keeps an object picked under the
+  mouse at its screen position while the layout blends; panel-row and
+  selection targets still glide to the middle.
+- Smoke test: C over the centred group restores the normal layout with the
+  group within 0.5 px of where it was. Checked under xvfb with real input.

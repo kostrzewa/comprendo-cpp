@@ -570,8 +570,9 @@ graph:
   re-applies it after `rebuild`. `C` targets the hovered graph object, else
   the hovered Explorer/Inspector row (`ViewerState::panel_hovered`, reset
   each frame), else the selection. The viewer blends the old and new layouts
-  over 0.4 s (`blend_layouts`, ease-out) while panning so the selection
-  travels to the middle of the graph area.
+  over 0.4 s (`blend_layouts`, ease-out) while panning so the target
+  travels to the middle of the graph area, or, when it was picked under the
+  mouse in the graph (`LayoutChange::hold`), stays at its screen position.
 - **Panel visibility** (Explorer, Inspector, Log, minimap) is part of
   `ViewerSettings` and so persists per user with the font and text size.
 

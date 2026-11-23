@@ -418,5 +418,7 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   reloads. Measured: 0.8–0.9 ms of layout work on this repository's chart.
 - k. (done) `C` acts on the object under the mouse first: a hovered graph
   object, else a hovered Explorer or Inspector row, else the selection; `C`
-  on the centred object restores the normal layout.
+  on the centred object restores the normal layout. An object hovered in the
+  graph keeps its screen position during the switch (it stays under the
+  cursor); other targets glide to the middle of the graph area.
 
