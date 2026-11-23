@@ -264,8 +264,9 @@ Done:
 - clangd `Uses` edges from `textDocument/references` (types, fields,
   variables); hover text dropped (it repeats the source).
 
-Open:
+- Screenshots in `docs/graphics`, used by the user guide.
 
-- Screenshots for the documentation.
+Open (waiting for a decision, see [log](log.md)):
+
 - SFML DSP tones; Jolt cosmetic particles.
 

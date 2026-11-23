@@ -142,3 +142,15 @@ commit. Newest last.
   header-only `Extractor.hpp`; `sync` narrows but does not close clangd's
   indexing race. Recorded as a known limitation.
 
+- Commit: `4236c4a`.
+
+## 2026-11-23 — M7h screenshots, and open questions
+
+- Two screenshots of this repository's chart (clangd edges, four clusters, a
+  few annotations written through the plugin's tools) illustrate the guide.
+- Left open for the user: the requirements name SFML "for anything basic not
+  supported by raylib (sound, for example)", but raylib's `raudio`
+  (miniaudio) is already built in and can play DSP-generated waves, so SFML
+  would add a dependency for no new capability. Jolt is listed for cosmetic
+  particles only. Both need a decision before work starts.
+

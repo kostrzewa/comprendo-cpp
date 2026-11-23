@@ -16,6 +16,8 @@ share it:
 - `comprendo`, the viewer, draws the chart as nested disks with an Explorer,
   an Inspector, and a Log, and reloads it while the other two write.
 
+![This repository in the viewer: ChartView selected, with the model's summary and detail and its clangd use edges in the Inspector](viewer_files.png)
+
 # Quick start
 
 ```sh
@@ -95,6 +97,8 @@ Groupings:
 - **Namespace**: namespaces merged across files.
 - **Cluster**: the subsystems the model named with `/chart`, nested, each
   member with its contents; everything else under "(unclustered)".
+
+![Cluster grouping: the subsystems named during /chart, the Viewer cluster selected](viewer_clusters.png)
 
 The viewer polls the chart twice a second. When only explanations changed, it
 takes them over in place; when nodes or edges changed, it rebuilds the view,
