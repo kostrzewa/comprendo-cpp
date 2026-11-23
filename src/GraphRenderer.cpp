@@ -150,6 +150,26 @@ namespace
     return view.layout().groups[group].radius * camera.zoom;
   }
 
+  /// Convert a raylib vector to a chart vector.
+  ///
+  /// \param point raylib vector.
+  /// \return The same point.
+  Comprendo::Vec2
+  to_vec2(Vector2 point)
+  {
+    return {.x = point.x, .y = point.y};
+  }
+
+  /// Convert a chart vector to a raylib vector.
+  ///
+  /// \param point Chart vector.
+  /// \return The same point.
+  Vector2
+  to_vector2(const Comprendo::Vec2 &point)
+  {
+    return {.x = point.x, .y = point.y};
+  }
+
   /// Vertex shader of the anti-aliased shapes: passes the shape parameters in
   /// the vertex normal through to the fragment shader.
   constexpr const char *kVertexShader = R"glsl(#version 330
@@ -469,6 +489,8 @@ void main()
     constexpr float kTrunkMaxFactor = 6.0F;
     constexpr float kHighlight = 2.0F;
     constexpr float kDimmed = 0.2F;
+    // Lines end at the rims; between touching disks a short stub stays visible.
+    constexpr float kMinLineLength = 6.0F;
 
     const auto touches = [&](std::size_t group)
     {
@@ -508,9 +530,16 @@ void main()
       const Color color = scale_alpha(edge_color(edge.kind), emphasis(touched));
       if (edge.via == 0)
       {
+        const Comprendo::Segment segment = Comprendo::rim_to_rim(
+          to_vec2(screen_centre(view, camera, edge.from)),
+          screen_radius(view, camera, edge.from),
+          to_vec2(screen_centre(view, camera, edge.to)),
+          screen_radius(view, camera, edge.to),
+          kMinLineLength
+        );
         painter.line(
-          screen_centre(view, camera, edge.from),
-          screen_centre(view, camera, edge.to),
+          to_vector2(segment.from),
+          to_vector2(segment.to),
           edge_width(edge.weight, kLineMaxFactor),
           color
         );
@@ -541,9 +570,16 @@ void main()
     {
       const auto kind
         = static_cast<EdgeKind>(std::ranges::max_element(trunk.by_kind) - trunk.by_kind.begin());
+      const Comprendo::Segment segment = Comprendo::rim_to_rim(
+        to_vec2(trunk.rim),
+        0.0F,
+        to_vec2(screen_centre(view, camera, ends.second)),
+        screen_radius(view, camera, ends.second),
+        kMinLineLength
+      );
       painter.line(
-        trunk.rim,
-        screen_centre(view, camera, ends.second),
+        to_vector2(segment.from),
+        to_vector2(segment.to),
         edge_width(trunk.weight, kTrunkMaxFactor),
         scale_alpha(edge_color(kind), emphasis(trunk.touched))
       );

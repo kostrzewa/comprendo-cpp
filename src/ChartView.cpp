@@ -816,4 +816,33 @@ namespace Comprendo
       .y = area.y + (area.height / 2.0F) - now.y,
     });
   }
+
+  Segment
+  rim_to_rim(const Vec2 &a, float radius_a, const Vec2 &b, float radius_b, float min_length)
+  {
+    const float dx = b.x - a.x;
+    const float dy = b.y - a.y;
+    const float length = std::hypot(dx, dy);
+    if (length <= 0.0F)
+    {
+      return {.from = a, .to = b};
+    }
+    const auto along = [&](float distance)
+    { return Vec2 {.x = a.x + (dx / length * distance), .y = a.y + (dy / length * distance)}; };
+    if (length + radius_b <= radius_a)
+    {
+      return {.from = a, .to = along(std::max(length - radius_b, 0.0F))};
+    }
+    if (length + radius_a <= radius_b)
+    {
+      return {.from = along(std::min(radius_a, length)), .to = b};
+    }
+    const float gap = length - radius_a - radius_b;
+    if (gap >= min_length)
+    {
+      return {.from = along(radius_a), .to = along(length - radius_b)};
+    }
+    const float middle = radius_a + (gap / 2.0F);
+    return {.from = along(middle - (min_length / 2.0F)), .to = along(middle + (min_length / 2.0F))};
+  }
 } // namespace Comprendo

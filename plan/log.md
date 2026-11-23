@@ -364,3 +364,13 @@ commit. Newest last.
   plugin path must be a directory"); use `plugins` with `plugin_v2` there.
 
 - Commit: `051f719`.
+
+## 2026-11-23 — M9l lines end at the rims
+
+- User request: with bundling in place, the aggregated lines need not run to
+  the clusters' centres. Straight lines and trunks are now clipped at the
+  rims of both disks (`Comprendo::rim_to_rim`, tested in
+  `test_chart_view.cpp`); touching disks keep a 6 px stub, nested disks run
+  from the inner rim to the outer centre. Fibres are unchanged.
+- Checked under xvfb on this repository's chart: nothing selected, a cluster
+  (`Layout engine`), and a field (`layout`).

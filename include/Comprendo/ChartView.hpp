@@ -670,6 +670,39 @@ namespace Comprendo
   Minimap
   make_minimap(const ChartView &view, const ScreenRect &area, float size, float margin);
 
+  /// A straight line between two points.
+  struct Segment
+  {
+    /// Start point.
+    Vec2 from;
+    /// End point.
+    Vec2 to;
+
+    /// Memberwise equality.
+    ///
+    /// \return True when all members are equal.
+    bool
+    operator==(const Segment &) const = default;
+  };
+
+  /// The part of the line between two disks' centres that lies outside both
+  /// disks, so a connection ends at the rims instead of the centres.
+  ///
+  /// When the gap between the rims is shorter than \p min_length (touching or
+  /// overlapping disks), a segment of that length centred on the gap is
+  /// returned so the connection stays visible. When one disk lies inside the
+  /// other, the line runs from the inner rim to the outer centre.
+  ///
+  /// \param a Centre of the first disk.
+  /// \param radius_a Radius of the first disk.
+  /// \param b Centre of the second disk.
+  /// \param radius_b Radius of the second disk.
+  /// \param min_length Shortest segment returned.
+  /// \return Segment from the first disk towards the second.
+  [[nodiscard]]
+  Segment
+  rim_to_rim(const Vec2 &a, float radius_a, const Vec2 &b, float radius_b, float min_length);
+
   /// Move a camera so it shows a chart point at the centre of the graph area.
   ///
   /// \param camera Camera to move.

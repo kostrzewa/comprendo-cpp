@@ -407,7 +407,9 @@ Input is ignored while ImGui uses the mouse or keyboard.
   selection's children (`VisibleEdge::hover_only`) are drawn only while the
   mouse is over one of their ends inside the selection. While the mouse is over a
   group with lines, lines touching it and the trunks they feed are drawn at
-  double opacity and the rest at 20%;
+  double opacity and the rest at 20%. Straight lines and trunks end at the
+  rims of the disks they connect (`rim_to_rim`; a 6 px stub between touching
+  disks, inner rim to outer centre for nested ones);
 - one line per pair of groups (`merge_pairs`): kinds and directions merge,
   weight sums, colour = kind with the largest weight, direction = heavier one;
 - edge aggregation (default): each edge is lifted to the two sibling groups

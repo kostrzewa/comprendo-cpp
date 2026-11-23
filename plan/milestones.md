@@ -315,6 +315,9 @@ Open (waiting for a decision, see [log](log.md)):
 - j. (done) Bundling of the selection's lines through its rim (fibres and one
   trunk per destination) and hover emphasis of a group's lines.
 - k. (done) Lines between the selection's children appear only on hover.
+- l. (done) Lines and trunks end at the rims of the disks they connect
+  (`rim_to_rim`) instead of their centres; fibres still start at the
+  children's centres.
 
 ## M10 — opencode 2.x plugin (complete)
 

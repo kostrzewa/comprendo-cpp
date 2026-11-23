@@ -715,3 +715,33 @@ TEST_CASE("lines among the selection's children are hover-only", "[view]")
   CHECK(none_hover_only(view.shown_edges()));
   CHECK(none_hover_only(view.shown_edges({}, group_of(view, 7))));
 }
+
+/// Aggregated lines end at the disks' rims so they do not cross the groups they
+/// connect. Uses values exact in float: two separate disks (clipped at both
+/// rims), touching disks (a short stub centred on the contact point), a disk
+/// inside another in both orders (inner rim to outer centre), and coincident
+/// centres (left unchanged).
+TEST_CASE("connections are clipped at the disks' rims", "[view]")
+{
+  using Comprendo::rim_to_rim;
+  using Comprendo::Segment;
+  using Comprendo::Vec2;
+  CHECK(
+    rim_to_rim({.x = 0, .y = 0}, 1, {.x = 10, .y = 0}, 2, 2)
+    == Segment {.from = {.x = 1, .y = 0}, .to = {.x = 8, .y = 0}}
+  );
+  CHECK(
+    rim_to_rim({.x = 0, .y = 0}, 1, {.x = 3, .y = 0}, 2, 2)
+    == Segment {.from = {.x = 0, .y = 0}, .to = {.x = 2, .y = 0}}
+  );
+  CHECK(
+    rim_to_rim({.x = 0, .y = 0}, 10, {.x = 2, .y = 0}, 1, 2)
+    == Segment {.from = {.x = 0, .y = 0}, .to = {.x = 1, .y = 0}}
+  );
+  CHECK(
+    rim_to_rim({.x = 2, .y = 0}, 1, {.x = 0, .y = 0}, 10, 2)
+    == Segment {.from = {.x = 1, .y = 0}, .to = {.x = 0, .y = 0}}
+  );
+  const Vec2 same {.x = 4, .y = 5};
+  CHECK(rim_to_rim(same, 1, same, 2, 2) == Segment {.from = same, .to = same});
+}
