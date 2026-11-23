@@ -363,3 +363,4 @@ commit. Newest last.
 - The global v1 `plugin` entry (a file path) is rejected by 2.x ("configured
   plugin path must be a directory"); use `plugins` with `plugin_v2` there.
 
+- Commit: `051f719`.
