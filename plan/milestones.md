@@ -410,4 +410,10 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
 - i. (done) Selecting from the Explorer or Inspector glides the camera to the
   object (0.25 s, zooming to fit it) instead of jumping; a selection made
   before the graph area is known (startup `--select`) still fits at once.
+- j. (done) `C` re-centres the layout on the selection (`centre_layout`): the
+  groups enclosing it are laid out again with the path child pinned at their
+  centre (`Body::pinned`), everything else keeps its arrangement; the switch
+  is a 0.4 s blend (`blend_layouts`) with the camera bringing the selection
+  to the middle. The centring is kept by stable key across regrouping and
+  reloads. Measured: 0.8–0.9 ms of layout work on this repository's chart.
 

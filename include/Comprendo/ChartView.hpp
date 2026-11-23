@@ -333,7 +333,8 @@ namespace Comprendo
       return m_hierarchy;
     }
 
-    /// Layout of the current grouping.
+    /// Layout shown: the grouping's layout, re-centred when centre_on_group()
+    /// is in effect, or an intermediate frame set by show_layout().
     ///
     /// \return The layout.
     [[nodiscard]]
@@ -342,6 +343,45 @@ namespace Comprendo
     {
       return m_layout;
     }
+
+    /// Re-centre the layout on a group (centre_layout()), or return to the
+    /// grouping's layout. The choice is remembered by the group's stable key,
+    /// so regrouping and reloading re-apply it while the group exists.
+    ///
+    /// \param group Group to centre on, or nothing for the normal layout.
+    void
+    centre_on_group(std::optional<std::size_t> group);
+
+    /// Group the layout is centred on.
+    ///
+    /// \return The group, or nothing for the normal layout.
+    [[nodiscard]]
+    std::optional<std::size_t>
+    centred_group() const;
+
+    /// Stable key of the group the layout is centred on, to carry the
+    /// centring over to a reloaded chart (see centre_on_key()).
+    ///
+    /// \return HierarchyGroup::key, or nothing.
+    [[nodiscard]]
+    std::optional<std::uint64_t>
+    centred_key() const
+    {
+      return m_centre_key;
+    }
+
+    /// Re-centre on the group with a stable key, if it exists.
+    ///
+    /// \param key HierarchyGroup::key, or nothing for the normal layout.
+    void
+    centre_on_key(std::optional<std::uint64_t> key);
+
+    /// Show an intermediate layout while animating a change; the target is
+    /// restored by the next centre_on_group() or by finishing with it.
+    ///
+    /// \param layout Layout of the same hierarchy.
+    void
+    show_layout(Layout layout);
 
     /// Kind shown for a group: its first node's kind, Other for the root.
     ///
@@ -630,8 +670,12 @@ namespace Comprendo
     LayoutOptions m_options;
     /// Hierarchy of the current grouping.
     Hierarchy m_hierarchy;
-    /// Layout of the current grouping.
+    /// Layout of the current grouping, before any re-centring.
+    Layout m_base_layout;
+    /// Layout shown (see layout()).
     Layout m_layout;
+    /// Key of the group the layout is centred on, if any.
+    std::optional<std::uint64_t> m_centre_key;
     /// Non-`Contains` edges mapped to groups.
     std::vector<GroupEdge> m_edges;
     /// Children of every group in display order.

@@ -330,3 +330,93 @@ TEST_CASE("layout matches golden files", "[layout][golden]")
     CHECK(actual == expected.str());
   }
 }
+
+/// Pressing C in the viewer re-centres the layout on the selection: it must
+/// land exactly at the chart's centre, nothing may overlap or escape its
+/// container, and groups off the selection's path must keep their own
+/// arrangement. Centres a deep method of a generated chart and checks its
+/// position, the invariants, the off-path groups' child offsets, determinism,
+/// and that centring on the root returns the base layout.
+TEST_CASE("centre_layout puts a group at the centre", "[layout]")
+{
+  const Chart chart = generated_chart({});
+  const Hierarchy hierarchy = Comprendo::build_hierarchy(chart, Grouping::File);
+  const Layout base = Comprendo::compute_layout(chart, hierarchy);
+  // The deepest group: a method inside a class inside a namespace inside a file.
+  std::size_t deepest = 0;
+  std::size_t deepest_depth = 0;
+  for (std::size_t group = 1; group < hierarchy.groups.size(); ++group)
+  {
+    std::size_t depth = 0;
+    for (std::size_t at = group; at != 0; at = hierarchy.groups[at].parent)
+    {
+      ++depth;
+    }
+    if (depth > deepest_depth)
+    {
+      deepest = group;
+      deepest_depth = depth;
+    }
+  }
+  CHECK(deepest_depth >= 3);
+  const Layout centred = Comprendo::centre_layout(chart, hierarchy, base, deepest);
+  CHECK(centred.groups[deepest].centre == Comprendo::Position {.x = 0.0F, .y = 0.0F});
+  const Violations violations = check_invariants(chart, hierarchy, centred);
+  CHECK(violations.non_finite == 0);
+  CHECK(violations.escaping == 0);
+  CHECK(violations.overlapping == 0);
+
+  std::vector<bool> on_path(hierarchy.groups.size(), false);
+  for (std::size_t at = deepest; at != 0; at = hierarchy.groups[at].parent)
+  {
+    on_path[hierarchy.groups[at].parent] = true;
+  }
+  std::size_t moved_inside = 0;
+  for (std::size_t group = 0; group < hierarchy.groups.size(); ++group)
+  {
+    if (on_path[group])
+    {
+      continue;
+    }
+    for (const std::size_t child : hierarchy.groups[group].children)
+    {
+      const double before_x
+        = static_cast<double>(base.groups[child].centre.x) - base.groups[group].centre.x;
+      const double before_y
+        = static_cast<double>(base.groups[child].centre.y) - base.groups[group].centre.y;
+      const double after_x
+        = static_cast<double>(centred.groups[child].centre.x) - centred.groups[group].centre.x;
+      const double after_y
+        = static_cast<double>(centred.groups[child].centre.y) - centred.groups[group].centre.y;
+      constexpr double kTolerance = 1e-2;
+      moved_inside
+        += std::abs(before_x - after_x) > kTolerance || std::abs(before_y - after_y) > kTolerance
+        ? 1
+        : 0;
+    }
+  }
+  CHECK(moved_inside == 0);
+  CHECK(Comprendo::centre_layout(chart, hierarchy, base, deepest) == centred);
+  CHECK(Comprendo::centre_layout(chart, hierarchy, base, 0) == base);
+}
+
+/// The switch between layouts is animated by interpolating them, so the ends
+/// must be the two layouts exactly and the middle half way. Blends a base and
+/// a centred layout at 0, 1, and 0.5, and checks a mismatched pair falls back
+/// to the target.
+TEST_CASE("layouts blend for animation", "[layout]")
+{
+  const Chart chart = generated_chart({.files = 3});
+  const Hierarchy hierarchy = Comprendo::build_hierarchy(chart, Grouping::File);
+  const Layout from = Comprendo::compute_layout(chart, hierarchy);
+  const Layout to = Comprendo::centre_layout(chart, hierarchy, from, hierarchy.groups.size() - 1);
+  CHECK(Comprendo::blend_layouts(from, to, 0.0F) == from);
+  CHECK(Comprendo::blend_layouts(from, to, 1.0F) == to);
+  const Layout middle = Comprendo::blend_layouts(from, to, 0.5F);
+  const std::size_t g = hierarchy.groups.size() - 1;
+  CHECK(
+    std::abs(middle.groups[g].centre.x - ((from.groups[g].centre.x + to.groups[g].centre.x) / 2.0F))
+    < 1e-3F
+  );
+  CHECK(Comprendo::blend_layouts(Layout {}, to, 0.5F) == to);
+}

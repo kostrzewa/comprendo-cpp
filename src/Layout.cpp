@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <ranges>
 #include <thread>
 #include <tuple>
@@ -24,7 +25,9 @@
 namespace
 {
   using Comprendo::Body;
+  using Comprendo::Chart;
   using Comprendo::Hierarchy;
+  using Comprendo::Layout;
   using Comprendo::LayoutOptions;
   using Comprendo::Vec2;
 
@@ -187,8 +190,17 @@ namespace
   {
     std::vector<std::size_t> order(bodies.size());
     std::ranges::iota(order, std::size_t {0});
+    // A pinned body comes first, so it sits at the spiral's centre (the origin).
     std::ranges::stable_sort(
-      order, [&bodies](std::size_t l, std::size_t r) { return bodies[l].radius > bodies[r].radius; }
+      order,
+      [&bodies](std::size_t l, std::size_t r)
+      {
+        if (bodies[l].pinned != bodies[r].pinned)
+        {
+          return bodies[l].pinned;
+        }
+        return bodies[l].radius > bodies[r].radius;
+      }
     );
     Vec2 direction {.x = 1.0F, .y = 0.0F};
     float area = 0.0F;
@@ -199,8 +211,9 @@ namespace
       area += extent * extent;
       const float jitter_x = (static_cast<float>(random.next_unit()) - 0.5F) * kJitter * spacing;
       const float jitter_y = (static_cast<float>(random.next_unit()) - 0.5F) * kJitter * spacing;
-      bodies[index].position
-        = {.x = direction.x * distance + jitter_x, .y = direction.y * distance + jitter_y};
+      bodies[index].position = bodies[index].pinned
+        ? Vec2 {}
+        : Vec2 {.x = direction.x * distance + jitter_x, .y = direction.y * distance + jitter_y};
       direction = {
         .x = direction.x * kGoldenCos - direction.y * kGoldenSin,
         .y = direction.x * kGoldenSin + direction.y * kGoldenCos,
@@ -307,7 +320,12 @@ namespace
             const Vec2 unit = distance >= kEpsilon
               ? Vec2 {.x = delta.x / distance, .y = delta.y / distance}
               : Vec2 {.x = i < j ? -1.0F : 1.0F, .y = 0.0F};
-            const float share = bodies[j].mass / (bodies[i].mass + bodies[j].mass);
+            if (bodies[i].pinned)
+            {
+              return;
+            }
+            const float share
+              = bodies[j].pinned ? 1.0F : bodies[j].mass / (bodies[i].mass + bodies[j].mass);
             const float push = (needed - distance) * share;
             shift[i].x += unit.x * push;
             shift[i].y += unit.y * push;
@@ -356,7 +374,8 @@ namespace
           });
           if (distance < kEpsilon)
           {
-            bodies[j].position.x += needed;
+            Body &moved = bodies[j].pinned ? bodies[i] : bodies[j];
+            moved.position.x += bodies[j].pinned ? -needed : needed;
             distance = needed;
           }
           scale = std::max(scale, needed / distance);
@@ -376,6 +395,11 @@ namespace
       centroid.y += body.mass * body.position.y;
     }
     centroid = {.x = centroid.x / total_mass, .y = centroid.y / total_mass};
+    // A pinned body stays put: scale about it instead.
+    if (const auto pinned = std::ranges::find_if(bodies, &Body::pinned); pinned != bodies.end())
+    {
+      centroid = pinned->position;
+    }
     constexpr float kSafety = 1.0F + 1e-5F;
     for (Body &body : bodies)
     {
@@ -509,7 +533,7 @@ namespace
       for (std::size_t i = 0; i < bodies.size(); ++i)
       {
         const float magnitude = length(forces[i]);
-        if (magnitude > kEpsilon)
+        if (magnitude > kEpsilon && !bodies[i].pinned)
         {
           const float acceleration = magnitude / bodies[i].mass;
           const float step = std::min(acceleration, temperature) / magnitude;
@@ -543,13 +567,22 @@ namespace
   /// Lay out the children of one group, whose own children are already laid out.
   ///
   /// Writes only the group's radius and its children's offsets, so groups of the
-  /// same depth can be laid out concurrently.
+  /// same depth can be laid out concurrently. With a pinned child, that child
+  /// stays at the group's centre and the others are arranged around it;
+  /// otherwise the group is centred on its children's bounding box.
   ///
   /// \param context Shared inputs and outputs.
   /// \param group Group index.
   /// \param threads Threads the group may use internally.
+  /// \param pinned_child Index (within the group's children) of the child to
+  ///        keep at the centre, if any.
   void
-  layout_group(const GroupContext &context, std::size_t group, std::size_t threads)
+  layout_group(
+    const GroupContext &context,
+    std::size_t group,
+    std::size_t threads,
+    std::optional<std::size_t> pinned_child = std::nullopt
+  )
   {
     const LayoutOptions &options = *context.options;
     const std::vector<std::size_t> &children = context.hierarchy->groups[group].children;
@@ -559,6 +592,7 @@ namespace
       const float r = (*context.radius)[children[i]];
       bodies[i].radius = r;
       bodies[i].mass = (r * r) / (options.leaf_radius * options.leaf_radius);
+      bodies[i].pinned = pinned_child == i;
     }
     if (children.size() > 1)
     {
@@ -578,7 +612,9 @@ namespace
       high.x = std::max(high.x, body.position.x + body.radius);
       high.y = std::max(high.y, body.position.y + body.radius);
     }
-    const Vec2 centre {.x = (low.x + high.x) / 2.0F, .y = (low.y + high.y) / 2.0F};
+    const Vec2 centre = pinned_child
+      ? bodies[*pinned_child].position
+      : Vec2 {.x = (low.x + high.x) / 2.0F, .y = (low.y + high.y) / 2.0F};
     float enclosing = 0.0F;
     for (std::size_t i = 0; i < children.size(); ++i)
     {
@@ -589,6 +625,45 @@ namespace
       enclosing = std::max(enclosing, length(offset) + bodies[i].radius);
     }
     (*context.radius)[group] = std::max(options.leaf_radius, enclosing + options.padding);
+  }
+  /// Make positions absolute (top-down from the root at the origin) and give
+  /// every node its group's centre.
+  ///
+  /// \param chart Chart laid out.
+  /// \param hierarchy Its hierarchy.
+  /// \param radius Radius of every group.
+  /// \param local Offset of every group from its parent's centre.
+  /// \return The layout.
+  Layout
+  assemble_layout(
+    const Chart &chart,
+    const Hierarchy &hierarchy,
+    const std::vector<float> &radius,
+    const std::vector<Vec2> &local
+  )
+  {
+    const std::size_t group_count = hierarchy.groups.size();
+    Layout layout;
+    layout.groups.resize(group_count);
+    std::vector<Vec2> absolute(group_count);
+    for (const std::size_t group : post_order(hierarchy) | std::views::reverse)
+    {
+      if (group != 0)
+      {
+        const Vec2 &parent = absolute[hierarchy.groups[group].parent];
+        absolute[group] = {.x = parent.x + local[group].x, .y = parent.y + local[group].y};
+      }
+      layout.groups[group] = {
+        .centre = {.x = absolute[group].x, .y = absolute[group].y},
+        .radius = radius[group],
+      };
+    }
+    layout.nodes.resize(chart.nodes.size());
+    for (std::size_t node = 0; node < chart.nodes.size(); ++node)
+    {
+      layout.nodes[node] = layout.groups[hierarchy.group_of_node[node]].centre;
+    }
+    return layout;
   }
 } // namespace
 
@@ -662,26 +737,88 @@ namespace Comprendo
       }
     }
 
-    Layout layout;
-    layout.groups.resize(group_count);
-    std::vector<Vec2> absolute(group_count);
-    for (const std::size_t group : post_order(hierarchy) | std::views::reverse)
+    return assemble_layout(chart, hierarchy, radius, local);
+  }
+
+  Layout
+  centre_layout(
+    const Chart &chart,
+    const Hierarchy &hierarchy,
+    const Layout &base,
+    std::size_t group,
+    const LayoutOptions &options
+  )
+  {
+    const ProfileScope profile {"centre_layout"};
+    const std::size_t group_count = hierarchy.groups.size();
+    if (group == 0 || group >= group_count || base.groups.size() != group_count)
     {
-      if (group != 0)
+      return base;
+    }
+    std::vector<float> radius(group_count);
+    std::vector<Vec2> local(group_count);
+    for (std::size_t g = 0; g < group_count; ++g)
+    {
+      radius[g] = base.groups[g].radius;
+      if (g != 0)
       {
-        const Vec2 &parent = absolute[hierarchy.groups[group].parent];
-        absolute[group] = {.x = parent.x + local[group].x, .y = parent.y + local[group].y};
+        const Position &centre = base.groups[g].centre;
+        const Position &parent = base.groups[hierarchy.groups[g].parent].centre;
+        local[g] = {.x = centre.x - parent.x, .y = centre.y - parent.y};
       }
-      layout.groups[group] = {
-        .centre = {.x = absolute[group].x, .y = absolute[group].y},
-        .radius = static_cast<float>(radius[group]),
+    }
+    std::vector<std::size_t> local_index(group_count, 0);
+    for (const HierarchyGroup &entry : hierarchy.groups)
+    {
+      for (std::size_t i = 0; i < entry.children.size(); ++i)
+      {
+        local_index[entry.children[i]] = i;
+      }
+    }
+    const std::vector<std::vector<Spring>> springs = collect_springs(chart, hierarchy, local_index);
+    const GroupContext context {
+      .hierarchy = &hierarchy,
+      .springs = &springs,
+      .options = &options,
+      .spacing = 2.0F * options.leaf_radius + options.padding,
+      .radius = &radius,
+      .local = &local,
+    };
+    // Re-lay out each enclosing group, innermost first, with the child that
+    // leads to the selection pinned at its centre.
+    for (std::size_t child = group; child != 0; child = hierarchy.groups[child].parent)
+    {
+      const std::size_t parent = hierarchy.groups[child].parent;
+      const std::size_t siblings = hierarchy.groups[parent].children.size();
+      layout_group(context, parent, threads_for(siblings, true), local_index[child]);
+    }
+    return assemble_layout(chart, hierarchy, radius, local);
+  }
+
+  Layout
+  blend_layouts(const Layout &from, const Layout &to, float t)
+  {
+    if (from.groups.size() != to.groups.size() || from.nodes.size() != to.nodes.size())
+    {
+      return to;
+    }
+    const auto mix = [t](float a, float b) { return a + ((b - a) * t); };
+    const auto mix_position = [&mix](const Position &a, const Position &b)
+    { return Position {.x = mix(a.x, b.x), .y = mix(a.y, b.y)}; };
+    Layout blended;
+    blended.groups.resize(to.groups.size());
+    for (std::size_t g = 0; g < to.groups.size(); ++g)
+    {
+      blended.groups[g] = {
+        .centre = mix_position(from.groups[g].centre, to.groups[g].centre),
+        .radius = mix(from.groups[g].radius, to.groups[g].radius),
       };
     }
-    layout.nodes.resize(chart.nodes.size());
-    for (std::size_t node = 0; node < chart.nodes.size(); ++node)
+    blended.nodes.resize(to.nodes.size());
+    for (std::size_t n = 0; n < to.nodes.size(); ++n)
     {
-      layout.nodes[node] = layout.groups[hierarchy.group_of_node[node]].centre;
+      blended.nodes[n] = mix_position(from.nodes[n], to.nodes[n]);
     }
-    return layout;
+    return blended;
   }
 } // namespace Comprendo

@@ -560,6 +560,16 @@ graph:
   laid out unclipped, then rotated), placed by `arrange_strips` from
   `nominal_position` (the node's rectangle replayed from split `SizeRef`
   ratios, so folding neighbours does not change it).
+- **Re-centred layout** (M12j): `centre_layout` (`Layout.hpp`) rebuilds the
+  per-group radii and offsets from a base layout and re-runs `layout_group`
+  for each ancestor of the target, innermost first, with the child on the
+  path pinned (`Body::pinned`: not moved by the simulation or the overlap
+  sweeps; expansion scales about it; it seeds at the origin) and the group
+  centred on it; then the usual top-down assembly. `ChartView` keeps the
+  base layout and the shown one, remembers the centred group by key, and
+  re-applies it after `rebuild`. The viewer blends the old and new layouts
+  over 0.4 s (`blend_layouts`, ease-out) while panning so the selection
+  travels to the middle of the graph area.
 - **Panel visibility** (Explorer, Inspector, Log, minimap) is part of
   `ViewerSettings` and so persists per user with the font and text size.
 

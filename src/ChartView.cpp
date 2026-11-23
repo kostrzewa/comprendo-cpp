@@ -256,11 +256,54 @@ namespace Comprendo
   }
 
   void
+  ChartView::centre_on_group(std::optional<std::size_t> group)
+  {
+    if (!group || *group == 0 || *group >= m_hierarchy.groups.size())
+    {
+      m_centre_key.reset();
+      m_layout = m_base_layout;
+      return;
+    }
+    m_centre_key = m_hierarchy.groups[*group].key;
+    m_layout = centre_layout(m_chart, m_hierarchy, m_base_layout, *group, m_options);
+  }
+
+  std::optional<std::size_t>
+  ChartView::centred_group() const
+  {
+    if (!m_centre_key)
+    {
+      return std::nullopt;
+    }
+    const auto found = std::ranges::find(m_hierarchy.groups, *m_centre_key, &HierarchyGroup::key);
+    if (found == m_hierarchy.groups.end())
+    {
+      return std::nullopt;
+    }
+    return static_cast<std::size_t>(found - m_hierarchy.groups.begin());
+  }
+
+  void
+  ChartView::centre_on_key(std::optional<std::uint64_t> key)
+  {
+    m_centre_key = key;
+    centre_on_group(centred_group());
+  }
+
+  void
+  ChartView::show_layout(Layout layout)
+  {
+    m_layout = std::move(layout);
+  }
+
+  void
   ChartView::rebuild()
   {
     const ProfileScope profile {"chart_view_rebuild"};
     m_hierarchy = build_hierarchy(m_chart, m_grouping);
-    m_layout = compute_layout(m_chart, m_hierarchy, m_options);
+    m_base_layout = compute_layout(m_chart, m_hierarchy, m_options);
+    m_layout = m_base_layout;
+    centre_on_key(m_centre_key);
 
     m_display_children.assign(m_hierarchy.groups.size(), {});
     std::vector<std::string> sort_label(m_hierarchy.groups.size());

@@ -60,6 +60,9 @@ namespace
   /// Side of the minimap in pixels.
   constexpr float kMinimapSize = 160.0F;
 
+  /// Length of the animated switch to and from a re-centred layout (C), in seconds.
+  constexpr double kRecentreSeconds = 0.4;
+
   /// Length of the double-click and Backspace camera moves in seconds.
   constexpr double kJumpSeconds = 0.25;
 
@@ -113,7 +116,7 @@ namespace
   constexpr float kFocusMargin = 0.6F;
 
   /// Number of frames rendered by the smoke test.
-  constexpr int kSmokeTestFrames = 36;
+  constexpr int kSmokeTestFrames = 40;
 
   /// Frame on which the smoke test fits the chart and checks it is visible.
   constexpr int kSmokeChartFitFrame = 18;
@@ -138,6 +141,18 @@ namespace
 
   /// Frame on which the smoke test checks the Explorer is unfolded again.
   constexpr int kSmokeUnfoldCheckFrame = 35;
+
+  /// Frame on which the smoke test re-centres the layout on a symbol (C).
+  constexpr int kSmokeCentreFrame = 36;
+
+  /// Frame on which the smoke test checks the centring target.
+  constexpr int kSmokeCentreCheckFrame = 37;
+
+  /// Frame on which the smoke test returns to the normal layout (C again).
+  constexpr int kSmokeNormalFrame = 38;
+
+  /// Frame on which the smoke test checks the normal layout is back.
+  constexpr int kSmokeNormalCheckFrame = 39;
 
   /// Frame on which the smoke test zooms into the chart.
   constexpr int kSmokeChartZoomFrame = 20;
@@ -554,6 +569,23 @@ namespace
     );
   }
 
+  /// An animated switch between two layouts (re-centring on C): disks glide
+  /// from one arrangement to the other while the camera keeps the followed
+  /// group moving to the middle of the graph area.
+  struct LayoutChange
+  {
+    /// Layout shown when the switch began.
+    Comprendo::Layout from;
+    /// Layout to end on.
+    Comprendo::Layout to;
+    /// GetTime() at the start.
+    double start = 0.0;
+    /// Group the camera follows (the selection), if any.
+    std::optional<std::size_t> follow;
+    /// Screen position of the followed group when the switch began.
+    Comprendo::Vec2 from_screen;
+  };
+
   /// A loaded chart with its camera, selection, and mouse state.
   struct GraphSession
   {
@@ -572,6 +604,8 @@ namespace
     /// True while the second press of a double click is held: its release
     /// keeps the jump's selection instead of picking under the moving camera.
     bool double_press = false;
+    /// Running switch between layouts (C), if any.
+    std::optional<LayoutChange> layout_change;
     /// Running camera move (double-click centring, Backspace), if any.
     std::optional<Comprendo::CameraAnimation> animation;
     /// Views to return to with Backspace.
@@ -765,6 +799,7 @@ namespace
       next.camera = session->camera;
       next.auto_fit = session->auto_fit;
       next.history = std::move(session->history);
+      next.view.centre_on_key(session->view.centred_key());
     }
     state.selected.reset();
     if (const auto node = selected ? next.view.node_index(*selected) : std::nullopt)
@@ -881,6 +916,90 @@ namespace
     session.animation.emplace(pose_of(session.camera), to, GetTime(), kJumpSeconds);
     session.auto_fit = false;
     session.fit_group.reset();
+  }
+
+  /// Start re-centring the layout on the selection (C), or returning to the
+  /// normal layout when it is already centred on it or nothing is selected.
+  ///
+  /// \param session Session whose view changes.
+  /// \param state Viewer state holding the selection and the request.
+  void
+  apply_layout_request(GraphSession &session, Comprendo::ViewerState &state)
+  {
+    if (!state.centre_requested && !state.normal_layout_requested)
+    {
+      return;
+    }
+    const bool to_normal = state.normal_layout_requested || !state.selected
+      || session.view.centred_group() == state.selected;
+    state.centre_requested = false;
+    state.normal_layout_requested = false;
+    const Comprendo::Layout from = session.view.layout();
+    const auto started = std::chrono::steady_clock::now();
+    session.view.centre_on_group(to_normal ? std::nullopt : state.selected);
+    const auto elapsed
+      = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started);
+    Comprendo::Layout to = session.view.layout();
+    session.view.show_layout(from);
+    session.animation.reset();
+    session.auto_fit = false;
+    session.fit_group.reset();
+    Comprendo::Vec2 from_screen;
+    if (state.selected)
+    {
+      from_screen = session.camera.world_to_screen(session.view.group_centre(*state.selected));
+    }
+    session.layout_change = LayoutChange {
+      .from = from,
+      .to = std::move(to),
+      .start = GetTime(),
+      .follow = state.selected,
+      .from_screen = from_screen,
+    };
+    Comprendo::Logger::info(
+      "{} ({:.1f} ms)",
+      to_normal ? std::string {"Normal layout"}
+                : fmt::format("Centred on {}", session.view.display_label(*state.selected)),
+      elapsed.count()
+    );
+  }
+
+  /// Advance a running layout switch: show the blended layout and keep the
+  /// followed group gliding to the middle of the graph area.
+  ///
+  /// \param session Session whose view is animated.
+  /// \param state Viewer state holding the graph area.
+  void
+  step_layout_change(GraphSession &session, const Comprendo::ViewerState &state)
+  {
+    if (!session.layout_change)
+    {
+      return;
+    }
+    const LayoutChange &change = *session.layout_change;
+    const double elapsed = (GetTime() - change.start) / kRecentreSeconds;
+    const auto t = static_cast<float>(std::clamp(elapsed, 0.0, 1.0));
+    const float eased = 1.0F - ((1.0F - t) * (1.0F - t) * (1.0F - t));
+    session.view.show_layout(Comprendo::blend_layouts(change.from, change.to, eased));
+    if (change.follow && *change.follow < session.view.layout().groups.size())
+    {
+      const Comprendo::ScreenRect area = graph_area(state);
+      const Comprendo::Vec2 middle {
+        .x = area.x + (area.width / 2.0F), .y = area.y + (area.height / 2.0F)
+      };
+      const Comprendo::Vec2 wanted {
+        .x = change.from_screen.x + ((middle.x - change.from_screen.x) * eased),
+        .y = change.from_screen.y + ((middle.y - change.from_screen.y) * eased),
+      };
+      const Comprendo::Vec2 now
+        = session.camera.world_to_screen(session.view.group_centre(*change.follow));
+      session.camera.pan({.x = wanted.x - now.x, .y = wanted.y - now.y});
+    }
+    if (t >= 1.0F)
+    {
+      session.view.show_layout(change.to);
+      session.layout_change.reset();
+    }
   }
 
   /// Apply what the menu, panels, and input requested this frame: grouping
@@ -1151,12 +1270,24 @@ namespace
       {
         state.grouping = Comprendo::next_grouping(state.grouping);
       }
+
       handle_graph_keys(session, state);
     }
+    // Like Backspace, C must work right after a click in the Explorer or
+    // Inspector, which keeps ImGui's keyboard focus; only typing blocks it.
     if (!Comprendo::Ui::wants_text_input() && IsKeyPressed(KEY_BACKSPACE))
     {
       go_back(session, state);
     }
+    if (
+      !Comprendo::Ui::wants_text_input() && IsKeyPressed(KEY_C) && !IsKeyDown(KEY_LEFT_CONTROL)
+      && !IsKeyDown(KEY_RIGHT_CONTROL)
+    )
+    {
+      state.centre_requested = true;
+    }
+    apply_layout_request(session, state);
+    step_layout_change(session, state);
     apply_requests(session, state);
   }
 
@@ -1428,6 +1559,17 @@ namespace
     case kSmokeChartClusterCheckFrame:
       return session.view.grouping() == Comprendo::Grouping::Cluster
         && !session.view.visible(session.camera).empty();
+    case kSmokeCentreFrame:
+      state.selected = first_symbol_with_lines(session.view);
+      state.centre_requested = true;
+      return state.selected.has_value();
+    case kSmokeCentreCheckFrame:
+      return state.selected && session.view.centred_group() == state.selected
+        && session.layout_change
+        && session.layout_change->to.groups[*state.selected].centre
+        == Comprendo::Position {.x = 0.0F, .y = 0.0F};
+    case kSmokeNormalFrame: state.centre_requested = true; return true;
+    case kSmokeNormalCheckFrame: return !session.view.centred_group().has_value();
     case kSmokeChartJumpFrame:
     {
       session.click_origin
@@ -1486,6 +1628,8 @@ namespace
           Comprendo::Logger::warn("Smoke: chart check failed at frame {}", frame);
           passed = false;
         }
+        apply_layout_request(*session, state);
+        step_layout_change(*session, state);
         apply_requests(*session, state);
       }
 

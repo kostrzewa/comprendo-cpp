@@ -680,3 +680,23 @@ commit. Newest last.
   the gutter marks the range.
 
 - Commit: `7251068`.
+
+## 2026-11-23 — M12j C re-centres the layout on the selection
+
+- Discussed two readings (re-centred nested view vs. neighbourhood view);
+  the user chose the nested view.
+- Layout engine: `Body::pinned` (repulsion is mass-weighted, so pinning by a
+  huge mass would have pushed everything away); `layout_group` takes a pinned
+  child and centres the group on it; `centre_layout` re-runs only the target's
+  ancestors from the base layout; the top-down assembly is shared
+  (`assemble_layout`); `blend_layouts` for the animation. Golden files
+  unchanged.
+- View/viewer: `ChartView::centre_on_group`/`centre_on_key` (kept by key across
+  regrouping and reloads), `show_layout` for animation frames; `C` and View
+  menu items; status shows "centred on X". C, like Backspace, works while a
+  panel has keyboard focus (found under xvfb: after `--select` the Explorer
+  held the keyboard and C was ignored).
+- Tests: target exactly at the origin, invariants, off-path groups unchanged,
+  determinism, blend ends; centring survives regrouping; smoke test centres
+  and restores. Measured on this chart (release): 0.8 ms for a top-level
+  cluster, 0.9 ms for a function four levels deep.

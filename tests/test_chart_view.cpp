@@ -809,3 +809,25 @@ TEST_CASE("contents are listed as a foldable tree", "[view]")
   CHECK(folded.size() == 2);
   CHECK_FALSE(position(folded, a_cpp));
 }
+
+/// C re-centres the layout on the selection and that choice must survive
+/// regrouping and reloads (the view is rebuilt then), keyed by the group's
+/// stable key. Centres the sample's method m1, switches to namespace grouping
+/// and back (m1 keeps its key), checks it stays centred at the origin, then
+/// returns to the normal layout and compares with a fresh view.
+TEST_CASE("centring the layout survives regrouping", "[view]")
+{
+  ChartView view {sample_chart(), Grouping::File};
+  const ChartView fresh {sample_chart(), Grouping::File};
+  view.centre_on_group(group_of(view, 7));
+  CHECK(view.centred_group() == group_of(view, 7));
+  CHECK(view.group_centre(group_of(view, 7)) == Vec2 {.x = 0.0F, .y = 0.0F});
+  view.set_grouping(Grouping::Namespace);
+  CHECK(view.centred_group() == group_of(view, 7));
+  CHECK(view.group_centre(group_of(view, 7)) == Vec2 {.x = 0.0F, .y = 0.0F});
+  view.set_grouping(Grouping::File);
+  CHECK(view.centred_group() == group_of(view, 7));
+  view.centre_on_group(std::nullopt);
+  CHECK_FALSE(view.centred_group());
+  CHECK(view.layout() == fresh.layout());
+}

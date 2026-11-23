@@ -1564,6 +1564,15 @@ namespace Comprendo
       {
         state.fit_requested = true;
       }
+      if (ImGui::MenuItem("Centre layout on selection", "C", false, state.selected.has_value()))
+      {
+        state.centre_requested = true;
+      }
+      const bool centred = view != nullptr && view->centred_group().has_value();
+      if (ImGui::MenuItem("Normal layout", nullptr, false, centred))
+      {
+        state.normal_layout_requested = true;
+      }
       ImGui::Separator();
       if (ImGui::MenuItem("Larger text", "Ctrl++", false, state.text_level < kMaxTextLevel))
       {
@@ -2040,7 +2049,11 @@ namespace Comprendo
       const std::string counts
         = fmt::format("{} nodes, {} edges", view->chart().nodes.size(), view->chart().edges.size());
       const std::string grouping = fmt::format("by {}", Comprendo::to_string(view->grouping()));
-      const std::string zoom = fmt::format("zoom {:.3g}", state.zoom);
+      std::string zoom = fmt::format("zoom {:.3g}", state.zoom);
+      if (const auto centred = view->centred_group())
+      {
+        zoom = fmt::format("centred on {}  |  {}", view->display_label(*centred), zoom);
+      }
       variants = {
         fmt::format("{}  |  {}  |  {}  |  {}  |  {}", file, counts, grouping, zoom, rate),
         fmt::format("{}  |  {}  |  {}  |  {}", file, counts, zoom, rate),

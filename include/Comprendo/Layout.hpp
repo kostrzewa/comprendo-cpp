@@ -94,4 +94,41 @@ namespace Comprendo
   [[nodiscard]]
   Layout
   compute_layout(const Chart &chart, const Hierarchy &hierarchy, const LayoutOptions &options = {});
+
+  /// Re-centre a layout on a group: the group goes to the centre of the chart
+  /// with everything else arranged around it.
+  ///
+  /// Only the groups enclosing \p group are laid out again, innermost first,
+  /// each with the child leading to \p group pinned at its centre and the other
+  /// children placed around it by the usual forces (so connected ones stay
+  /// close). Every other group keeps its internal arrangement and only moves.
+  /// Deterministic, like compute_layout().
+  ///
+  /// \param chart Chart laid out.
+  /// \param hierarchy Its hierarchy.
+  /// \param base Layout from compute_layout() for this hierarchy.
+  /// \param group Group to centre on; the root (0) gives \p base.
+  /// \param options Tuning parameters, as for \p base.
+  /// \return The re-centred layout; \p group's centre is the origin.
+  [[nodiscard]]
+  Layout
+  centre_layout(
+    const Chart &chart,
+    const Hierarchy &hierarchy,
+    const Layout &base,
+    std::size_t group,
+    const LayoutOptions &options = {}
+  );
+
+  /// Interpolate between two layouts of the same hierarchy, for animating a
+  /// change of layout.
+  ///
+  /// \param from Layout at t = 0.
+  /// \param to Layout at t = 1.
+  /// \param t Progress in [0, 1].
+  /// \return Group disks and node positions moved linearly; \p to when the
+  ///         layouts do not match in size.
+  [[nodiscard]]
+  Layout
+  blend_layouts(const Layout &from, const Layout &to, float t);
 } // namespace Comprendo

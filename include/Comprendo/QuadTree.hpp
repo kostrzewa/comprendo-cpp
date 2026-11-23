@@ -35,6 +35,9 @@ namespace Comprendo
     float mass = 1.0F;
     /// Disk radius, used by overlap queries.
     float radius = 0.0F;
+    /// Kept in place by the layout (the group's centre when re-centring on a
+    /// selection); others move around it.
+    bool pinned = false;
   };
 
   /// Bits per coordinate of a Morton code; codes use 2 * this many bits.

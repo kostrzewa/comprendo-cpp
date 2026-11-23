@@ -62,6 +62,13 @@ namespace Comprendo
     /// Whether the About window is open.
     bool show_about = false;
 
+    /// Set by C or the View menu to re-centre the layout on the selection (or
+    /// return to the normal layout when already centred on it).
+    bool centre_requested = false;
+
+    /// Set by the View menu to return to the normal layout.
+    bool normal_layout_requested = false;
+
     /// Whether the floating Fonts dialog is open.
     bool show_fonts = false;
 
