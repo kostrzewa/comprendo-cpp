@@ -658,3 +658,15 @@ commit. Newest last.
   click to its former width. The user's own layout file was not touched.
 
 - Commit: `57ed108`.
+
+## 2026-11-23 — M12i animated focus from the panels
+
+- Question: is the move to a panel selection animated? It was not:
+  `apply_requests` fitted the camera at once (auto-fit), while only graph
+  double clicks and Backspace used `CameraAnimation`.
+- Now a focus request computes the fitted pose on a camera copy and glides
+  there with `animate_to` (0.25 s, ease-out, zoom interpolated
+  geometrically). Requests before the graph area is known keep the old
+  immediate auto-fit, so `--select` still frames the selection at startup.
+- Checked under xvfb: after an Explorer click the status zoom read 0.162,
+  0.226, 0.273, 0.311, 0.344, 0.373 in successive captures over 0.14 s.

@@ -407,4 +407,7 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   column → stacked strips, separate columns → strips side by side), using
   each node's nominal position in the dock tree. Clicking a strip unfolds the
   panel in its old place; strips persist per user (`folded_left/right`).
+- i. (done) Selecting from the Explorer or Inspector glides the camera to the
+  object (0.25 s, zooming to fit it) instead of jumping; a selection made
+  before the graph area is known (startup `--select`) still fits at once.
 

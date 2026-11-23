@@ -88,6 +88,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | Mouse wheel | Zoom about the cursor |
 | Left drag, right or middle drag | Pan |
 | Left click | Select (Inspector shows it, Explorer reveals it, the Source panel follows it) |
+| Click in the Explorer or Inspector | Select and glide to the object, zooming to fit it |
 | Double click | Select and centre the object with a short animation (zoom unchanged) |
 | `Backspace` | Go back to the view and selection before the last jump (double click, Explorer, Inspector); works while a panel has focus, except when typing in a text field |
 | `W` `A` `S` `D` | Pan |

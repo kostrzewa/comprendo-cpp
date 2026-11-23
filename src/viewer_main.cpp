@@ -871,9 +871,22 @@ namespace
     Comprendo::Logger::info("Selected {}", view.display_label(found.front()));
   }
 
+  /// Start a short camera move from the current pose.
+  ///
+  /// \param session Session whose camera moves.
+  /// \param to Pose at the end.
+  void
+  animate_to(GraphSession &session, const Comprendo::CameraPose &to)
+  {
+    session.animation.emplace(pose_of(session.camera), to, GetTime(), kJumpSeconds);
+    session.auto_fit = false;
+    session.fit_group.reset();
+  }
+
   /// Apply what the menu, panels, and input requested this frame: grouping
   /// switch, fitting (kept while the view is auto-fitted), and focusing on the
-  /// selection; then record the zoom for the status.
+  /// selection (a short glide that zooms to fit it, or at once while the graph
+  /// area is not known yet); then record the zoom for the status.
   ///
   /// \param session Session to update.
   /// \param state Viewer state holding the requests.
@@ -881,15 +894,30 @@ namespace
   apply_requests(GraphSession &session, Comprendo::ViewerState &state)
   {
     apply_grouping(session, state);
-    if (state.focus_requested && state.selected)
+    const bool focus = state.focus_requested && state.selected;
+    if (focus)
     {
       session.history.push(
         {.pose = settled_pose(session),
          .selected = group_key(session.view, session.previous_selected)}
       );
     }
-    if (state.fit_requested || (state.focus_requested && state.selected))
+    if (focus && !state.fit_requested && state.graph_area.width > 0.0F)
     {
+      // Glide to the selection like a double click does, zooming to fit it.
+      Comprendo::ViewCamera target = session.camera;
+      target.fit(
+        session.view.group_centre(*state.selected),
+        session.view.layout().groups[*state.selected].radius,
+        kFocusMargin,
+        state.graph_area
+      );
+      animate_to(session, pose_of(target));
+    }
+    else if (state.fit_requested || focus)
+    {
+      // Fitting the chart, or a selection made before the graph area is
+      // known (startup), happens at once and follows later area changes.
       session.animation.reset();
       session.auto_fit = true;
       session.fit_group = state.fit_requested ? std::nullopt : state.selected;
@@ -916,18 +944,6 @@ namespace
     }
     state.zoom = session.camera.zoom;
     session.previous_selected = state.selected;
-  }
-
-  /// Start a short camera move from the current pose.
-  ///
-  /// \param session Session whose camera moves.
-  /// \param to Pose at the end.
-  void
-  animate_to(GraphSession &session, const Comprendo::CameraPose &to)
-  {
-    session.animation.emplace(pose_of(session.camera), to, GetTime(), kJumpSeconds);
-    session.auto_fit = false;
-    session.fit_group.reset();
   }
 
   /// Advance a running camera move.
