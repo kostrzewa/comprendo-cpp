@@ -297,5 +297,5 @@ Open (waiting for a decision, see [log](log.md)):
   instead of vanishing when zooming in.
 - b. (done) The Inspector lists aggregated connections for clusters, directories,
   files, and namespaces (other cluster, other file, ... with counts).
-- c. The Inspector's lists share the window's full height.
+- c. (done) The Inspector's lists share the window's full height.
 

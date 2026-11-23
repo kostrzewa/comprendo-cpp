@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <span>
+#include <vector>
 
 namespace Comprendo
 {
@@ -24,6 +26,28 @@ namespace Comprendo
     const auto last = static_cast<std::ptrdiff_t>(rows - 1);
     const std::ptrdiff_t moved = static_cast<std::ptrdiff_t>(*cursor) + delta;
     return static_cast<std::size_t>(std::clamp<std::ptrdiff_t>(moved, 0, last));
+  }
+
+  std::vector<float>
+  share_heights(std::span<const float> needs, float available, float minimum)
+  {
+    std::vector<std::size_t> order(needs.size());
+    for (std::size_t i = 0; i < order.size(); ++i)
+    {
+      order[i] = i;
+    }
+    std::ranges::stable_sort(order, {}, [&](std::size_t i) { return needs[i]; });
+    std::vector<float> heights(needs.size(), 0.0F);
+    float remaining = std::max(available, 0.0F);
+    for (std::size_t k = 0; k < order.size(); ++k)
+    {
+      const float need = needs[order[k]];
+      const float share = remaining / static_cast<float>(order.size() - k);
+      const float height = std::min(need, std::max(share, std::min(need, minimum)));
+      heights[order[k]] = height;
+      remaining = std::max(remaining - height, 0.0F);
+    }
+    return heights;
   }
 
   CameraAnimation::CameraAnimation(CameraPose from, CameraPose to, double start, double duration) :

@@ -1,12 +1,14 @@
 #pragma once
 
 /// \file
-/// \brief Pure navigation helpers for the viewer: list cursors, camera animations, and history.
+/// \brief Pure helpers for the viewer: list cursors, panel heights, camera animations, history.
 
 #include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <optional>
+#include <span>
+#include <vector>
 
 #include "Comprendo/QuadTree.hpp"
 
@@ -24,6 +26,21 @@ namespace Comprendo
   [[nodiscard]]
   std::optional<std::size_t>
   move_list_cursor(std::optional<std::size_t> cursor, std::size_t rows, int delta);
+
+  /// Share a height between stacked panels so they fill it without wasting space.
+  ///
+  /// Panels that need less than an equal share get exactly what they need;
+  /// the rest is split evenly among the larger ones, so one long list can take
+  /// what short lists leave. No panel gets less than min(need, minimum), even
+  /// when that exceeds the available height.
+  ///
+  /// \param needs Height each panel needs to show everything.
+  /// \param available Height to share.
+  /// \param minimum Smallest height of a panel that needs more.
+  /// \return Height per panel, in input order.
+  [[nodiscard]]
+  std::vector<float>
+  share_heights(std::span<const float> needs, float available, float minimum);
 
   /// Where a camera looks: the chart point at the screen centre and the zoom.
   struct CameraPose

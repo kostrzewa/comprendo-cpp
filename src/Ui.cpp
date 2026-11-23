@@ -50,11 +50,8 @@ namespace
   /// Child count above which Explorer leaf rows are clipped to the visible ones.
   constexpr std::size_t kClipThreshold = 256;
 
-  /// Rows of an Inspector list shown before it scrolls.
-  constexpr std::size_t kInspectorListRows = 8;
-
-  /// Text lines of the Detail section shown before it scrolls.
-  constexpr std::size_t kInspectorDetailRows = 6;
+  /// Rows an Inspector list keeps when space is short.
+  constexpr std::size_t kInspectorMinimumRows = 3;
 
   /// ImGui colour of a chart colour.
   ///
@@ -410,6 +407,7 @@ namespace
   /// Draw a headed list with its own scrollbar.
   ///
   /// \param section Heading and rows.
+  /// \param height Height of the scrolling list.
   /// \param first Cursor index of the section's first row.
   /// \param cursor Keyboard cursor over all Inspector rows, if any.
   /// \param scroll_to_cursor True to scroll the cursor's row into view.
@@ -417,6 +415,7 @@ namespace
   void
   draw_list_section(
     const ListSection &section,
+    float height,
     std::size_t first,
     std::optional<std::size_t> cursor,
     bool scroll_to_cursor,
@@ -429,8 +428,7 @@ namespace
       text_disabled("None");
       return;
     }
-    const std::size_t rows = std::min(section.entries.size(), kInspectorListRows);
-    ImGui::BeginChild(section.title, ImVec2(0.0F, rows_height(rows)), ImGuiChildFlags_Borders);
+    ImGui::BeginChild(section.title, ImVec2(0.0F, height), ImGuiChildFlags_Borders);
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(section.entries.size()));
     const bool cursor_here = cursor && *cursor >= first && *cursor < first + section.entries.size();
@@ -498,21 +496,86 @@ namespace
     return moved;
   }
 
-  /// Draw the Inspector's lists: children, outgoing and incoming edges.
+  /// Height of a section's heading, including the spacing below it.
   ///
+  /// \return Height in pixels.
+  float
+  heading_height()
+  {
+    const ImGuiStyle &style = ImGui::GetStyle();
+    return ImGui::GetTextLineHeight() + (2.0F * style.SeparatorTextPadding.y) + style.ItemSpacing.y;
+  }
+
+  /// Draw the Inspector's Detail and lists, sharing the remaining height.
+  ///
+  /// Each section gets the height it needs while that fits; long sections
+  /// share what is left (see share_heights()) and keep at least a few rows.
+  ///
+  /// \param detail Detail text, or null for groups without one.
   /// \param sections Lists in drawing order.
   /// \param state Viewer state.
   /// \param keyboard True when the Inspector has keyboard focus.
   void
   draw_list_sections(
-    const std::vector<ListSection> &sections, Comprendo::ViewerState &state, bool keyboard
+    const std::string *detail,
+    const std::vector<ListSection> &sections,
+    Comprendo::ViewerState &state,
+    bool keyboard
   )
   {
     const bool scroll = keyboard && handle_inspector_keys(sections, state);
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float empty_section = heading_height() + ImGui::GetTextLineHeightWithSpacing();
+    const float wrap
+      = ImGui::GetContentRegionAvail().x - (2.0F * style.WindowPadding.x) - style.ScrollbarSize;
+    float fixed = 0.0F;
+    std::vector<float> needs;
+    const bool has_detail = detail != nullptr && !detail->empty();
+    if (detail != nullptr)
+    {
+      fixed += has_detail ? heading_height() + style.ItemSpacing.y : empty_section;
+      if (has_detail)
+      {
+        needs.push_back(
+          ImGui::CalcTextSize(detail->c_str(), nullptr, false, wrap).y
+          + (2.0F * style.WindowPadding.y)
+        );
+      }
+    }
+    for (const ListSection &section : sections)
+    {
+      fixed += section.entries.empty() ? empty_section : heading_height() + style.ItemSpacing.y;
+      if (!section.entries.empty())
+      {
+        needs.push_back(rows_height(section.entries.size()));
+      }
+    }
+    const std::vector<float> heights = Comprendo::share_heights(
+      needs, ImGui::GetContentRegionAvail().y - fixed, rows_height(kInspectorMinimumRows)
+    );
+
+    std::size_t next = 0;
+    if (detail != nullptr)
+    {
+      section_heading("Detail", std::nullopt);
+      if (has_detail)
+      {
+        ImGui::BeginChild("Detail", ImVec2(0.0F, heights[next++]), ImGuiChildFlags_Borders);
+        ImGui::PushTextWrapPos(0.0F);
+        ImGui::TextUnformatted(detail->c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::EndChild();
+      }
+      else
+      {
+        text_disabled("None");
+      }
+    }
     std::size_t first = 0;
     for (const ListSection &section : sections)
     {
-      draw_list_section(section, first, state.inspector_cursor, scroll, state);
+      const float height = section.entries.empty() ? 0.0F : heights[next++];
+      draw_list_section(section, height, first, state.inspector_cursor, scroll, state);
       first += section.entries.size();
     }
   }
@@ -614,6 +677,7 @@ namespace
     if (entry.nodes.empty())
     {
       draw_list_sections(
+        nullptr,
         {
           ListSection {.title = "Contains", .entries = child_entries(view, group)},
           ListSection {.title = "Outgoing", .entries = connection_entries(view, group, true)},
@@ -663,21 +727,6 @@ namespace
       ImGui::TextUnformatted(node.summary.c_str());
     }
     ImGui::PopTextWrapPos();
-    section_heading("Detail", std::nullopt);
-    if (node.detail.empty())
-    {
-      text_disabled("None");
-    }
-    else
-    {
-      ImGui::BeginChild(
-        "Detail", ImVec2(0.0F, rows_height(kInspectorDetailRows)), ImGuiChildFlags_Borders
-      );
-      ImGui::PushTextWrapPos(0.0F);
-      ImGui::TextUnformatted(node.detail.c_str());
-      ImGui::PopTextWrapPos();
-      ImGui::EndChild();
-    }
 
     if (entry.nodes.size() > 1)
     {
@@ -712,6 +761,7 @@ namespace
       }
     }
     draw_list_sections(
+      &node.detail,
       {
         ListSection {.title = "Contains", .entries = child_entries(view, group)},
         ListSection {

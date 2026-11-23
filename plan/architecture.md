@@ -412,8 +412,9 @@ graph:
   `ChartView::display_children` order; leaf lists above 256 rows go through
   `ImGuiListClipper`, which is told to include a revealed row.
 - **Inspector** (lists reworked in M8e): Detail, Contains, Outgoing, and
-  Incoming are always shown, each under a heading in its own scrolling child
-  (8 rows, Detail 6 lines). With the Inspector focused, Up/Down move one
+  Incoming are always shown, each under a heading in its own scrolling child;
+  they share the window height below the fields (`share_heights`: short
+  sections get what they need, long ones split the rest, at least 3 rows). With the Inspector focused, Up/Down move one
   cursor through all list rows (`move_list_cursor`) and Enter selects the
   row; the window has `NoNavInputs` so ImGui's own navigation does not also
   react. For clusters, directories, files, and namespaces, Outgoing and

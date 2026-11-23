@@ -87,3 +87,26 @@ TEST_CASE("navigation history returns views newest first", "[navigation]")
     CHECK(newest->pose.target.x == 4.0F);
   }
 }
+
+/// The Inspector's lists share the window height: short lists must not waste
+/// space, a long list should take what they leave, and nothing may collapse
+/// below a few rows. Shares heights for lists that all fit, for one long and
+/// two short lists, for two long lists, and for a too-small window.
+TEST_CASE("panel heights share the available space", "[navigation]")
+{
+  using Comprendo::share_heights;
+  const std::vector<float> fit = {50.0F, 100.0F, 30.0F};
+  CHECK(share_heights(fit, 500.0F, 40.0F) == fit);
+  CHECK(
+    share_heights(std::vector {40.0F, 2000.0F, 60.0F}, 600.0F, 40.0F)
+    == std::vector {40.0F, 500.0F, 60.0F}
+  );
+  CHECK(
+    share_heights(std::vector {900.0F, 2000.0F}, 600.0F, 40.0F) == std::vector {300.0F, 300.0F}
+  );
+  CHECK(
+    share_heights(std::vector {500.0F, 500.0F, 20.0F}, 50.0F, 40.0F)
+    == std::vector {40.0F, 40.0F, 20.0F}
+  );
+  CHECK(share_heights(std::vector<float> {}, 100.0F, 40.0F).empty());
+}
