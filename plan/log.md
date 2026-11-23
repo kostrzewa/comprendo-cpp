@@ -385,3 +385,5 @@ commit. Newest last.
   colour (slightly more opaque, sized by the line width), drawn after all
   lines. Nested straight lines (inner rim to outer centre) get no ports.
 - Checked under xvfb: nothing selected and `Layout engine` selected.
+
+- Commit: `4613dd3`.
