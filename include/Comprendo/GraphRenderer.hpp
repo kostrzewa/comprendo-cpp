@@ -19,7 +19,7 @@ namespace Comprendo
   {
     /// Groups to draw, from ChartView::visible().
     std::vector<DrawItem> items;
-    /// Edges to draw, from ChartView::visible_edges().
+    /// Edges to draw, from ChartView::shown_edges().
     std::vector<VisibleEdge> edges;
     /// Selected group, highlighted.
     std::optional<std::size_t> selected;

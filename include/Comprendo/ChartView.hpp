@@ -72,7 +72,7 @@ namespace Comprendo
     /// Hidden edge kinds, indexed by EdgeKind value.
     std::bitset<kEdgeKindCount> hidden_edges;
     /// True to draw every edge between its members' groups; false (default) to
-    /// aggregate edges into lines between sibling groups (see visible_edges()).
+    /// aggregate edges into lines between sibling groups (see shown_edges()).
     bool member_edges = false;
 
     /// Check whether a node kind is shown.
@@ -442,14 +442,13 @@ namespace Comprendo
       const ViewCamera &camera, const LodOptions &lod = {}, const ViewFilter &filter = {}
     ) const;
 
-    /// Non-`Contains` edges between visible groups.
+    /// Non-`Contains` edges to draw, independent of the camera.
     ///
     /// By default edges are aggregated: each chart edge is lifted to the two
     /// sibling groups directly below the deepest group containing both
     /// endpoints (two clusters, two subclusters of one cluster, two files of
     /// one directory, ...), so one line stands for all edges between their
-    /// contents and edges inside a group appear only once that group is
-    /// expanded; edges where one endpoint contains the other are dropped. With
+    /// contents; edges where one endpoint contains the other are dropped. With
     /// ViewFilter::member_edges the endpoints' own groups are used instead.
     ///
     /// Edges crossing the boundary of \p focus (one endpoint inside it) are
@@ -459,22 +458,20 @@ namespace Comprendo
     /// leaf its own connections to the members it uses. Crossing edges to an
     /// ancestor of \p focus are dropped.
     ///
-    /// Each endpoint is then attached to its deepest drawn ancestor-or-self, or
-    /// to the off-screen group below an expanded parent (so lines to groups
-    /// outside the view keep pointing at them); edges whose endpoints share
-    /// that group are dropped, and parallel edges of one kind are merged with
-    /// summed weight.
+    /// Which groups an edge connects depends only on the hierarchy, the
+    /// filter, and \p focus, never on zoom or position: lines end at their
+    /// groups' layout positions even when those are off screen or too small
+    /// to draw. An endpoint whose kind (or an ancestor's) \p filter hides moves
+    /// to the nearest shown ancestor. Edges whose endpoints coincide are
+    /// dropped; parallel edges of one kind are merged with summed weight.
     ///
-    /// \param items Result of visible().
     /// \param filter Hidden kinds and the edge display mode.
     /// \param focus Selected group whose crossing edges are refined.
     /// \return Edges sorted by (from, to, kind).
     [[nodiscard]]
     std::vector<VisibleEdge>
-    visible_edges(
-      const std::vector<DrawItem> &items,
-      const ViewFilter &filter = {},
-      std::optional<std::size_t> focus = std::nullopt
+    shown_edges(
+      const ViewFilter &filter = {}, std::optional<std::size_t> focus = std::nullopt
     ) const;
 
     /// What a group stands for.

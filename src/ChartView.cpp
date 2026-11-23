@@ -463,33 +463,21 @@ namespace Comprendo
   }
 
   std::vector<VisibleEdge>
-  ChartView::visible_edges(
-    const std::vector<DrawItem> &items, const ViewFilter &filter, std::optional<std::size_t> focus
-  ) const
+  ChartView::shown_edges(const ViewFilter &filter, std::optional<std::size_t> focus) const
   {
-    std::vector<bool> drawn(m_hierarchy.groups.size(), false);
-    std::vector<bool> expanded(m_hierarchy.groups.size(), false);
-    expanded.front() = true;
-    for (const DrawItem &item : items)
+    // A filtered-out group hides its subtree; its edges end at the nearest
+    // shown ancestor instead.
+    const auto shown_endpoint = [&](std::size_t group)
     {
-      drawn[item.group] = true;
-      expanded[item.group] = item.style == DrawStyle::Container;
-    }
-    // A group that is not drawn although its parent is expanded lies off screen
-    // (or is filtered out); the edge still ends at its real position, so lines
-    // to clusters outside the view do not vanish when zooming in.
-    const auto representative = [&](std::size_t group)
-    {
-      while (group != 0 && !drawn[group])
+      std::size_t endpoint = group;
+      for (std::size_t current = group; current != 0; current = m_hierarchy.groups[current].parent)
       {
-        const std::size_t parent = m_hierarchy.groups[group].parent;
-        if (expanded[parent] && !hidden(group, filter))
+        if (hidden(current, filter))
         {
-          return group;
+          endpoint = m_hierarchy.groups[current].parent;
         }
-        group = parent;
       }
-      return group;
+      return endpoint;
     };
 
     const std::size_t focus_group
@@ -542,8 +530,8 @@ namespace Comprendo
       {
         continue;
       }
-      from = representative(from);
-      to = representative(to);
+      from = shown_endpoint(from);
+      to = shown_endpoint(to);
       if (from != 0 && to != 0 && from != to)
       {
         edges.push_back({.from = from, .to = to, .kind = edge.kind, .weight = edge.weight});

@@ -262,3 +262,12 @@ commit. Newest last.
   `contains()` per edge.
 
 - Commit: `7483dc3`.
+
+## 2026-11-23 — M9f camera-independent connections
+
+- Line ends were still attached to drawn groups (M9a only handled culled
+  groups below an expanded parent), so zooming out or panning merged or
+  dropped lines. `shown_edges` now takes no draw list at all; lines end at
+  the chosen groups' positions wherever they are. Two tests that asserted
+  zoom-dependent merging were replaced by one asserting exact endpoints.
+

@@ -191,36 +191,42 @@ TEST_CASE("level of detail follows zoom and culls", "[view]")
   CHECK(view.visible(away).empty());
 }
 
-/// With member connections on, edges must stay readable at every zoom: drawn
-/// between the groups actually on screen and merged when their endpoints
-/// collapse together. At the fitted view, checks both calls appear separately
-/// plus the include; zoomed so classes are filled disks, checks the two calls
-/// merge into one edge of weight 2 between the class-level representatives.
-TEST_CASE("edges attach to visible representatives", "[view]")
+/// Which connections are drawn must depend only on the hierarchy and the
+/// selection, never on zoom or panning. Computes the edges once, then checks
+/// the selection-refined and member-level edges name exact groups (the called
+/// methods, the files of the include) and that the camera is not even an input:
+/// the result is the same whatever is on screen, including hidden-class ends.
+TEST_CASE("shown edges do not depend on the camera", "[view]")
 {
   const ChartView view {sample_chart(), Grouping::File};
-  const auto count = [](const std::vector<Comprendo::VisibleEdge> &edges, EdgeKind kind)
-  { return std::ranges::count(edges, kind, &Comprendo::VisibleEdge::kind); };
   const Comprendo::ViewFilter members {.member_edges = true};
-
-  const auto detailed = view.visible_edges(view.visible(fitted(view)), members);
-  CHECK(count(detailed, EdgeKind::Calls) == 2);
-  CHECK(count(detailed, EdgeKind::Includes) == 1);
-
-  ViewCamera camera = fitted(view);
-  camera.zoom = 5.0F / view.layout().groups.at(group_of(view, 5)).radius;
-  const auto collapsed = view.visible_edges(view.visible(camera), members);
-  CHECK(count(collapsed, EdgeKind::Calls) == 1);
-  CHECK(count(collapsed, EdgeKind::Includes) == 1);
-  const auto calls = std::ranges::find(collapsed, EdgeKind::Calls, &Comprendo::VisibleEdge::kind);
-  CHECK(calls != collapsed.end());
-  if (calls == collapsed.end())
+  const auto has
+    = [](const std::vector<Comprendo::VisibleEdge> &edges, std::size_t from, std::size_t to)
   {
-    return;
+    return std::ranges::any_of(
+      edges, [&](const auto &edge) { return edge.from == from && edge.to == to; }
+    );
+  };
+  const auto detailed = view.shown_edges(members);
+  CHECK(has(detailed, group_of(view, 9), group_of(view, 7)));
+  CHECK(has(detailed, group_of(view, 9), group_of(view, 8)));
+  CHECK(has(detailed, group_of(view, 2), group_of(view, 1)));
+
+  const auto selected = view.shown_edges({}, group_of(view, 9));
+  CHECK(has(selected, group_of(view, 9), group_of(view, 7)));
+  CHECK(has(selected, group_of(view, 9), group_of(view, 8)));
+
+  Comprendo::ViewFilter no_methods {.member_edges = true};
+  no_methods.hidden_nodes.set(static_cast<std::size_t>(NodeKind::Method));
+  const auto collapsed = view.shown_edges(no_methods);
+  const auto call = std::ranges::find(collapsed, EdgeKind::Calls, &Comprendo::VisibleEdge::kind);
+  CHECK(call != collapsed.end());
+  if (call != collapsed.end())
+  {
+    CHECK(call->from == group_of(view, 6));
+    CHECK(call->to == group_of(view, 5));
+    CHECK(call->weight == 2.0F);
   }
-  CHECK(calls->weight == 2.0F);
-  CHECK(calls->from != group_of(view, 9));
-  CHECK(calls->to != group_of(view, 7));
 }
 
 /// Clicks must select what the user sees: the deepest drawn group under the
@@ -288,7 +294,7 @@ TEST_CASE("switching grouping rebuilds the view", "[view]")
   CHECK(group_of(view, 3) == group_of(view, 4));
   const auto items = view.visible(fitted(view));
   CHECK(std::ranges::find(items, group_of(view, 3), &DrawItem::group) != items.end());
-  const auto edges = view.visible_edges(items);
+  const auto edges = view.shown_edges();
   CHECK(std::ranges::count(edges, EdgeKind::Includes, &Comprendo::VisibleEdge::kind) == 1);
 }
 
@@ -445,17 +451,16 @@ TEST_CASE("view filters hide node and edge kinds", "[view]")
   CHECK(view.hidden(class_a, no_classes));
   CHECK_FALSE(view.hidden(0, no_classes));
 
-  const auto all_items = view.visible(camera, lod);
   Comprendo::ViewFilter no_calls;
   no_calls.hidden_edges.set(static_cast<std::size_t>(EdgeKind::Calls));
-  const auto edges = view.visible_edges(all_items, no_calls);
+  const auto edges = view.shown_edges(no_calls);
   CHECK(std::ranges::none_of(edges, [](const auto &edge) { return edge.kind == EdgeKind::Calls; }));
   CHECK(
     std::ranges::any_of(edges, [](const auto &edge) { return edge.kind == EdgeKind::Includes; })
   );
   CHECK(
     std::ranges::any_of(
-      view.visible_edges(all_items), [](const auto &edge) { return edge.kind == EdgeKind::Calls; }
+      view.shown_edges(), [](const auto &edge) { return edge.kind == EdgeKind::Calls; }
     )
   );
 }
@@ -501,8 +506,7 @@ TEST_CASE("minimap maps between overview and chart", "[view]")
 TEST_CASE("edges are aggregated between sibling groups by default", "[view]")
 {
   const ChartView view {sample_chart(), Grouping::File};
-  const auto items = view.visible(fitted(view), {.point_pixels = 0.0F, .expand_pixels = 0.0F});
-  const auto aggregated = view.visible_edges(items);
+  const auto aggregated = view.shown_edges();
   const auto call = std::ranges::find(aggregated, EdgeKind::Calls, &Comprendo::VisibleEdge::kind);
   CHECK(std::ranges::count(aggregated, EdgeKind::Calls, &Comprendo::VisibleEdge::kind) == 1);
   CHECK(call != aggregated.end());
@@ -530,7 +534,6 @@ TEST_CASE("selection refines its crossing edges by one level", "[view]")
   chart.nodes.at(0).cluster_id = 100;
   chart.nodes.at(1).cluster_id = 200;
   const ChartView view {chart, Grouping::Cluster};
-  const auto items = view.visible(fitted(view), {.point_pixels = 0.0F, .expand_pixels = 0.0F});
   const auto &groups = view.hierarchy().groups;
   const auto cluster = [&](std::uint64_t id)
   {
@@ -542,7 +545,7 @@ TEST_CASE("selection refines its crossing edges by one level", "[view]")
   const auto call_pairs = [&](std::optional<std::size_t> focus)
   {
     std::vector<std::pair<Pair, float>> pairs;
-    for (const auto &edge : view.visible_edges(items, {}, focus))
+    for (const auto &edge : view.shown_edges({}, focus))
     {
       if (edge.kind == EdgeKind::Calls)
       {
@@ -563,33 +566,6 @@ TEST_CASE("selection refines its crossing edges by one level", "[view]")
     }
   );
   CHECK(call_pairs(group_of(view, 9)) == call_pairs(group_of(view, 6)));
-}
-
-/// Lines between clusters must not vanish when the user zooms into one of
-/// them and the other leaves the screen. Zooms into file b.cpp so a.cpp is off
-/// screen and not drawn, and checks the aggregated call and include lines still
-/// connect b.cpp with a.cpp's group at its off-screen position.
-TEST_CASE("edges to off-screen groups stay visible", "[view]")
-{
-  const ChartView view {sample_chart(), Grouping::File};
-  ViewCamera camera = fitted(view);
-  const std::size_t b_file = group_of(view, 2);
-  const std::size_t a_file = group_of(view, 1);
-  camera.target = view.group_centre(b_file);
-  camera.zoom = 0.5F * camera.width / view.layout().groups.at(b_file).radius;
-  const auto items = view.visible(camera);
-  CHECK(std::ranges::none_of(items, [&](const auto &item) { return item.group == a_file; }));
-  const auto edges = view.visible_edges(items);
-  const auto between = [&](EdgeKind kind)
-  {
-    return std::ranges::any_of(
-      edges,
-      [&](const auto &edge)
-      { return edge.kind == kind && edge.from == b_file && edge.to == a_file; }
-    );
-  };
-  CHECK(between(EdgeKind::Calls));
-  CHECK(between(EdgeKind::Includes));
 }
 
 /// The Inspector of a cluster or file lists what it connects to at its own

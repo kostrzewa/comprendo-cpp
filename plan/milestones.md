@@ -303,4 +303,6 @@ Open (waiting for a decision, see [log](log.md)):
 - e. (done) The selection refines its crossing edges by one level of the
   hierarchy (both ends one level below the selection) instead of showing
   every member edge; leaves show member detail.
+- f. (done) Shown connections no longer depend on zoom or panning: line ends
+  are the groups the hierarchy and selection pick, at their layout positions.
 

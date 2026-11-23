@@ -366,9 +366,10 @@ Input is ignored while ImGui uses the mouse or keyboard.
   computed once per grouping), so clusters, subclusters, files, and classes
   are linked by one line per pair, drawn wider with the summed weight
   (1 + ½·log2 w, at most 4×); edges where one endpoint contains the other are
-  dropped. An endpoint group culled off screen (its parent expanded) keeps
-  its real position, so lines to clusters outside the view stay visible when
-  zooming in. Edges crossing the selection's boundary are refined by one level:
+  dropped. Line ends do not depend on the camera (`ChartView::shown_edges`
+  takes no draw list): lines end at their groups' layout positions even off
+  screen or inside a disk too small to expand; only the kind filter moves an
+  end, to the nearest shown ancestor. Edges crossing the selection's boundary are refined by one level:
   both ends become their ancestor-or-self one level below the selection
   (`ancestor_at_depth`), so a cluster shows its files' connections, a file its
   classes', and a leaf member detail; crossing edges to an ancestor of the
