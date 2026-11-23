@@ -16,6 +16,7 @@
 #include <map>
 #include <optional>
 #include <ranges>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -752,13 +753,21 @@ namespace Comprendo
       return done;
     }
 
+    std::set<std::tuple<std::uint64_t, std::uint64_t, EdgeKind>> existing;
+    for (const Edge &edge : chart.edges)
+    {
+      existing.emplace(edge.src, edge.dst, edge.kind);
+    }
     std::size_t calls = 0;
     std::size_t inherits = 0;
     std::size_t uses = 0;
     for (const auto &[key, found] : session.edges())
     {
       const auto &[src, dst, kind] = key;
-      if (kind == EdgeKind::Uses && session.edges().contains({src, dst, EdgeKind::Inherits}))
+      const bool base_specifier = kind == EdgeKind::Uses
+        && (session.edges().contains({src, dst, EdgeKind::Inherits})
+            || existing.contains({src, dst, EdgeKind::Inherits}));
+      if (base_specifier || existing.contains(key))
       {
         continue;
       }

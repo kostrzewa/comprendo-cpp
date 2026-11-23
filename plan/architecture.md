@@ -112,7 +112,7 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
 3. **Language detection**: `ctags --print-language`, filtered by `languages`.
    Universal Ctags 5.9 has no `--` marker, so paths starting with `-` are
    skipped with a warning.
-4. **Tags**: `ctags --output-format=json --fields=+KnSesp`, parsed with the
+4. **Tags**: `ctags --output-format=json --fields=+KnSesip`, parsed with the
    in-tree `Json` parser (also used by the LSP client).
 5. **Includes** (`scan_includes`, `resolve_include`): C-family files only;
    quoted includes resolve next to the includer first, then through
@@ -133,7 +133,11 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    file, so `Contains` is a tree: each symbol's parent is its enclosing scope
    (matching kind and same file preferred, across files otherwise, e.g. an
    out-of-line method under its class in the header), or its file. Duplicate
-   ids keep the first tag in `(path, line)` order.
+   ids keep the first tag in `(path, line)` order. Base classes from the
+   `inherits` field become `Inherits` edges, resolved through the derived
+   class's enclosing scopes (unknown and ambiguous bases skipped), so
+   inheritance is charted without clangd too; clangd skips edges ctags
+   already recorded.
 7. **Doc comments** (`DocComments`, `apply_doc_comments`): empty summaries are
    filled from Doxygen comments only (`///`, `//!`, `/** */`, `/*! */`,
    trailing `///<`; plain comments are ignored), found directly above the

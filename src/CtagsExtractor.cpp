@@ -92,6 +92,62 @@ namespace
     return kind == NodeKind::Class || kind == NodeKind::Struct || kind == NodeKind::Union;
   }
 
+  /// Split a ctags `inherits` field into base class names.
+  ///
+  /// Drops access specifiers and `virtual`, and template arguments, which may
+  /// themselves contain commas.
+  ///
+  /// \param inherits Field value, e.g. "public Base<A, B>, virtual Other".
+  /// \return Base names, e.g. {"Base", "Other"}.
+  std::vector<std::string>
+  split_bases(std::string_view inherits)
+  {
+    std::vector<std::string> bases;
+    std::string current;
+    int depth = 0;
+    const auto flush = [&]
+    {
+      std::string_view name = current;
+      for (const std::string_view word : {"public ", "protected ", "private ", "virtual "})
+      {
+        while (name.starts_with(word) || name.starts_with(' '))
+        {
+          name.remove_prefix(name.starts_with(' ') ? 1 : word.size());
+        }
+      }
+      while (name.ends_with(' '))
+      {
+        name.remove_suffix(1);
+      }
+      if (!name.empty())
+      {
+        bases.emplace_back(name);
+      }
+      current.clear();
+    };
+    for (const char c : inherits)
+    {
+      if (c == '<')
+      {
+        ++depth;
+      }
+      else if (c == '>')
+      {
+        --depth;
+      }
+      else if (c == ',' && depth == 0)
+      {
+        flush();
+      }
+      else if (depth == 0)
+      {
+        current.push_back(c);
+      }
+    }
+    flush();
+    return bases;
+  }
+
   /// Read a non-negative integer member of a ctags record.
   ///
   /// \param record Parsed JSON object.
@@ -361,6 +417,60 @@ namespace
     return same_arity == 1 ? arity_match : std::nullopt;
   }
 
+  /// Find the class or struct a base name refers to.
+  ///
+  /// Looks the name up in the derived class's enclosing scopes, innermost
+  /// first ("a::b::Base", "a::Base", "Base"), and accepts the first scope where
+  /// exactly one class or struct has that qualified name.
+  ///
+  /// \param chart Chart holding the candidates.
+  /// \param by_qualified_name Node indices per qualified name.
+  /// \param scope Qualified scope of the derived class.
+  /// \param base Base name as written.
+  /// \return Node index, or nothing for unknown or ambiguous bases.
+  std::optional<std::size_t>
+  resolve_base(
+    const Comprendo::Chart &chart,
+    const std::unordered_map<std::string, std::vector<std::size_t>> &by_qualified_name,
+    std::string_view scope,
+    std::string_view base
+  )
+  {
+    std::string_view prefix = scope;
+    while (true)
+    {
+      const std::string name
+        = prefix.empty() ? std::string {base} : fmt::format("{}::{}", prefix, base);
+      if (const auto found = by_qualified_name.find(name); found != by_qualified_name.end())
+      {
+        std::optional<std::size_t> only;
+        std::size_t matches = 0;
+        for (const std::size_t index : found->second)
+        {
+          if (
+            chart.nodes[index].kind == NodeKind::Class
+            || chart.nodes[index].kind == NodeKind::Struct
+          )
+          {
+            only = index;
+            ++matches;
+          }
+        }
+        if (matches == 1)
+        {
+          return only;
+        }
+      }
+      if (prefix.empty())
+      {
+        return std::nullopt;
+      }
+      const std::size_t separator = prefix.rfind("::");
+      prefix
+        = separator == std::string_view::npos ? std::string_view {} : prefix.substr(0, separator);
+    }
+  }
+
   /// Check whether a node kind is callable.
   ///
   /// \param kind Node kind.
@@ -532,7 +642,7 @@ namespace
     auto collected = run_ctags_batches(
       config,
       {"--output-format=json",
-       "--fields=+KnSesp",
+       "--fields=+KnSesip",
        "--kinds-C=+p",
        "--kinds-C++=+p",
        "--kinds-CUDA=+p",
@@ -661,6 +771,7 @@ namespace Comprendo
       .line = uint_member(*record, "line"),
       .end = uint_member(*record, "end"),
       .deleted = is_deleted_declaration(record->string_or_empty("pattern")),
+      .bases = split_bases(record->string_or_empty("inherits")),
     };
     if (tag.name.empty() || tag.path.empty() || tag.kind.empty())
     {
@@ -760,6 +871,7 @@ namespace Comprendo
       ids.insert(node.id);
     }
     std::unordered_map<std::string, std::vector<std::size_t>> by_qualified_name;
+    std::vector<std::pair<std::size_t, const CtagsTag *>> derived;
     std::vector<PendingSymbol> pending;
     for (const bool declarations : {false, true})
     {
@@ -812,6 +924,10 @@ namespace Comprendo
           continue;
         }
         const std::uint32_t line_end = std::max(tag->end, tag->line);
+        if (!tag->bases.empty() && is_class_like(*kind))
+        {
+          derived.emplace_back(chart.nodes.size(), tag);
+        }
         const std::size_t index = chart.nodes.size();
         by_qualified_name[qualified].push_back(index);
         pending.push_back({
@@ -883,6 +999,24 @@ namespace Comprendo
             .dst = dst,
             .kind = EdgeKind::Includes,
             .evidence = evidence(file->path, directive.line),
+            .provenance = Provenance::Extractor,
+          });
+        }
+      }
+    }
+
+    for (const auto &[index, tag] : derived)
+    {
+      for (const std::string &base : tag->bases)
+      {
+        const auto target = resolve_base(chart, by_qualified_name, tag->scope, base);
+        if (target && *target != index)
+        {
+          chart.edges.push_back({
+            .src = chart.nodes[index].id,
+            .dst = chart.nodes[*target].id,
+            .kind = EdgeKind::Inherits,
+            .evidence = evidence(tag->path, tag->line),
             .provenance = Provenance::Extractor,
           });
         }

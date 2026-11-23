@@ -301,3 +301,12 @@ commit. Newest last.
   real ones (20 test files reaching 3-5 clusters each).
 
 - Commit: `62c883f`.
+
+## 2026-11-23 — Inheritance from ctags
+
+- The user noticed `geo::Shape` (a base class in the test fixture) had no
+  connections: only clangd recorded inheritance, and clangd never sees files
+  outside `compile_commands.json`. ctags reports bases (`inherits`, field
+  `i`), which now become `Inherits` edges; clangd skips edges ctags already
+  recorded, since a chart may not hold duplicates.
+

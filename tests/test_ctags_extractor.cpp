@@ -248,6 +248,68 @@ TEST_CASE("ctags kind mapping", "[ctags]")
   CHECK_FALSE(map_ctags_kind("C", "header", "").has_value());
 }
 
+/// Inheritance must be charted even without clangd (files outside the build,
+/// ctags-only extraction), from the base classes ctags reports. Parses records
+/// whose `inherits` field has access specifiers, templates with commas, and
+/// qualified names, then builds a chart and checks bases resolve through the
+/// enclosing scopes while standard-library and ambiguous bases are skipped.
+TEST_CASE("base classes become inheritance edges", "[ctags]")
+{
+  const auto tag = Comprendo::parse_ctags_line(
+    R"({"_type": "tag", "name": "D", "path": "a.hpp", "line": 3, "kind": "class",)"
+    R"( "inherits": "public Base<int, char>, virtual geo::Named,std::exception"})"
+  );
+  const auto parsed = parsed_tag(tag);
+  CHECK(parsed.has_value());
+  if (parsed)
+  {
+    CHECK(parsed->bases == std::vector<std::string> {"Base", "geo::Named", "std::exception"});
+  }
+
+  const std::vector<CtagsSourceFile> files = {{.path = "a.hpp", .language = "C++", .lines = 40}};
+  const auto type =
+    [](const char *name, const char *scope, std::uint32_t line, std::vector<std::string> bases = {})
+  {
+    return CtagsTag {
+      .name = name,
+      .path = "a.hpp",
+      .kind = "class",
+      .scope = scope,
+      .scope_kind = *scope == '\0' ? "" : "namespace",
+      .line = line,
+      .end = line + 1,
+      .bases = std::move(bases),
+    };
+  };
+  const std::vector<CtagsTag> tags = {
+    type("Shape", "geo", 1),
+    type("Shape", "", 3),
+    type("Twin", "x", 5),
+    type("Twin", "y", 7),
+    type("Circle", "geo", 9, {"Shape", "std::exception"}),
+    type("Square", "", 11, {"Shape"}),
+    type("Odd", "", 13, {"Twin"}),
+  };
+  const Chart chart = Comprendo::build_ctags_chart(files, tags, {"."});
+  CHECK(Comprendo::validate(chart).ok());
+  const auto inherits = [&](const char *derived, const char *base)
+  {
+    const auto id = [&](const char *name)
+    {
+      const auto node = std::ranges::find(chart.nodes, std::string {name}, &Node::qualified_name);
+      return node == chart.nodes.end() ? 0 : node->id;
+    };
+    return std::ranges::any_of(
+      chart.edges,
+      [&](const Edge &edge)
+      { return edge.kind == EdgeKind::Inherits && edge.src == id(derived) && edge.dst == id(base); }
+    );
+  };
+  CHECK(inherits("geo::Circle", "geo::Shape"));
+  CHECK(inherits("Square", "Shape"));
+  CHECK(std::ranges::count(chart.edges, EdgeKind::Inherits, &Edge::kind) == 2);
+}
+
 /// build_ctags_chart() is pure, so its rules can be tested exactly without ctags.
 /// Feeds two files and hand-written tags in scrambled order (an out-of-line method
 /// whose class lives in another file, a duplicated namespace tag, a tag in an
@@ -453,7 +515,23 @@ TEST_CASE("ctags extraction of the basic fixture", "[ctags][fixture]")
   CHECK(Comprendo::validate(*chart).ok());
 
   CHECK(chart->nodes.size() == 31);
-  CHECK(chart->edges.size() == 29);
+  CHECK(chart->edges.size() == 30);
+  const Node *circle = find_node(*chart, "geo::Circle", "src/circle.hpp");
+  const Node *shape = find_node(*chart, "geo::Shape", "include/geo/shape.hpp");
+  CHECK(circle != nullptr);
+  CHECK(shape != nullptr);
+  if (circle != nullptr && shape != nullptr)
+  {
+    CHECK(
+      std::ranges::any_of(
+        chart->edges,
+        [&](const Edge &edge)
+        {
+          return edge.kind == EdgeKind::Inherits && edge.src == circle->id && edge.dst == shape->id;
+        }
+      )
+    );
+  }
   CHECK(find_file(*chart, "docs/notes.md") == nullptr);
   CHECK(find_node(*chart, "vendored", "third_party/vendored.cpp") == nullptr);
 

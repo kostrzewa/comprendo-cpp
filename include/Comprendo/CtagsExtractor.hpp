@@ -38,6 +38,9 @@ namespace Comprendo
     std::uint32_t end = 0;
     /// True for a deleted function declaration (`= delete`).
     bool deleted = false;
+    /// Base classes as written (ctags `inherits`), without access specifiers
+    /// and template arguments, e.g. {"Shape", "geo::Named"}.
+    std::vector<std::string> bases;
 
     /// Memberwise equality.
     ///
@@ -110,7 +113,11 @@ namespace Comprendo
   /// declaration. Anonymous callables (ctags `__anon*` names, i.e. lambdas) are
   /// skipped. Every symbol gets exactly one `Contains` parent: its
   /// enclosing scope when that resolves (same file preferred), otherwise its file.
-  /// Resolved include directives become `Includes` edges between files.
+  /// Resolved include directives become `Includes` edges between files. Base
+  /// classes (ctags `inherits`) become `Inherits` edges from the derived class
+  /// to the only class or struct the base name names, looked up in the derived
+  /// class's enclosing scopes from the innermost outwards; unknown bases (for
+  /// example from the standard library) and ambiguous names are skipped.
   ///
   /// \param files Source files; tags in other files are ignored.
   /// \param tags Tags in any order.
