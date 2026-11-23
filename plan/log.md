@@ -271,3 +271,4 @@ commit. Newest last.
   the chosen groups' positions wherever they are. Two tests that asserted
   zoom-dependent merging were replaced by one asserting exact endpoints.
 
+- Commit: `a57fa9e`.
