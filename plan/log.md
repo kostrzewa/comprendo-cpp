@@ -164,3 +164,4 @@ commit. Newest last.
   `schema/chart.sql` remains the single source, guarded by a test that fails
   on a stale copy, and a test runs the tools from a copy of `plugin/src` alone.
 
+- Commit: `81fc846`.
