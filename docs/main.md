@@ -199,4 +199,12 @@ rules, and `plan/` for requirements, architecture, milestones, and the log.
 
 Comprendo is licensed under the Apache License v2.0 with LLVM Exceptions
 (SPDX `Apache-2.0 WITH LLVM-exception`); see `LICENSE` in the repository root.
-Dependencies fetched at build time keep their own licenses.
+
+# Acknowledgements
+
+Comprendo is built on raylib, Dear ImGui, rlImGui, {fmt}, spdlog, CLI11,
+toml11, libenvpp, and SQLite, tested with Catch2, and documented with Doxygen
+and Doxygen Awesome; extraction relies on Universal Ctags and clangd from the
+LLVM Project. Thank you to their authors and contributors. Versions, licenses,
+and license texts are in `THIRD_PARTY_NOTICES.md`, which must accompany
+binary distributions.

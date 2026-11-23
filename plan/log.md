@@ -471,3 +471,21 @@ commit. Newest last.
   `author`.
 
 - Commit: `0007433`.
+
+## 2026-11-23 — Third-party notices
+
+- `THIRD_PARTY_NOTICES.md`: every FetchContent dependency with version, use,
+  and license, plus verbatim license texts taken from the fetched sources
+  (SFML and Jolt, off by default, from their pinned tags); libenvpp's
+  Apache NOTICE; SQLite's blessing; GLFW's license (bundled with raylib);
+  tools that are run but not linked (Universal Ctags, clangd/LLVM, Doxygen,
+  the assistants). Required with binary distributions (MIT/BSD/Apache
+  notices of statically linked libraries); not for the source repository,
+  which vendors nothing.
+- CTest `third_party_notices` (`cmake/check_notices.cmake`) fails when a
+  `FetchContent_Declare` has no `<!-- fetchcontent: name -->` entry (checked
+  with a copy missing `fmt`). AGENTS.md asks for an entry per new dependency.
+- Acknowledgements section in `docs/main.md`; the viewer's About dialog
+  names the license and the libraries and points to the notices.
+- `plugin.json` gained `author` (the user's edit, JSON typo fixed);
+  `claude plugin validate --strict` passes.

@@ -1260,6 +1260,12 @@ namespace Comprendo
       ImGui::Separator();
       ImGui::PushTextWrapPos(0.0F);
       ImGui::TextUnformatted("Code explorer and visualizer.");
+      ImGui::TextUnformatted("Licensed under the Apache License v2.0 with LLVM Exceptions.");
+      ImGui::Spacing();
+      text_disabled(
+        "Built with raylib, Dear ImGui, rlImGui, {fmt}, spdlog, CLI11, toml11, libenvpp, and "
+        "SQLite. Their licenses are in THIRD_PARTY_NOTICES.md."
+      );
       ImGui::PopTextWrapPos();
     }
     ImGui::End();

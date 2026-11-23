@@ -181,6 +181,12 @@ if(COMPRENDO_BUILD_TESTS)
     set_tests_properties(cli_info PROPERTIES PASS_REGULAR_EXPRESSION "Contains +[0-9]+")
   endif()
 
+  # Every fetched dependency must be acknowledged with its license text.
+  add_test(
+    NAME third_party_notices
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/check_notices.cmake
+  )
+
   # The /chart skill of the Claude Code plugin carries a copy of the shared prompt.
   add_test(
     NAME chart_prompt_in_sync

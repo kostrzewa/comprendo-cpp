@@ -48,6 +48,9 @@ panels without updating the plan.
   Interrupt and ask the user to install system packages.
 - Python virtual environments are allowed when needed.
 - C++ dependencies come from `FetchContent` into `build/`; do not vendor them.
+  Acknowledge every new dependency in `THIRD_PARTY_NOTICES.md` (table row and
+  license text under a `<!-- fetchcontent: <name> -->` marker); CTest
+  `third_party_notices` fails otherwise.
 - Put temporary files under `/tmp/<harness>/<project-name>`, e.g.
   `/tmp/opencode/comprendo`.
 
