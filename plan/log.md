@@ -218,3 +218,10 @@ commit. Newest last.
   Key handling itself is untested: no input automation tool is installed.
 
 - Commit: `b4f6e87`.
+
+## 2026-11-23 — M9a edges to off-screen groups
+
+- Edges vanished on zoom because culled groups were treated like collapsed
+  ones: the endpoint climbed to the root and the edge was dropped. A group
+  not drawn below an expanded parent is now an off-screen endpoint.
+

@@ -467,15 +467,26 @@ namespace Comprendo
   ) const
   {
     std::vector<bool> drawn(m_hierarchy.groups.size(), false);
+    std::vector<bool> expanded(m_hierarchy.groups.size(), false);
+    expanded.front() = true;
     for (const DrawItem &item : items)
     {
       drawn[item.group] = true;
+      expanded[item.group] = item.style == DrawStyle::Container;
     }
+    // A group that is not drawn although its parent is expanded lies off screen
+    // (or is filtered out); the edge still ends at its real position, so lines
+    // to clusters outside the view do not vanish when zooming in.
     const auto representative = [&](std::size_t group)
     {
       while (group != 0 && !drawn[group])
       {
-        group = m_hierarchy.groups[group].parent;
+        const std::size_t parent = m_hierarchy.groups[group].parent;
+        if (expanded[parent] && !hidden(group, filter))
+        {
+          return group;
+        }
+        group = parent;
       }
       return group;
     };

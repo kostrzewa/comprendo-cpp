@@ -415,9 +415,10 @@ namespace Comprendo
     /// expanded; edges where one endpoint contains the other are dropped. With
     /// ViewFilter::member_edges, and for edges touching \p focus or its
     /// contents, the endpoints' own groups are used instead. Either way each
-    /// endpoint is then attached to its deepest visible ancestor-or-self; edges
-    /// whose endpoints share that group or are not visible are dropped, and
-    /// parallel edges of one kind are merged with summed weight.
+    /// endpoint is then attached to its deepest drawn ancestor-or-self, or to
+    /// the off-screen group below an expanded parent (so lines to groups outside
+    /// the view keep pointing at them); edges whose endpoints share that group
+    /// are dropped, and parallel edges of one kind are merged with summed weight.
     ///
     /// \param items Result of visible().
     /// \param filter Hidden kinds and the edge display mode.

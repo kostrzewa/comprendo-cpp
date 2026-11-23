@@ -366,7 +366,9 @@ Input is ignored while ImGui uses the mouse or keyboard.
   computed once per grouping), so clusters, subclusters, files, and classes
   are linked by one line per pair, drawn wider with the summed weight
   (1 + ½·log2 w, at most 4×); edges where one endpoint contains the other are
-  dropped. The selection's own edges stay member to member; View → Member
+  dropped. An endpoint group culled off screen (its parent expanded) keeps
+  its real position, so lines to clusters outside the view stay visible when
+  zooming in. The selection's own edges stay member to member; View → Member
   connections (`ViewFilter::member_edges`) shows all edges that way;
 - search; View → Show kind filters (`ViewFilter`, applied in `visible`,
   `visible_edges`, and `pick`); double click selects and centres the object

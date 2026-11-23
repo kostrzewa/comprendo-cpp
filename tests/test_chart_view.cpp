@@ -527,3 +527,30 @@ TEST_CASE("edges are aggregated between sibling groups by default", "[view]")
   CHECK_FALSE(view.contains(group_of(view, 7), group_of(view, 1)));
   CHECK(view.contains(0, group_of(view, 9)));
 }
+
+/// Lines between clusters must not vanish when the user zooms into one of
+/// them and the other leaves the screen. Zooms into file b.cpp so a.cpp is off
+/// screen and not drawn, and checks the aggregated call and include lines still
+/// connect b.cpp with a.cpp's group at its off-screen position.
+TEST_CASE("edges to off-screen groups stay visible", "[view]")
+{
+  const ChartView view {sample_chart(), Grouping::File};
+  ViewCamera camera = fitted(view);
+  const std::size_t b_file = group_of(view, 2);
+  const std::size_t a_file = group_of(view, 1);
+  camera.target = view.group_centre(b_file);
+  camera.zoom = 0.5F * camera.width / view.layout().groups.at(b_file).radius;
+  const auto items = view.visible(camera);
+  CHECK(std::ranges::none_of(items, [&](const auto &item) { return item.group == a_file; }));
+  const auto edges = view.visible_edges(items);
+  const auto between = [&](EdgeKind kind)
+  {
+    return std::ranges::any_of(
+      edges,
+      [&](const auto &edge)
+      { return edge.kind == kind && edge.from == b_file && edge.to == a_file; }
+    );
+  };
+  CHECK(between(EdgeKind::Calls));
+  CHECK(between(EdgeKind::Includes));
+}

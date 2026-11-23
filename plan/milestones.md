@@ -291,3 +291,11 @@ Open (waiting for a decision, see [log](log.md)):
   jumps to the highlighted entry.
 - h. (done) Graph keyboard navigation: WASD pans, E zooms in, Q zooms out.
 
+## M9 — Viewer feedback on M8 (in progress)
+
+- a. (done) Aggregated edges keep pointing at groups that left the screen
+  instead of vanishing when zooming in.
+- b. The Inspector lists aggregated connections for clusters, directories,
+  files, and namespaces (other cluster, other file, ... with counts).
+- c. The Inspector's lists share the window's full height.
+
