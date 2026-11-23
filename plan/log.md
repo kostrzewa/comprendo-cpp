@@ -399,3 +399,5 @@ commit. Newest last.
   heading counts direct children.
 - Checked under xvfb with XTest clicks on `Extraction pipeline`: unfolding a
   file and folding a subcluster leave the selection unchanged.
+
+- Commit: `eea8f34`.
