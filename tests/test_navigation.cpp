@@ -110,3 +110,39 @@ TEST_CASE("panel heights share the available space", "[navigation]")
   );
   CHECK(share_heights(std::vector<float> {}, 100.0F, 40.0F).empty());
 }
+
+/// Ctrl++ and Ctrl+- step the text size in levels, so pressing each the same
+/// number of times must return to exactly the default size, and the size must
+/// stay within readable bounds. Steps up and down, checks the clamping at both
+/// ends, the scale of a level, and that level 0 is exactly the default.
+TEST_CASE("text size levels step, clamp, and scale", "[navigation]")
+{
+  using Comprendo::kMaxTextLevel;
+  using Comprendo::kMinTextLevel;
+  using Comprendo::step_text_level;
+  using Comprendo::text_scale;
+  CHECK(step_text_level(step_text_level(0, 3), -3) == 0);
+  CHECK(step_text_level(kMaxTextLevel, 1) == kMaxTextLevel);
+  CHECK(step_text_level(kMinTextLevel, -1) == kMinTextLevel);
+  CHECK(step_text_level(0, 100) == kMaxTextLevel);
+  CHECK(text_scale(0) == 1.0F);
+  CHECK(std::abs(text_scale(2) - (Comprendo::kTextScaleStep * Comprendo::kTextScaleStep)) < 1e-6F);
+  CHECK(text_scale(kMinTextLevel) > 0.5F);
+  CHECK(text_scale(kMaxTextLevel) < 3.0F);
+}
+
+/// The shortcuts are matched on the character a key types, so they work on
+/// layouts with a separate + key as well as on US layouts, where + is
+/// Shift+=. Checks +, =, -, and 0 map to their actions and other characters,
+/// including the null character of keys without one, do nothing.
+TEST_CASE("text size shortcuts are recognised by character", "[navigation]")
+{
+  using Comprendo::text_size_key;
+  using Comprendo::TextSizeKey;
+  CHECK(text_size_key('+') == TextSizeKey::Larger);
+  CHECK(text_size_key('=') == TextSizeKey::Larger);
+  CHECK(text_size_key('-') == TextSizeKey::Smaller);
+  CHECK(text_size_key('0') == TextSizeKey::Reset);
+  CHECK(text_size_key(']') == TextSizeKey::None);
+  CHECK(text_size_key('\0') == TextSizeKey::None);
+}

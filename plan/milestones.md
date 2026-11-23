@@ -359,3 +359,16 @@ Acceptance (met except a full model run): `claude plugin validate` passes;
 `mcp list` show the server connected; on opencode 2.2.7 (`--standalone`) a
 session's Code Mode call to `chart_overview` wrote the chart. A complete
 `/comprendo:chart` run costs a model session and is left to the user.
+
+## M12 — Viewer settings (in progress)
+
+- a. (done) Adjustable text size: Ctrl++ (or Ctrl+=), Ctrl+-, Ctrl+0 and
+  the View menu step `ViewerState::text_level` (factor 1.125 per level,
+  levels −4..9). The panels scale through ImGui 1.92's dynamic fonts
+  (`style.FontScaleMain`; the pixel font at the default size, ImGui's vector
+  font otherwise) and the graph labels with them. Shortcuts are matched on
+  the character the key types on the active layout (`glfwGetKeyName`), so a
+  German keyboard's + key works.
+- b. (planned) Settings dialog with a choice of fonts for the panels and the
+  graph labels.
+

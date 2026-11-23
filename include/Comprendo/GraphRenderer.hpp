@@ -29,6 +29,8 @@ namespace Comprendo
     std::optional<Minimap> minimap;
     /// Graph area, whose chart extent the minimap outlines.
     ScreenRect area;
+    /// Label size relative to the default, from the viewer's text size level.
+    float text_scale = 1.0F;
   };
 
   /// Draws the graph with analytic anti-aliasing.

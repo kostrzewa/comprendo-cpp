@@ -16,6 +16,8 @@
 #include "Comprendo/ChartView.hpp"
 #include "Comprendo/Hierarchy.hpp"
 
+struct ImFont;
+
 namespace Comprendo
 {
   /// Persistent state shared by the viewer's UI panels.
@@ -79,6 +81,10 @@ namespace Comprendo
     /// Grouping chosen in the View menu.
     Grouping grouping = Grouping::Cluster;
 
+    /// Text size of the panels and graph labels as a level (see text_scale());
+    /// 0 is the default size. Changed with Ctrl++, Ctrl+-, Ctrl+0, or the View menu.
+    int text_level = 0;
+
     /// Set by the View menu to fit the chart into the graph area; cleared by the
     /// viewer, which keeps the chart fitted until the user zooms or pans.
     bool fit_requested = false;
@@ -101,6 +107,16 @@ namespace Comprendo
     /// Shut down rlImGui.
     static void
     shutdown();
+
+    /// Size the panels' text for a text size level; takes effect with the next
+    /// begin_frame().
+    ///
+    /// At the default size the crisp 13 px bitmap font is used; other sizes use
+    /// ImGui's scalable vector font, which stays sharp when scaled.
+    ///
+    /// \param level Text size level (see text_scale()).
+    void
+    apply_text_level(int level) const;
 
     /// Begin an ImGui frame.
     static void
@@ -212,6 +228,12 @@ namespace Comprendo
 
     /// True once the default layout has been built or loaded.
     bool layout_initialized_ = false;
+
+    /// ImGui's pixel font, used at the default text size.
+    ImFont *bitmap_font_ = nullptr;
+
+    /// ImGui's scalable font, used at every other text size.
+    ImFont *vector_font_ = nullptr;
 
     /// Query of the cached search results.
     std::string search_query_;

@@ -399,9 +399,21 @@ void main()
   /// \param view Chart view.
   /// \param camera View camera.
   /// \param items Visible groups.
+  /// \param text_scale Text size relative to the default (Ctrl++ / Ctrl+-).
   void
-  draw_labels(const ChartView &view, const ViewCamera &camera, const std::vector<DrawItem> &items)
+  draw_labels(
+    const ChartView &view,
+    const ViewCamera &camera,
+    const std::vector<DrawItem> &items,
+    float text_scale
+  )
   {
+    constexpr int kSmallestLabel = 8;
+    constexpr float kRimGap = 4.0F;
+    const int label_size = std::max(
+      kSmallestLabel, static_cast<int>(std::lround(static_cast<float>(kLabelSize) * text_scale))
+    );
+    const int rim_gap = static_cast<int>(std::lround(kRimGap * text_scale));
     std::vector<Rectangle> placed;
     for (const DrawItem &item : items)
     {
@@ -415,16 +427,16 @@ void main()
         continue;
       }
       const std::string label = view.display_label(item.group);
-      const int width = MeasureText(label.c_str(), kLabelSize);
+      const int width = MeasureText(label.c_str(), label_size);
       const Vector2 centre = screen_centre(view, camera, item.group);
       const int x = static_cast<int>(centre.x) - (width / 2);
-      const int y = container ? static_cast<int>(centre.y - radius) + 4
-                              : static_cast<int>(centre.y) - (kLabelSize / 2);
+      const int y = container ? static_cast<int>(centre.y - radius) + rim_gap
+                              : static_cast<int>(centre.y) - (label_size / 2);
       const Rectangle bounds {
         .x = static_cast<float>(x) - kLabelPadding,
         .y = static_cast<float>(y) - kLabelPadding,
         .width = static_cast<float>(width) + (2.0F * kLabelPadding),
-        .height = static_cast<float>(kLabelSize) + (2.0F * kLabelPadding),
+        .height = static_cast<float>(label_size) + (2.0F * kLabelPadding),
       };
       if (
         std::ranges::any_of(
@@ -435,8 +447,8 @@ void main()
         continue;
       }
       placed.push_back(bounds);
-      DrawText(label.c_str(), x + 1, y + 1, kLabelSize, kShadowColor);
-      DrawText(label.c_str(), x, y, kLabelSize, kLabelColor);
+      DrawText(label.c_str(), x + 1, y + 1, label_size, kShadowColor);
+      DrawText(label.c_str(), x, y, label_size, kLabelColor);
     }
   }
   /// Line width for an edge weight: one pixel for a single edge, growing
@@ -699,7 +711,7 @@ namespace Comprendo
       rlSetTexture(0);
       EndShaderMode();
     }
-    draw_labels(view, camera, frame.items);
+    draw_labels(view, camera, frame.items, frame.text_scale);
     if (frame.minimap)
     {
       draw_minimap(view, camera, *frame.minimap, frame.area);

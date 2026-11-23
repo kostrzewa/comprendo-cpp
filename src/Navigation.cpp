@@ -1,5 +1,5 @@
 /// \file
-/// \brief Pure navigation helpers for the viewer: list cursors, camera animations, and history.
+/// \brief Pure navigation helpers for the viewer: list cursors, camera animations, history, and text size.
 
 #include "Comprendo/Navigation.hpp"
 
@@ -26,6 +26,31 @@ namespace Comprendo
     const auto last = static_cast<std::ptrdiff_t>(rows - 1);
     const std::ptrdiff_t moved = static_cast<std::ptrdiff_t>(*cursor) + delta;
     return static_cast<std::size_t>(std::clamp<std::ptrdiff_t>(moved, 0, last));
+  }
+
+  int
+  step_text_level(int level, int delta)
+  {
+    return std::clamp(level + delta, kMinTextLevel, kMaxTextLevel);
+  }
+
+  float
+  text_scale(int level)
+  {
+    return std::pow(kTextScaleStep, static_cast<float>(level));
+  }
+
+  TextSizeKey
+  text_size_key(char character)
+  {
+    switch (character)
+    {
+    case '+':
+    case '=': return TextSizeKey::Larger;
+    case '-': return TextSizeKey::Smaller;
+    case '0': return TextSizeKey::Reset;
+    default: return TextSizeKey::None;
+    }
   }
 
   std::vector<float>

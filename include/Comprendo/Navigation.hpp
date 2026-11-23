@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file
-/// \brief Pure helpers for the viewer: list cursors, panel heights, camera animations, history.
+/// \brief Pure helpers for the viewer: list cursors, panel heights, camera animations, history, text size.
 
 #include <cstddef>
 #include <cstdint>
@@ -26,6 +26,60 @@ namespace Comprendo
   [[nodiscard]]
   std::optional<std::size_t>
   move_list_cursor(std::optional<std::size_t> cursor, std::size_t rows, int delta);
+
+  /// Factor between neighbouring text sizes (Ctrl++ / Ctrl+-).
+  inline constexpr float kTextScaleStep = 1.125F;
+
+  /// Smallest text size level: about 0.62 times the default.
+  inline constexpr int kMinTextLevel = -4;
+
+  /// Largest text size level: about 2.9 times the default.
+  inline constexpr int kMaxTextLevel = 9;
+
+  /// Change a text size level, staying within kMinTextLevel..kMaxTextLevel.
+  ///
+  /// Sizes are kept as integer levels rather than scales so repeated steps up
+  /// and down return exactly to where they started.
+  ///
+  /// \param level Current level; 0 is the default size.
+  /// \param delta Steps to move (negative makes text smaller).
+  /// \return The new level.
+  [[nodiscard]]
+  int
+  step_text_level(int level, int delta);
+
+  /// Scale of a text size level relative to the default size.
+  ///
+  /// \param level Text size level.
+  /// \return kTextScaleStep to the power of \p level.
+  [[nodiscard]]
+  float
+  text_scale(int level);
+
+  /// What a Ctrl shortcut does to the text size.
+  enum class TextSizeKey : std::uint8_t
+  {
+    /// Not a text size shortcut.
+    None,
+    /// Ctrl++ (or Ctrl+=, the unshifted + on US layouts): larger text.
+    Larger,
+    /// Ctrl+-: smaller text.
+    Smaller,
+    /// Ctrl+0: default size.
+    Reset,
+  };
+
+  /// Classify the character a key types on the user's keyboard layout.
+  ///
+  /// Working from the typed character rather than the key's position makes
+  /// Ctrl++ work on layouts with a dedicated + key (e.g. German) as well as on
+  /// US layouts, where + shares the = key.
+  ///
+  /// \param character Character the key types without modifiers.
+  /// \return The shortcut's action.
+  [[nodiscard]]
+  TextSizeKey
+  text_size_key(char character);
 
   /// Share a height between stacked panels so they fill it without wasting space.
   ///

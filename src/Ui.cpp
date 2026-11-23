@@ -891,6 +891,8 @@ namespace Comprendo
     rlImGuiSetup(true);
 
     ImGuiIO &imgui_io = ImGui::GetIO();
+    bitmap_font_ = imgui_io.Fonts->Fonts.empty() ? nullptr : imgui_io.Fonts->Fonts[0];
+    vector_font_ = imgui_io.Fonts->AddFontDefaultVector();
     // Docking comes from the pinned docking branch; enable it at runtime.
     imgui_io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     imgui_io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -923,6 +925,14 @@ namespace Comprendo
   Ui::shutdown()
   {
     rlImGuiShutdown();
+  }
+
+  void
+  Ui::apply_text_level(int level) const
+  {
+    ImGui::GetStyle().FontScaleMain = text_scale(level);
+    ImGui::GetIO().FontDefault
+      = level == 0 || vector_font_ == nullptr ? bitmap_font_ : vector_font_;
   }
 
   void
@@ -1100,6 +1110,19 @@ namespace Comprendo
       if (ImGui::MenuItem("Fit chart", "Home"))
       {
         state.fit_requested = true;
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("Larger text", "Ctrl++", false, state.text_level < kMaxTextLevel))
+      {
+        state.text_level = step_text_level(state.text_level, 1);
+      }
+      if (ImGui::MenuItem("Smaller text", "Ctrl+-", false, state.text_level > kMinTextLevel))
+      {
+        state.text_level = step_text_level(state.text_level, -1);
+      }
+      if (ImGui::MenuItem("Default text size", "Ctrl+0", false, state.text_level != 0))
+      {
+        state.text_level = 0;
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Reset layout"))

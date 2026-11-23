@@ -502,3 +502,22 @@ commit. Newest last.
   by their owners; `~/.config/opencode/opencode.jsonc` was not touched.
 
 - Commit: `a4f734a`.
+
+## 2026-11-23 — M12a adjustable text size
+
+- Ctrl++ / Ctrl+- / Ctrl+0 (and View → Larger/Smaller/Default text) change
+  the text size of the panels and graph labels in levels of ×1.125.
+- rlImGui at `Raylib_5_5` already sets `RendererHasTextures`, so ImGui 1.92
+  rasterizes fonts at any size on demand: the level only sets
+  `style.FontScaleMain` and switches between the 13 px pixel font (default
+  size) and ImGui's embedded vector font (other sizes). Labels use raylib's
+  default font at a scaled size.
+- GLFW key codes are US-layout positions (German + arrives as `]`), so keys
+  are matched by `glfwGetKeyName` (raylib's bundled GLFW; include path and
+  `GLFW_INCLUDE_NONE` added to the viewer target), with a US fallback.
+- Tests: level stepping/clamping/scale and character mapping
+  (`test_navigation.cpp`); the smoke test checks the panel font grows to
+  round(13 × 1.125²) = 16 px and returns to 13 px (ImGui rounds font sizes
+  to whole pixels). Checked with XTest Ctrl+= / Ctrl+- under xvfb.
+- Designed for the planned font choice (M12b): the text level is
+  independent of which font is selected.

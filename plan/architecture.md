@@ -491,6 +491,12 @@ graph:
   ranked matches (`ChartView::search`, cached per query), otherwise the tree in
   `ChartView::display_children` order; leaf lists above 256 rows go through
   `ImGuiListClipper`, which is told to include a revealed row.
+- **Text size** (M12a): `ViewerState::text_level` (see `text_scale`,
+  `step_text_level` in `Navigation.hpp`); `Ui::apply_text_level` sets
+  `style.FontScaleMain` and picks ImGui's pixel font at level 0, its vector
+  font otherwise, before each frame; `GraphFrame::text_scale` sizes the graph
+  labels. Ctrl++/−/0 are matched by the typed character (`glfwGetKeyName`
+  from raylib's bundled GLFW) so they follow the keyboard layout.
 - **Inspector** (lists reworked in M8e): Detail, Contains, Outgoing, and
   Incoming are always shown, each under a heading in its own scrolling child;
   they share the window height below the fields (`share_heights`: short

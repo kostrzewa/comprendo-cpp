@@ -20,6 +20,7 @@
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
+#include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <spdlog/sinks/ringbuffer_sink.h>
 #include <spdlog/spdlog.h>
@@ -154,6 +155,21 @@ namespace
 
   /// Window height used by the smoke test resize step.
   constexpr int kSmokeResizeHeight = 600;
+
+  /// Frame on which the smoke test records the panels' default font size.
+  constexpr int kSmokeTextBaseFrame = 3;
+
+  /// Frame on which the smoke test enlarges the text by two levels.
+  constexpr int kSmokeTextLargerFrame = 7;
+
+  /// Frame on which the smoke test checks the enlarged font size.
+  constexpr int kSmokeTextLargerCheckFrame = 8;
+
+  /// Frame on which the smoke test restores the default text size.
+  constexpr int kSmokeTextResetFrame = 9;
+
+  /// Frame on which the smoke test checks the default font size is back.
+  constexpr int kSmokeTextResetCheckFrame = 13;
 
   /// Frame on which the smoke test resizes the window.
   constexpr int kSmokeResizeFrame = 5;
@@ -290,6 +306,74 @@ namespace
     {
       ToggleBorderlessWindowed();
       log_fullscreen_state("Fullscreen:");
+    }
+  }
+
+  /// Character a key types on the active keyboard layout, without modifiers.
+  ///
+  /// GLFW (and so raylib) names keys after their US-layout position; asking
+  /// GLFW for the key's name gives the character of the user's layout instead,
+  /// so a German keyboard's + key counts as +.
+  ///
+  /// \param key raylib key code.
+  /// \return The character, or a null character when the key types none.
+  char
+  typed_character(int key)
+  {
+    const char *name = glfwGetKeyName(key, 0);
+    if (name != nullptr && name[0] != '\0' && name[1] == '\0')
+    {
+      return name[0];
+    }
+    switch (key)
+    {
+    case KEY_KP_ADD: return '+';
+    case KEY_KP_SUBTRACT: return '-';
+    case KEY_KP_0: return '0';
+    default:
+      // raylib's codes for printable keys are their US-layout characters.
+      return key >= KEY_SPACE && key <= KEY_GRAVE ? static_cast<char>(key) : '\0';
+    }
+  }
+
+  /// Change the text size on Ctrl++ (or Ctrl+=), Ctrl+-, and Ctrl+0, also with
+  /// the keypad, whether or not a panel has keyboard focus.
+  ///
+  /// \param state Viewer state holding the text size level.
+  void
+  handle_text_size_keys(Comprendo::ViewerState &state)
+  {
+    if (!IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_RIGHT_CONTROL))
+    {
+      return;
+    }
+    const auto apply = [&state](int key)
+    {
+      switch (Comprendo::text_size_key(typed_character(key)))
+      {
+      case Comprendo::TextSizeKey::Larger:
+        state.text_level = Comprendo::step_text_level(state.text_level, 1);
+        break;
+      case Comprendo::TextSizeKey::Smaller:
+        state.text_level = Comprendo::step_text_level(state.text_level, -1);
+        break;
+      case Comprendo::TextSizeKey::Reset: state.text_level = 0; break;
+      case Comprendo::TextSizeKey::None: break;
+      }
+    };
+    for (int key = KEY_SPACE; key <= KEY_GRAVE; ++key)
+    {
+      if (IsKeyPressed(key))
+      {
+        apply(key);
+      }
+    }
+    for (const int key : {KEY_KP_ADD, KEY_KP_SUBTRACT, KEY_KP_0})
+    {
+      if (IsKeyPressed(key))
+      {
+        apply(key);
+      }
     }
   }
 
@@ -939,6 +1023,7 @@ namespace
     frame.selected = state.selected;
     frame.hovered = session.hovered;
     frame.area = graph_area(state);
+    frame.text_scale = Comprendo::text_scale(state.text_level);
     if (state.show_minimap)
     {
       frame.minimap
@@ -1062,6 +1147,29 @@ namespace
     return matches;
   }
 
+  /// Record or check the panels' font size during the smoke test's text size
+  /// steps; called right after the ImGui frame began.
+  ///
+  /// \param frame Current frame index.
+  /// \param base_font_size Default font size, recorded on kSmokeTextBaseFrame.
+  /// \return True unless a check failed.
+  bool
+  check_text_size(int frame, float &base_font_size)
+  {
+    // ImGui rounds font sizes to whole pixels.
+    constexpr float kTolerance = 0.51F;
+    const float size = ImGui::GetFontSize();
+    switch (frame)
+    {
+    case kSmokeTextBaseFrame: base_font_size = size; return size > 0.0F;
+    case kSmokeTextLargerCheckFrame:
+      Comprendo::Logger::info("Smoke: font size {:.1f} at text level 2", size);
+      return std::abs(size - (base_font_size * Comprendo::text_scale(2))) < kTolerance;
+    case kSmokeTextResetCheckFrame: return size == base_font_size;
+    default: return true;
+    }
+  }
+
   /// Apply the smoke test action for one frame.
   ///
   /// \param frame Current frame index.
@@ -1174,6 +1282,7 @@ namespace
     bool passed = !session || renderer.antialiased();
     Comprendo::Logger::info("Smoke: anti-aliasing {}", renderer.antialiased() ? "on" : "off");
     std::chrono::steady_clock::duration drawing {};
+    float base_font_size = 0.0F;
     for (int frame = 0; frame < kSmokeTestFrames; ++frame)
     {
       if (!run_smoke_step(frame))
@@ -1191,10 +1300,25 @@ namespace
         apply_requests(*session, state);
       }
 
+      if (frame == kSmokeTextLargerFrame)
+      {
+        state.text_level = Comprendo::step_text_level(state.text_level, 2);
+      }
+      if (frame == kSmokeTextResetFrame)
+      {
+        state.text_level = 0;
+      }
+
       BeginDrawing();
       ClearBackground(kBackground);
       const auto start = std::chrono::steady_clock::now();
+      ui_shell.apply_text_level(state.text_level);
       Comprendo::Ui::begin_frame();
+      if (!check_text_size(frame, base_font_size))
+      {
+        Comprendo::Logger::warn("Smoke: text size check failed at frame {}", frame);
+        passed = false;
+      }
       draw_frame(session, build_info, note, ui_shell, state, renderer);
       Comprendo::Ui::end_frame();
       EndDrawing();
@@ -1294,7 +1418,9 @@ namespace
         BeginDrawing();
         ClearBackground(kBackground);
 
+        ui_shell.apply_text_level(state.text_level);
         Comprendo::Ui::begin_frame();
+        handle_text_size_keys(state);
         if (first_frame || IsWindowResized())
         {
           Comprendo::Ui::log_viewport_state(first_frame ? "Startup" : "Resized");

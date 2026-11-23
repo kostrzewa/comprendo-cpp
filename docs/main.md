@@ -100,6 +100,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | `Ctrl+F` | Filter the Explorer |
 | `Up` / `Down`, `Enter` (Inspector focused) | Move through the Inspector's lists; jump to the highlighted entry |
 | `Right` / `Left` (Inspector focused) | Unfold / fold the highlighted row of Contains |
+| `Ctrl` + `+` / `Ctrl` + `-` / `Ctrl` + `0` | Larger / smaller / default text in the panels and graph labels (also View menu; keypad works too, and so does `Ctrl` + `=`) |
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |
 
