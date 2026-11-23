@@ -20,9 +20,7 @@ namespace Comprendo
     float y = 0.0F;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Vec2 &) const = default;

@@ -325,7 +325,10 @@ Input is ignored while ImGui uses the mouse or keyboard.
 - cluster grouping (convex-hull fills over the file layout were dropped:
   clusters span files, so hulls would overlap everything); side panel with
   summary/detail/file:line/edges;
-- search, kind filters, double-click drill-down, minimap;
+- search; View → Show kind filters (`ViewFilter`, applied in `visible`,
+  `visible_edges`, and `pick`); double-click drill-down (select and focus);
+  a minimap in the graph area's bottom-right corner (`Minimap`: the top two
+  hierarchy levels plus the viewport, at least 6 px; click or drag recentres);
 - Jolt particles for cosmetic interaction feedback only — never layout;
 - SFML DSP-generated hover/click/zoom tones, mutable;
 - live reload (`ChartWatcher`): every 0.5 s the viewer compares `PRAGMA

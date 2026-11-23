@@ -507,5 +507,67 @@ namespace Comprendo
       EndShaderMode();
     }
     draw_labels(view, camera, frame.items);
+    if (frame.minimap)
+    {
+      draw_minimap(view, camera, *frame.minimap, frame.area);
+    }
+  }
+
+  void
+  GraphRenderer::draw_minimap(
+    const ChartView &view, const ViewCamera &camera, const Minimap &minimap, const ScreenRect &area
+  )
+  {
+    constexpr Color kBoxColor {.r = 16, .g = 16, .b = 22, .a = 220};
+    constexpr Color kFrameColor {.r = 90, .g = 90, .b = 110, .a = 255};
+    constexpr Color kViewColor {.r = 240, .g = 200, .b = 80, .a = 255};
+    constexpr float kDotRadius = 1.5F;
+    const Rectangle box {
+      .x = minimap.box.x,
+      .y = minimap.box.y,
+      .width = minimap.box.width,
+      .height = minimap.box.height
+    };
+    DrawRectangleRec(box, kBoxColor);
+    BeginScissorMode(
+      static_cast<int>(box.x),
+      static_cast<int>(box.y),
+      static_cast<int>(box.width),
+      static_cast<int>(box.height)
+    );
+    const auto &groups = view.hierarchy().groups;
+    for (const std::size_t top : groups.front().children)
+    {
+      for (const std::size_t group :
+           groups[top].children.empty() ? std::vector {top} : groups[top].children)
+      {
+        const Vec2 point = minimap.to_screen(view.group_centre(group));
+        const float radius
+          = std::max(kDotRadius, view.layout().groups[group].radius * minimap.scale);
+        const Rgb rgb = view.group_color(group);
+        DrawCircleLinesV(
+          {point.x, point.y}, radius, {.r = rgb.r, .g = rgb.g, .b = rgb.b, .a = 180}
+        );
+      }
+    }
+    const Vec2 first = minimap.to_screen(camera.screen_to_world({.x = area.x, .y = area.y}));
+    const Vec2 last = minimap.to_screen(
+      camera.screen_to_world({.x = area.x + area.width, .y = area.y + area.height})
+    );
+    constexpr float kMinViewSize = 6.0F;
+    const float width = std::max(last.x - first.x, kMinViewSize);
+    const float height = std::max(last.y - first.y, kMinViewSize);
+    DrawRectangleLinesEx(
+      {
+        .x = ((first.x + last.x) / 2.0F) - (width / 2.0F),
+        .y = ((first.y + last.y) / 2.0F) - (height / 2.0F),
+        .width = width,
+        .height = height,
+      },
+      1.0F,
+      kViewColor
+    );
+    EndScissorMode();
+    DrawRectangleLinesEx(box, 1.0F, kFrameColor);
   }
 } // namespace Comprendo

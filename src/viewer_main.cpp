@@ -49,6 +49,12 @@ namespace
   /// Target frame rate.
   constexpr int kTargetFps = 60;
 
+  /// Side of the minimap in pixels.
+  constexpr float kMinimapSize = 160.0F;
+
+  /// Distance of the minimap from the graph area's edges in pixels.
+  constexpr float kMinimapMargin = 12.0F;
+
   /// Seconds between two checks of the chart file for changes.
   constexpr double kWatchInterval = 0.5;
 
@@ -315,6 +321,8 @@ namespace
     Vector2 press {};
     /// True while a left-button press is being used to pan.
     bool dragging = false;
+    /// True while a left-button press that started on the minimap is held.
+    bool minimap_drag = false;
     /// True until the user zooms or pans: the fit target is refitted whenever
     /// the graph area changes (startup layout, window resize, re-docked panels).
     bool auto_fit = true;
@@ -323,6 +331,24 @@ namespace
     /// Graph area of the last fit.
     Comprendo::ScreenRect fitted_area;
   };
+
+  /// Screen area the graph occupies: the dock's central node, or the whole
+  /// window before ImGui has reported it.
+  ///
+  /// \param state Viewer state holding the reported area.
+  /// \return Graph area.
+  Comprendo::ScreenRect
+  graph_area(const Comprendo::ViewerState &state)
+  {
+    if (state.graph_area.width > 0.0F && state.graph_area.height > 0.0F)
+    {
+      return state.graph_area;
+    }
+    return {
+      .width = static_cast<float>(GetScreenWidth()),
+      .height = static_cast<float>(GetScreenHeight()),
+    };
+  }
 
   /// Load a chart and prepare it for viewing.
   ///
@@ -575,6 +601,52 @@ namespace
     state.zoom = session.camera.zoom;
   }
 
+  /// Handle mouse input over the graph itself: drill-down on double click,
+  /// panning by dragging, selection on click, and hover.
+  ///
+  /// \param session Session to update.
+  /// \param state Viewer state receiving selection and focus requests.
+  /// \param mouse Mouse position.
+  void
+  handle_graph_mouse(GraphSession &session, Comprendo::ViewerState &state, Vector2 mouse)
+  {
+    Comprendo::ViewCamera &camera = session.camera;
+    const Comprendo::Vec2 point {.x = mouse.x, .y = mouse.y};
+    if (Comprendo::Ui::double_clicked())
+    {
+      if (const auto group = session.view.pick(camera, point, {}, state.kinds))
+      {
+        state.selected = group;
+        state.focus_requested = true;
+        state.reveal_requested = true;
+      }
+    }
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !session.dragging)
+    {
+      session.dragging
+        = std::hypot(mouse.x - session.press.x, mouse.y - session.press.y) > kDragThreshold;
+    }
+    if (
+      session.dragging || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)
+      || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)
+    )
+    {
+      const Vector2 delta = GetMouseDelta();
+      camera.pan({.x = delta.x, .y = delta.y});
+      session.auto_fit = session.auto_fit && delta.x == 0.0F && delta.y == 0.0F;
+    }
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+    {
+      if (!session.dragging)
+      {
+        state.selected = session.view.pick(camera, point, {}, state.kinds);
+        state.reveal_requested = state.selected.has_value();
+      }
+      session.dragging = false;
+    }
+    session.hovered = session.view.pick(camera, point, {}, state.kinds);
+  }
+
   /// Handle mouse and keyboard input for the graph: zoom, pan, select, fit, regroup.
   ///
   /// Input is ignored while ImGui uses the mouse or keyboard.
@@ -598,35 +670,30 @@ namespace
         camera.zoom_at(point, std::pow(kZoomStep, wheel), kMinZoom, kMaxZoom);
         session.auto_fit = false;
       }
+      const Comprendo::ScreenRect area = graph_area(state);
+      const std::optional<Comprendo::Minimap> minimap = state.show_minimap
+        ? std::optional {Comprendo::make_minimap(session.view, area, kMinimapSize, kMinimapMargin)}
+        : std::nullopt;
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
       {
         session.press = mouse;
         session.dragging = false;
+        session.minimap_drag = minimap && minimap->contains(point);
       }
-      if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !session.dragging)
+      if (session.minimap_drag)
       {
-        session.dragging
-          = std::hypot(mouse.x - session.press.x, mouse.y - session.press.y) > kDragThreshold;
-      }
-      if (
-        session.dragging || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)
-        || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)
-      )
-      {
-        const Vector2 delta = GetMouseDelta();
-        camera.pan({.x = delta.x, .y = delta.y});
-        session.auto_fit = session.auto_fit && delta.x == 0.0F && delta.y == 0.0F;
-      }
-      if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
-      {
-        if (!session.dragging)
+        if (minimap && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
         {
-          state.selected = session.view.pick(camera, point);
-          state.reveal_requested = state.selected.has_value();
+          Comprendo::centre_on(camera, minimap->to_world(point), area);
+          session.auto_fit = false;
+          session.fit_group.reset();
         }
-        session.dragging = false;
+        session.minimap_drag = !IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
       }
-      session.hovered = session.view.pick(camera, point);
+      else
+      {
+        handle_graph_mouse(session, state, mouse);
+      }
     }
     if (!Comprendo::Ui::wants_keyboard())
     {
@@ -655,10 +722,16 @@ namespace
   )
   {
     Comprendo::GraphFrame frame;
-    frame.items = session.view.visible(session.camera);
-    frame.edges = session.view.visible_edges(frame.items);
+    frame.items = session.view.visible(session.camera, {}, state.kinds);
+    frame.edges = session.view.visible_edges(frame.items, state.kinds);
     frame.selected = state.selected;
     frame.hovered = session.hovered;
+    frame.area = graph_area(state);
+    if (state.show_minimap)
+    {
+      frame.minimap
+        = Comprendo::make_minimap(session.view, frame.area, kMinimapSize, kMinimapMargin);
+    }
     renderer.draw(session.view, session.camera, frame);
   }
 

@@ -111,3 +111,12 @@ commit. Newest last.
   have warned anyway. Doxygen is now strict, and the 25 missing `\return` and
   `\param` lines were added.
 
+- Commit: `3901062`.
+
+## 2026-11-23 — M7e kind filters, drill-down, minimap
+
+- The minimap's viewport rectangle vanished when zoomed into a method (it was
+  below a pixel); found in a screenshot, now drawn at least 6 px wide.
+- Pressing in the minimap now owns the press until release, so releasing it
+  does not select what lies under the minimap in the graph.
+

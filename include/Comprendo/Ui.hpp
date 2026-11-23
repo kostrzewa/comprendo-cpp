@@ -32,6 +32,12 @@ namespace Comprendo
     /// Whether the log panel is visible.
     bool show_log = true;
 
+    /// Whether the minimap is drawn in the graph area.
+    bool show_minimap = true;
+
+    /// Node and edge kinds hidden from the graph.
+    ViewFilter kinds;
+
     /// Whether the About window is open.
     bool show_about = false;
 
@@ -105,6 +111,12 @@ namespace Comprendo
     /// \return True when ImGui wants mouse input.
     static bool
     wants_mouse();
+
+    /// Check whether the left mouse button was double-clicked this frame.
+    ///
+    /// \return True on the second click of a double click.
+    static bool
+    double_clicked();
 
     /// Check whether ImGui wants keyboard input.
     ///

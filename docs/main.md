@@ -74,12 +74,17 @@ compile_commands_dir = ""           # empty: search
 | Mouse wheel | Zoom about the cursor |
 | Left drag, right or middle drag | Pan |
 | Left click | Select (Inspector shows it, Explorer reveals it) |
+| Double click | Drill down: select and zoom to the group |
+| Click or drag in the minimap | Move the view there (View → Minimap toggles it) |
 | Hover | Tooltip: name, kind, file:line |
 | `Home` | Fit the chart; it stays fitted until you zoom or pan |
 | `G` | Cycle grouping: file, namespace, cluster |
 | `Ctrl+F` | Filter the Explorer |
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |
+
+View → Show hides symbol kinds (with their contents) and relationship kinds,
+for example everything but calls.
 
 Groupings:
 

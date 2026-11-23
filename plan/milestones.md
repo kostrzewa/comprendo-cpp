@@ -257,9 +257,12 @@ Done:
   plugin, chart format); Doxygen runs with `EXTRACT_ALL=NO` and
   `WARN_IF_UNDOCUMENTED`, and reports no warnings.
 
+- View → Show kind filters (`ViewFilter`: hidden node kinds disappear with
+  their subtrees and cannot be picked; hidden edge kinds are not drawn),
+  double-click drill-down, and a minimap (`Minimap`, click or drag to move).
+
 Open:
 
-- Kind filters, drill-down, minimap.
 - clangd `Uses` edges (`references`) and hover text for node details.
 - Profiler scopes and Perfetto dump.
 - Screenshots for the documentation.

@@ -3,6 +3,7 @@
 /// \file
 /// \brief Viewer logic without rendering: camera, level of detail, edges, and picking.
 
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -29,9 +30,7 @@ namespace Comprendo
     std::uint8_t b = 0;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Rgb &) const = default;
@@ -58,12 +57,41 @@ namespace Comprendo
     float height = 0.0F;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const ScreenRect &) const = default;
+  };
+
+  /// Node and edge kinds hidden from the graph.
+  struct ViewFilter
+  {
+    /// Hidden node kinds, indexed by NodeKind value.
+    std::bitset<kNodeKindCount> hidden_nodes;
+    /// Hidden edge kinds, indexed by EdgeKind value.
+    std::bitset<kEdgeKindCount> hidden_edges;
+
+    /// Check whether a node kind is shown.
+    ///
+    /// \param kind Node kind.
+    /// \return True unless the kind is hidden.
+    [[nodiscard]]
+    bool
+    shows(NodeKind kind) const
+    {
+      return !hidden_nodes.test(static_cast<std::size_t>(kind));
+    }
+
+    /// Check whether an edge kind is shown.
+    ///
+    /// \param kind Edge kind.
+    /// \return True unless the kind is hidden.
+    [[nodiscard]]
+    bool
+    shows(EdgeKind kind) const
+    {
+      return !hidden_edges.test(static_cast<std::size_t>(kind));
+    }
   };
 
   /// A 2D view onto chart coordinates.
@@ -150,9 +178,7 @@ namespace Comprendo
     DrawStyle style = DrawStyle::Disk;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const DrawItem &) const = default;
@@ -171,9 +197,7 @@ namespace Comprendo
     float weight = 0.0F;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const VisibleEdge &) const = default;
@@ -365,12 +389,18 @@ namespace Comprendo
     /// their children. The result therefore grows with the screen area, not the
     /// chart size. The root itself is never drawn.
     ///
+    /// Groups whose kind \p filter hides are skipped with their subtrees;
+    /// cluster groups are never hidden.
+    ///
     /// \param camera View.
     /// \param lod Level-of-detail thresholds.
+    /// \param filter Hidden kinds.
     /// \return Items in drawing order.
     [[nodiscard]]
     std::vector<DrawItem>
-    visible(const ViewCamera &camera, const LodOptions &lod = {}) const;
+    visible(
+      const ViewCamera &camera, const LodOptions &lod = {}, const ViewFilter &filter = {}
+    ) const;
 
     /// Non-`Contains` edges between visible groups.
     ///
@@ -379,10 +409,11 @@ namespace Comprendo
     /// are dropped, and parallel edges of one kind are merged with summed weight.
     ///
     /// \param items Result of visible().
+    /// \param filter Hidden kinds; edges of hidden edge kinds are dropped.
     /// \return Edges sorted by (from, to, kind).
     [[nodiscard]]
     std::vector<VisibleEdge>
-    visible_edges(const std::vector<DrawItem> &items) const;
+    visible_edges(const std::vector<DrawItem> &items, const ViewFilter &filter = {}) const;
 
     /// Group under a screen point, consistent with visible().
     ///
@@ -393,10 +424,26 @@ namespace Comprendo
     /// \param camera View.
     /// \param screen Screen point.
     /// \param lod Level-of-detail thresholds.
+    /// \param filter Hidden kinds; hidden groups cannot be picked.
     /// \return Group index, or nothing over empty space.
     [[nodiscard]]
     std::optional<std::size_t>
-    pick(const ViewCamera &camera, const Vec2 &screen, const LodOptions &lod = {}) const;
+    pick(
+      const ViewCamera &camera,
+      const Vec2 &screen,
+      const LodOptions &lod = {},
+      const ViewFilter &filter = {}
+    ) const;
+
+    /// Check whether a group is hidden by a filter: its kind is hidden and it
+    /// is neither the root nor a cluster group.
+    ///
+    /// \param group Group index.
+    /// \param filter Hidden kinds.
+    /// \return True when the group is hidden.
+    [[nodiscard]]
+    bool
+    hidden(std::size_t group, const ViewFilter &filter) const;
 
   private:
     /// A non-`Contains` chart edge between groups.
@@ -435,4 +482,58 @@ namespace Comprendo
     /// Edges touching each node.
     std::vector<NodeEdges> m_node_edges;
   };
+  /// Maps between the chart and a small overview box in a corner of the graph area.
+  struct Minimap
+  {
+    /// Overview box on screen.
+    ScreenRect box;
+    /// Chart point shown at the centre of the box.
+    Vec2 centre;
+    /// Screen pixels per chart unit inside the box.
+    float scale = 1.0F;
+
+    /// Convert a chart point to a point in the box.
+    ///
+    /// \param world Chart point.
+    /// \return Screen point.
+    [[nodiscard]]
+    Vec2
+    to_screen(const Vec2 &world) const;
+
+    /// Convert a point in the box to a chart point.
+    ///
+    /// \param screen Screen point.
+    /// \return Chart point.
+    [[nodiscard]]
+    Vec2
+    to_world(const Vec2 &screen) const;
+
+    /// Check whether a screen point lies in the box.
+    ///
+    /// \param screen Screen point.
+    /// \return True inside the box, edges included.
+    [[nodiscard]]
+    bool
+    contains(const Vec2 &screen) const;
+  };
+
+  /// Place the overview box in the bottom-right corner of the graph area,
+  /// scaled so the chart's root disk fills it.
+  ///
+  /// \param view Chart view.
+  /// \param area Graph area.
+  /// \param size Box side in pixels; shrunk to fit small areas.
+  /// \param margin Distance from the area's edges in pixels.
+  /// \return The minimap.
+  [[nodiscard]]
+  Minimap
+  make_minimap(const ChartView &view, const ScreenRect &area, float size, float margin);
+
+  /// Move a camera so it shows a chart point at the centre of the graph area.
+  ///
+  /// \param camera Camera to move.
+  /// \param world Chart point.
+  /// \param area Graph area.
+  void
+  centre_on(ViewCamera &camera, const Vec2 &world, const ScreenRect &area);
 } // namespace Comprendo

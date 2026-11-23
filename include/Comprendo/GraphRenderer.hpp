@@ -25,6 +25,10 @@ namespace Comprendo
     std::optional<std::size_t> selected;
     /// Group under the mouse, highlighted.
     std::optional<std::size_t> hovered;
+    /// Overview box to draw on top, or nothing.
+    std::optional<Minimap> minimap;
+    /// Graph area, whose chart extent the minimap outlines.
+    ScreenRect area;
   };
 
   /// Draws the graph with analytic anti-aliasing.
@@ -37,6 +41,21 @@ namespace Comprendo
   class GraphRenderer
   {
   public:
+    /// Draw the overview box: the top two hierarchy levels as dots and the
+    /// part of the chart the graph area shows as a rectangle.
+    ///
+    /// \param view Chart view.
+    /// \param camera View camera.
+    /// \param minimap Overview box.
+    /// \param area Graph area.
+    static void
+    draw_minimap(
+      const ChartView &view,
+      const ViewCamera &camera,
+      const Minimap &minimap,
+      const ScreenRect &area
+    );
+
     /// Load the anti-aliasing shader; the raylib window must already exist.
     GraphRenderer();
 

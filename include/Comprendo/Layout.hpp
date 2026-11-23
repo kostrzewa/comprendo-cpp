@@ -53,9 +53,7 @@ namespace Comprendo
     float radius = 0.0F;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const GroupPlacement &) const = default;
@@ -71,9 +69,7 @@ namespace Comprendo
     std::vector<GroupPlacement> groups;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Layout &) const = default;

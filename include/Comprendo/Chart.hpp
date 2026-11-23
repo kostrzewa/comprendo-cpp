@@ -47,6 +47,9 @@ namespace Comprendo
   };
 
   /// Kind of a chart edge.
+  /// Number of NodeKind values.
+  inline constexpr std::size_t kNodeKindCount = static_cast<std::size_t>(NodeKind::TypeAlias) + 1;
+
   enum class EdgeKind : std::uint8_t
   {
     /// Unclassified edge.
@@ -64,6 +67,9 @@ namespace Comprendo
     /// Data-flow relationship.
     DataFlow = 6,
   };
+
+  /// Number of EdgeKind values.
+  inline constexpr std::size_t kEdgeKindCount = static_cast<std::size_t>(EdgeKind::DataFlow) + 1;
 
   /// Origin of an annotation.
   enum class Provenance : std::uint8_t
@@ -109,9 +115,7 @@ namespace Comprendo
     Provenance provenance = Provenance::Unknown;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Node &) const = default;
@@ -134,9 +138,7 @@ namespace Comprendo
     Provenance provenance = Provenance::Unknown;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Edge &) const = default;
@@ -157,9 +159,7 @@ namespace Comprendo
     std::uint64_t parent_id = 0;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Cluster &) const = default;
@@ -174,9 +174,7 @@ namespace Comprendo
     float y = 0.0F;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Position &) const = default;
@@ -207,9 +205,7 @@ namespace Comprendo
     std::vector<Position> layout;
 
     /// Memberwise equality.
-
     ///
-
     /// \return True when all members are equal.
     bool
     operator==(const Chart &) const = default;

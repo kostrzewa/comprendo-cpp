@@ -416,3 +416,78 @@ TEST_CASE("annotation-only reloads keep the layout", "[view]")
   CHECK_FALSE(view.update_annotations(reweighted));
   CHECK(view.chart().nodes[6].summary == "First method");
 }
+
+/// The View → Show menu hides symbol and relationship kinds; hidden symbols must
+/// disappear with their contents, not be pickable, and hidden relationships must
+/// not be drawn. Fits the sample chart, hides classes and checks no class or
+/// method is drawn or picked at a class centre, then hides calls and checks the
+/// call edges vanish while the include edge stays.
+TEST_CASE("view filters hide node and edge kinds", "[view]")
+{
+  const ChartView view {sample_chart(), Grouping::File};
+  const ViewCamera camera = fitted(view);
+  const Comprendo::LodOptions lod {.point_pixels = 0.0F, .expand_pixels = 0.0F};
+
+  Comprendo::ViewFilter no_classes;
+  no_classes.hidden_nodes.set(static_cast<std::size_t>(NodeKind::Class));
+  const auto items = view.visible(camera, lod, no_classes);
+  CHECK_FALSE(items.empty());
+  for (const Comprendo::DrawItem &item : items)
+  {
+    CHECK(view.group_kind(item.group) != NodeKind::Class);
+    CHECK(view.group_kind(item.group) != NodeKind::Method);
+  }
+  const std::size_t class_a = group_of(view, 5);
+  const auto picked
+    = view.pick(camera, camera.world_to_screen(view.group_centre(class_a)), lod, no_classes);
+  CHECK(picked != std::optional<std::size_t> {class_a});
+  CHECK(view.hidden(class_a, no_classes));
+  CHECK_FALSE(view.hidden(0, no_classes));
+
+  const auto all_items = view.visible(camera, lod);
+  Comprendo::ViewFilter no_calls;
+  no_calls.hidden_edges.set(static_cast<std::size_t>(EdgeKind::Calls));
+  const auto edges = view.visible_edges(all_items, no_calls);
+  CHECK(std::ranges::none_of(edges, [](const auto &edge) { return edge.kind == EdgeKind::Calls; }));
+  CHECK(
+    std::ranges::any_of(edges, [](const auto &edge) { return edge.kind == EdgeKind::Includes; })
+  );
+  CHECK(
+    std::ranges::any_of(
+      view.visible_edges(all_items), [](const auto &edge) { return edge.kind == EdgeKind::Calls; }
+    )
+  );
+}
+
+/// The minimap must sit in the graph area's corner, show the whole chart, and
+/// map clicks back to the chart so the camera can jump there. Builds a minimap
+/// for an area, checks its box, that the root disk fits inside it, that screen
+/// and chart conversions invert each other, and that centre_on() moves the
+/// clicked chart point to the middle of the area.
+TEST_CASE("minimap maps between overview and chart", "[view]")
+{
+  const ChartView view {sample_chart(), Grouping::File};
+  const Comprendo::ScreenRect area {.x = 100.0F, .y = 50.0F, .width = 900.0F, .height = 600.0F};
+  const Comprendo::Minimap minimap = Comprendo::make_minimap(view, area, 160.0F, 10.0F);
+  CHECK(
+    minimap.box
+    == Comprendo::ScreenRect {.x = 830.0F, .y = 480.0F, .width = 160.0F, .height = 160.0F}
+  );
+
+  const Vec2 centre = minimap.to_screen(view.group_centre(0));
+  CHECK(distance(centre, {.x = 910.0F, .y = 560.0F}) < 1e-3F);
+  CHECK(view.layout().groups.front().radius * minimap.scale <= 80.0F + 1e-3F);
+  const Vec2 corner {.x = 840.0F, .y = 600.0F};
+  CHECK(distance(minimap.to_screen(minimap.to_world(corner)), corner) < 1e-3F);
+  CHECK(minimap.contains(corner));
+  CHECK_FALSE(minimap.contains({.x = 829.0F, .y = 600.0F}));
+
+  ViewCamera camera = fitted(view);
+  const Vec2 target = minimap.to_world(corner);
+  Comprendo::centre_on(camera, target, area);
+  CHECK(distance(camera.world_to_screen(target), {.x = 550.0F, .y = 350.0F}) < 1e-2F);
+
+  const Comprendo::Minimap tiny
+    = Comprendo::make_minimap(view, {.width = 120.0F, .height = 90.0F}, 160.0F, 0.0F);
+  CHECK(tiny.box.width == 30.0F);
+}

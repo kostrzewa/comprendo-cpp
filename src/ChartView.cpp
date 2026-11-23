@@ -379,7 +379,9 @@ namespace Comprendo
   }
 
   std::vector<DrawItem>
-  ChartView::visible(const ViewCamera &camera, const LodOptions &lod) const
+  ChartView::visible(
+    const ViewCamera &camera, const LodOptions &lod, const ViewFilter &filter
+  ) const
   {
     std::vector<DrawItem> items;
     std::vector<std::size_t> stack(
@@ -389,6 +391,10 @@ namespace Comprendo
     {
       const std::size_t group = stack.back();
       stack.pop_back();
+      if (hidden(group, filter))
+      {
+        continue;
+      }
       const float radius = m_layout.groups[group].radius * camera.zoom;
       const Vec2 centre = camera.world_to_screen(group_centre(group));
       if (
@@ -417,7 +423,7 @@ namespace Comprendo
   }
 
   std::vector<VisibleEdge>
-  ChartView::visible_edges(const std::vector<DrawItem> &items) const
+  ChartView::visible_edges(const std::vector<DrawItem> &items, const ViewFilter &filter) const
   {
     std::vector<bool> drawn(m_hierarchy.groups.size(), false);
     for (const DrawItem &item : items)
@@ -436,6 +442,10 @@ namespace Comprendo
     std::vector<VisibleEdge> edges;
     for (const GroupEdge &edge : m_edges)
     {
+      if (!filter.shows(edge.kind))
+      {
+        continue;
+      }
       const std::size_t from = representative(edge.from);
       const std::size_t to = representative(edge.to);
       if (from != 0 && to != 0 && from != to)
@@ -462,7 +472,9 @@ namespace Comprendo
   }
 
   std::optional<std::size_t>
-  ChartView::pick(const ViewCamera &camera, const Vec2 &screen, const LodOptions &lod) const
+  ChartView::pick(
+    const ViewCamera &camera, const Vec2 &screen, const LodOptions &lod, const ViewFilter &filter
+  ) const
   {
     const Vec2 point = camera.screen_to_world(screen);
     const float tolerance = lod.pick_tolerance / camera.zoom;
@@ -473,6 +485,10 @@ namespace Comprendo
       float best_distance = 0.0F;
       for (const std::size_t child : m_hierarchy.groups[current].children)
       {
+        if (hidden(child, filter))
+        {
+          continue;
+        }
         const float reach = std::max(m_layout.groups[child].radius, tolerance);
         const float distance = distance_squared(point, group_centre(child));
         if (distance <= reach * reach && (!best || distance < best_distance))
@@ -493,5 +509,63 @@ namespace Comprendo
       }
     }
     return current == 0 ? std::nullopt : std::optional<std::size_t> {current};
+  }
+
+  bool
+  ChartView::hidden(std::size_t group, const ViewFilter &filter) const
+  {
+    return group != 0 && m_hierarchy.groups[group].cluster == 0 && !filter.shows(group_kind(group));
+  }
+
+  Vec2
+  Minimap::to_screen(const Vec2 &world) const
+  {
+    return {
+      .x = box.x + (box.width / 2.0F) + ((world.x - centre.x) * scale),
+      .y = box.y + (box.height / 2.0F) + ((world.y - centre.y) * scale),
+    };
+  }
+
+  Vec2
+  Minimap::to_world(const Vec2 &screen) const
+  {
+    return {
+      .x = centre.x + ((screen.x - box.x - (box.width / 2.0F)) / scale),
+      .y = centre.y + ((screen.y - box.y - (box.height / 2.0F)) / scale),
+    };
+  }
+
+  bool
+  Minimap::contains(const Vec2 &screen) const
+  {
+    return screen.x >= box.x && screen.x <= box.x + box.width && screen.y >= box.y
+      && screen.y <= box.y + box.height;
+  }
+
+  Minimap
+  make_minimap(const ChartView &view, const ScreenRect &area, float size, float margin)
+  {
+    const float side = std::max(0.0F, std::min({size, (area.width / 3.0F), (area.height / 3.0F)}));
+    const float radius = std::max(view.layout().groups.front().radius, 1e-6F);
+    return {
+      .box = {
+        .x = area.x + area.width - side - margin,
+        .y = area.y + area.height - side - margin,
+        .width = side,
+        .height = side,
+      },
+      .centre = view.group_centre(0),
+      .scale = side / (2.0F * radius),
+    };
+  }
+
+  void
+  centre_on(ViewCamera &camera, const Vec2 &world, const ScreenRect &area)
+  {
+    const Vec2 now = camera.world_to_screen(world);
+    camera.pan({
+      .x = area.x + (area.width / 2.0F) - now.x,
+      .y = area.y + (area.height / 2.0F) - now.y,
+    });
   }
 } // namespace Comprendo

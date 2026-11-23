@@ -347,6 +347,59 @@ namespace
     }
   }
 
+  /// Draw the View → Show submenu toggling node and edge kinds.
+  ///
+  /// \param kinds Filter to edit.
+  void
+  draw_kind_menu(Comprendo::ViewFilter &kinds)
+  {
+    if (!ImGui::BeginMenu("Show"))
+    {
+      return;
+    }
+    text_disabled("Symbols");
+    for (std::size_t kind = 0; kind < Comprendo::kNodeKindCount; ++kind)
+    {
+      bool shown = !kinds.hidden_nodes.test(kind);
+      if (
+        ImGui::MenuItem(
+          std::string {Comprendo::to_string(static_cast<Comprendo::NodeKind>(kind))}.c_str(),
+          nullptr,
+          &shown
+        )
+      )
+      {
+        kinds.hidden_nodes.set(kind, !shown);
+      }
+    }
+    ImGui::Separator();
+    text_disabled("Relationships");
+    for (std::size_t kind = 0; kind < Comprendo::kEdgeKindCount; ++kind)
+    {
+      if (static_cast<Comprendo::EdgeKind>(kind) == Comprendo::EdgeKind::Contains)
+      {
+        continue;
+      }
+      bool shown = !kinds.hidden_edges.test(kind);
+      if (
+        ImGui::MenuItem(
+          std::string {Comprendo::to_string(static_cast<Comprendo::EdgeKind>(kind))}.c_str(),
+          nullptr,
+          &shown
+        )
+      )
+      {
+        kinds.hidden_edges.set(kind, !shown);
+      }
+    }
+    ImGui::Separator();
+    if (ImGui::MenuItem("Show all"))
+    {
+      kinds = {};
+    }
+    ImGui::EndMenu();
+  }
+
   /// Draw the Inspector body for a selected group.
   ///
   /// \param view Chart view.
@@ -510,6 +563,12 @@ namespace Comprendo
   }
 
   bool
+  Ui::double_clicked()
+  {
+    return ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+  }
+
+  bool
   Ui::wants_mouse()
   {
     return ImGui::GetIO().WantCaptureMouse;
@@ -641,6 +700,8 @@ namespace Comprendo
       ImGui::MenuItem("Explorer", nullptr, &state.show_explorer);
       ImGui::MenuItem("Inspector", nullptr, &state.show_inspector);
       ImGui::MenuItem("Log", nullptr, &state.show_log);
+      ImGui::MenuItem("Minimap", nullptr, &state.show_minimap);
+      draw_kind_menu(state.kinds);
       ImGui::Separator();
       if (ImGui::MenuItem("Group by file", "G", state.grouping == Grouping::File))
       {
