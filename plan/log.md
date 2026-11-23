@@ -250,3 +250,4 @@ commit. Newest last.
   defaults; it is now 0.5 s. The explicit toggle added in M9d was the wrong
   diagnosis and is removed; ImGui's `OpenOnDoubleClick` does the unfolding.
 
+- Commit: `41a5687`.
