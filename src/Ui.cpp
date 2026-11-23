@@ -1854,7 +1854,11 @@ namespace Comprendo
     const std::string widest = std::to_string(source_.lines.size());
     const float gutter
       = ImGui::CalcTextSize(widest.c_str()).x + ImGui::GetStyle().ItemSpacing.x * 2.0F;
-    const ImU32 tint = ImGui::GetColorU32(ImVec4(0.35F, 0.45F, 0.65F, 0.28F));
+    // A faint background keeps the selected lines readable; a bar in the
+    // gutter marks their extent clearly.
+    const ImU32 tint = ImGui::GetColorU32(ImVec4(0.40F, 0.50F, 0.70F, 0.12F));
+    const ImU32 marker = ImGui::GetColorU32(ImVec4(0.45F, 0.60F, 0.90F, 0.85F));
+    constexpr float kMarkerWidth = 3.0F;
     const ImVec4 number_color = ImGui::GetStyle().Colors[ImGuiCol_TextDisabled];
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(source_.lines.size()), line_height);
@@ -1869,8 +1873,10 @@ namespace Comprendo
         {
           const float width = std::max(ImGui::GetContentRegionAvail().x, ImGui::GetWindowWidth())
             + ImGui::GetScrollX();
-          ImGui::GetWindowDrawList()->AddRectFilled(
-            origin, ImVec2(origin.x + width, origin.y + line_height), tint
+          ImDrawList &list = *ImGui::GetWindowDrawList();
+          list.AddRectFilled(origin, ImVec2(origin.x + width, origin.y + line_height), tint);
+          list.AddRectFilled(
+            origin, ImVec2(origin.x + kMarkerWidth, origin.y + line_height), marker
           );
         }
         const std::string label = std::to_string(number);

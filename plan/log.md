@@ -672,3 +672,8 @@ commit. Newest last.
   0.226, 0.273, 0.311, 0.344, 0.373 in successive captures over 0.14 s.
 
 - Commit: `23f8905`.
+
+## 2026-11-23 — Source panel: lighter selection tint
+
+- The tint behind the selected symbol's lines (28% blue-grey) made the code
+  hard to read; it is now 12%, and a 3 px bar in the gutter marks the range.
