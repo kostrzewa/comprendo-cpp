@@ -78,7 +78,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 
 # Viewer {#viewer}
 
-`comprendo [CHART] [--group file|namespace|cluster] [--select NAME]`
+`comprendo [CHART] [--group cluster|file|namespace] [--select NAME]`
 
 | Input | Action |
 | --- | --- |
@@ -89,7 +89,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | Click or drag in the minimap | Move the view there (View → Minimap toggles it) |
 | Hover | Tooltip: name, kind, file:line |
 | `Home` | Fit the chart; it stays fitted until you zoom or pan |
-| `G` | Cycle grouping: file, namespace, cluster |
+| `G` | Cycle grouping: cluster, file, namespace |
 | `Ctrl+F` | Filter the Explorer |
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |
@@ -99,10 +99,11 @@ for example everything but calls.
 
 Groupings:
 
+- **Cluster** (default): the subsystems the model named with `/chart`,
+  nested, each member with its contents; everything else under
+  "(unclustered)". A chart without clusters looks like the file grouping.
 - **File**: the containment tree, file → namespace → class → member.
 - **Namespace**: namespaces merged across files.
-- **Cluster**: the subsystems the model named with `/chart`, nested, each
-  member with its contents; everything else under "(unclustered)".
 
 ![Cluster grouping: the subsystems named during /chart, the Viewer cluster selected](viewer_clusters.png)
 

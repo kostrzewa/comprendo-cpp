@@ -180,7 +180,7 @@ namespace
     /// Name of a symbol to select and focus at startup; empty for none.
     std::string select;
     /// Grouping shown at startup.
-    Comprendo::Grouping grouping = Comprendo::Grouping::File;
+    Comprendo::Grouping grouping = Comprendo::Grouping::Cluster;
     /// Perfetto trace written at exit; empty to not profile.
     std::string profile;
   };
@@ -220,9 +220,9 @@ namespace
     app.add_option(
       "--profile", options.profile, "Write a Perfetto trace to FILE and log a profile at exit"
     );
-    std::string grouping {Comprendo::to_string(Comprendo::Grouping::File)};
-    app.add_option("--group", grouping, "Grouping at startup: file, namespace, or cluster")
-      ->check(CLI::IsMember({"file", "namespace", "cluster"}))
+    std::string grouping {Comprendo::to_string(Comprendo::Grouping::Cluster)};
+    app.add_option("--group", grouping, "Grouping at startup: cluster, file, or namespace")
+      ->check(CLI::IsMember({"cluster", "file", "namespace"}))
       ->capture_default_str();
     try
     {

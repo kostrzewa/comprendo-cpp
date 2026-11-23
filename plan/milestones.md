@@ -272,11 +272,12 @@ Open (waiting for a decision, see [log](log.md)):
 
 ## M8 — Documentation-aware charts and viewer navigation (in progress)
 
-- a. Doxygen comments become summaries and details at extraction (both
+- a. (done) Doxygen comments become summaries and details at extraction (both
   backends; header documentation reaches source definitions); the `/chart`
   prompt uses them and other comments as intent without lengthening
   explanations; code-documented and model summaries are counted apart.
-- b. Cluster grouping is the default and first in the Explorer.
+- b. Cluster grouping is the default and first in the Explorer, the View
+  menu, the `G` cycle, and `--group` (done).
 - c. File grouping shows the directory hierarchy in the Explorer.
 - d. Edges between members of different clusters are hidden by default and
   summarized as aggregated lines between clusters and subclusters.

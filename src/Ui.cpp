@@ -708,6 +708,10 @@ namespace Comprendo
       ImGui::MenuItem("Minimap", nullptr, &state.show_minimap);
       draw_kind_menu(state.kinds);
       ImGui::Separator();
+      if (ImGui::MenuItem("Group by cluster", "G", state.grouping == Grouping::Cluster))
+      {
+        state.grouping = Grouping::Cluster;
+      }
       if (ImGui::MenuItem("Group by file", "G", state.grouping == Grouping::File))
       {
         state.grouping = Grouping::File;
@@ -715,10 +719,6 @@ namespace Comprendo
       if (ImGui::MenuItem("Group by namespace", "G", state.grouping == Grouping::Namespace))
       {
         state.grouping = Grouping::Namespace;
-      }
-      if (ImGui::MenuItem("Group by cluster", "G", state.grouping == Grouping::Cluster))
-      {
-        state.grouping = Grouping::Cluster;
       }
       if (ImGui::MenuItem("Fit chart", "Home"))
       {
@@ -760,11 +760,11 @@ namespace Comprendo
       else
       {
         int grouping = static_cast<int>(state.grouping);
+        ImGui::RadioButton("Clusters", &grouping, static_cast<int>(Grouping::Cluster));
+        ImGui::SameLine();
         ImGui::RadioButton("Files", &grouping, static_cast<int>(Grouping::File));
         ImGui::SameLine();
         ImGui::RadioButton("Namespaces", &grouping, static_cast<int>(Grouping::Namespace));
-        ImGui::SameLine();
-        ImGui::RadioButton("Clusters", &grouping, static_cast<int>(Grouping::Cluster));
         state.grouping = static_cast<Grouping>(grouping);
 
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F))

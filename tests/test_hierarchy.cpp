@@ -278,8 +278,8 @@ TEST_CASE("cluster grouping tolerates cycles and missing clusters", "[hierarchy]
   const Hierarchy by_file = Comprendo::build_hierarchy(plain, Grouping::File);
   CHECK(by_cluster.groups.size() == by_file.groups.size());
   CHECK(describe(plain, by_cluster) == describe(plain, by_file));
+  CHECK(Comprendo::next_grouping(Grouping::Cluster) == Grouping::File);
   CHECK(Comprendo::next_grouping(Grouping::File) == Grouping::Namespace);
   CHECK(Comprendo::next_grouping(Grouping::Namespace) == Grouping::Cluster);
-  CHECK(Comprendo::next_grouping(Grouping::Cluster) == Grouping::File);
   CHECK(Comprendo::to_string(Grouping::Cluster) == "cluster");
 }

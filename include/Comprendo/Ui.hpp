@@ -66,7 +66,7 @@ namespace Comprendo
     std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> log_sink;
 
     /// Grouping chosen in the View menu.
-    Grouping grouping = Grouping::File;
+    Grouping grouping = Grouping::Cluster;
 
     /// Set by the View menu to fit the chart into the graph area; cleared by the
     /// viewer, which keeps the chart fitted until the user zooms or pans.

@@ -36,7 +36,7 @@ namespace Comprendo
   std::string_view
   to_string(Grouping grouping);
 
-  /// The grouping the `G` key switches to: file, namespace, cluster, file, ...
+  /// The grouping the `G` key switches to: cluster, file, namespace, cluster, ...
   ///
   /// \param grouping Current grouping.
   /// \return Next grouping.

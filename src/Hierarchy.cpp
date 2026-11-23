@@ -232,9 +232,9 @@ namespace Comprendo
   {
     switch (grouping)
     {
+    case Grouping::Cluster: return Grouping::File;
     case Grouping::File: return Grouping::Namespace;
     case Grouping::Namespace: return Grouping::Cluster;
-    case Grouping::Cluster: return Grouping::File;
     }
     return Grouping::File;
   }
