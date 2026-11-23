@@ -544,3 +544,5 @@ commit. Newest last.
   the panel font (Inter-Variable.ttf at 14 px).
 - Checked under xvfb with an isolated XDG_CONFIG_HOME: dialog, live switch
   to Inter (panels, dialog, labels), saved file, restored after restart.
+
+- Commit: `a10a2d0`.
