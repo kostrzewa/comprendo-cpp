@@ -100,15 +100,21 @@ namespace Comprendo
     static void
     end_frame();
 
-    /// Return true when ImGui wants mouse input.
+    /// Check whether ImGui wants mouse input.
+    ///
+    /// \return True when ImGui wants mouse input.
     static bool
     wants_mouse();
 
-    /// Return true when ImGui wants keyboard input.
+    /// Check whether ImGui wants keyboard input.
+    ///
+    /// \return True when ImGui wants keyboard input.
     static bool
     wants_keyboard();
 
-    /// Return true when the dockable panels exist in the current ImGui context.
+    /// Check whether the dockable panels exist in the current ImGui context.
+    ///
+    /// \return True when the panels exist.
     static bool
     panels_created();
 
@@ -118,7 +124,9 @@ namespace Comprendo
     static void
     log_viewport_state(const char *prefix);
 
-    /// Return true when ImGui's display size matches the raylib window size.
+    /// Check whether ImGui's display size matches the raylib window size.
+    ///
+    /// \return True when the sizes match.
     static bool
     viewport_matches_window();
 

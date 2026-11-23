@@ -23,6 +23,10 @@ namespace Comprendo
     bool angled = false;
 
     /// Memberwise equality.
+
+    ///
+
+    /// \return True when all members are equal.
     bool
     operator==(const IncludeDirective &) const = default;
   };

@@ -39,6 +39,10 @@ namespace Comprendo
     bool deleted = false;
 
     /// Memberwise equality.
+
+    ///
+
+    /// \return True when all members are equal.
     bool
     operator==(const CtagsTag &) const = default;
   };

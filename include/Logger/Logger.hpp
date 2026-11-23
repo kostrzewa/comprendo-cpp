@@ -21,6 +21,8 @@ namespace Comprendo::Logger
   struct LoggerError : std::runtime_error
   {
     /// Construct the exception from a formatted message.
+    ///
+    /// \param msg Formatted message.
     explicit LoggerError(const std::string &msg) : std::runtime_error("Logger::error: " + msg) { }
   };
 

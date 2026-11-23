@@ -253,11 +253,15 @@ Done:
   repository `.clang-tidy`); the code base is clean, with justified `NOLINT`s
   only for POSIX and SQLite API casts.
 
+- Documentation pass: `docs/main.md` is a user guide (extraction, viewer,
+  plugin, chart format); Doxygen runs with `EXTRACT_ALL=NO` and
+  `WARN_IF_UNDOCUMENTED`, and reports no warnings.
+
 Open:
 
 - Kind filters, drill-down, minimap.
 - clangd `Uses` edges (`references`) and hover text for node details.
 - Profiler scopes and Perfetto dump.
-- Documentation pass (`docs/main.md`) and screenshots.
+- Screenshots for the documentation.
 - SFML DSP tones; Jolt cosmetic particles.
 

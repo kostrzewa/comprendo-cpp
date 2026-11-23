@@ -96,6 +96,8 @@ namespace Comprendo
 
     /// Enter a named scope.  The scope identity is (parent_scope, name), so
     /// the same name under different callers produces distinct scope records.
+    ///
+    /// \param name Scope name.
     static void
     push(const std::string &name)
     {
@@ -175,6 +177,8 @@ namespace Comprendo
 
     /// Access the aggregated scope records (scope_id → Scope).
     /// Scope 0 is the implicit root.
+    ///
+    /// \return Scope records indexed by scope id.
     static const std::vector<Scope> &
     get_scopes()
     {
@@ -182,6 +186,8 @@ namespace Comprendo
     }
 
     /// Enable / disable per-invocation trace recording (on by default).
+    ///
+    /// \param on True to record trace events.
     static void
     set_tracing(bool on)
     {
@@ -191,6 +197,8 @@ namespace Comprendo
     /// Write the trace buffer to \p path in Chrome Trace Event JSON format.
     /// The file can be opened directly in Perfetto (ui.perfetto.dev) or
     /// chrome://tracing.
+    ///
+    /// \param path Output file.
     static void
     dump_perfetto(const std::string &path)
     {
@@ -278,6 +286,8 @@ namespace Comprendo
     ///
     /// A grand-total footer reports program wall time, total accounted time,
     /// and total missing (unprofiled) time.
+    ///
+    /// \param max_depth Levels of descendants shown below each root scope.
     static void
     print_profile(int max_depth = 1)
     {

@@ -29,6 +29,10 @@ namespace Comprendo
     std::uint8_t b = 0;
 
     /// Memberwise equality.
+
+    ///
+
+    /// \return True when all members are equal.
     bool
     operator==(const Rgb &) const = default;
   };
@@ -54,6 +58,10 @@ namespace Comprendo
     float height = 0.0F;
 
     /// Memberwise equality.
+
+    ///
+
+    /// \return True when all members are equal.
     bool
     operator==(const ScreenRect &) const = default;
   };
@@ -142,6 +150,10 @@ namespace Comprendo
     DrawStyle style = DrawStyle::Disk;
 
     /// Memberwise equality.
+
+    ///
+
+    /// \return True when all members are equal.
     bool
     operator==(const DrawItem &) const = default;
   };
@@ -159,6 +171,10 @@ namespace Comprendo
     float weight = 0.0F;
 
     /// Memberwise equality.
+
+    ///
+
+    /// \return True when all members are equal.
     bool
     operator==(const VisibleEdge &) const = default;
   };

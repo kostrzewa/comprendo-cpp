@@ -62,10 +62,13 @@ panels without updating the plan.
 
 ## Documentation
 
-Doxygen documentation is non-negotiable. Build it with:
+Doxygen documentation is non-negotiable. The target exists only with
+`COMPRENDO_BUILD_DOXYGEN=ON`; it warns about every undocumented member,
+parameter, and return value and must stay warning-free:
 
 ```sh
-cmake --build --preset clang-22 --target doxygen
+cmake --preset clang-22 -B build/doxygen -DCOMPRENDO_BUILD_DOXYGEN=ON
+cmake --build build/doxygen --target doxygen
 ```
 
 Keep `docs/main.md` and the `plan/` documents current.

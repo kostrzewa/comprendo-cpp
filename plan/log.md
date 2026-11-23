@@ -101,3 +101,13 @@ commit. Newest last.
   could reach the exception message. The exit codes became constants instead
   of an unscoped enum.
 
+- Commit: `5894649`.
+
+## 2026-11-23 — M7d documentation pass
+
+- `docs/main.md` became the user guide. The documented `doxygen` target only
+  exists with `COMPRENDO_BUILD_DOXYGEN=ON`, so earlier "no warnings" checks
+  had not run at all; with `EXTRACT_ALL` on, undocumented members would not
+  have warned anyway. Doxygen is now strict, and the 25 missing `\return` and
+  `\param` lines were added.
+

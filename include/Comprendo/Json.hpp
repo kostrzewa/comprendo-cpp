@@ -170,6 +170,10 @@ namespace Comprendo
     string_or_empty(std::string_view key) const;
 
     /// Memberwise equality; object member order is significant.
+
+    ///
+
+    /// \return True when all members are equal.
     bool
     operator==(const Json &) const = default;
 
