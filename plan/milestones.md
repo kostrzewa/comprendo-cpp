@@ -316,8 +316,10 @@ Open (waiting for a decision, see [log](log.md)):
   trunk per destination) and hover emphasis of a group's lines.
 - k. (done) Lines between the selection's children appear only on hover.
 - l. (done) Lines and trunks end at the rims of the disks they connect
-  (`rim_to_rim`) instead of their centres; fibres still start at the
-  children's centres.
+  (`rim_to_rim`) instead of their centres.
+- m. (done) Fibres start at the children's rims too, and a small port (a dot
+  in the line's colour, sized by its width) marks every point where a line
+  leaves a disk.
 
 ## M10 — opencode 2.x plugin (complete)
 

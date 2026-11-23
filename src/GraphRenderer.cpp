@@ -465,7 +465,8 @@ void main()
 
   /// Draw the frame's edges: straight lines, and lines bundled through the
   /// selection's rim (thin fibres from its children to the rim, one trunk per
-  /// peer from there). Lines between the selection's children are drawn only
+  /// peer from there). Lines run from rim to rim, and a small port marks each
+  /// point where one leaves a disk. Lines between the selection's children are drawn only
   /// while the mouse is over one of their ends inside the selection. While the
   /// mouse is over a group with lines, its lines (and the trunks its fibres
   /// feed) are emphasized and all others dimmed.
@@ -491,6 +492,9 @@ void main()
     constexpr float kDimmed = 0.2F;
     // Lines end at the rims; between touching disks a short stub stays visible.
     constexpr float kMinLineLength = 6.0F;
+    constexpr float kPortBase = 1.5F;
+    constexpr float kPortPerWidth = 0.6F;
+    constexpr float kPortAlpha = 1.6F;
 
     const auto touches = [&](std::size_t group)
     {
@@ -520,6 +524,23 @@ void main()
       bool touched = false;
     };
     std::map<std::pair<std::size_t, std::size_t>, Trunk> trunks;
+
+    struct Port
+    {
+      Vector2 at {};
+      float radius = 0.0F;
+      Color color {};
+    };
+    // Drawn after all lines so they sit on top of them.
+    std::vector<Port> ports;
+    const auto port = [&](Vector2 at, float width, Color color)
+    {
+      ports.push_back(
+        {.at = at,
+         .radius = kPortBase + (kPortPerWidth * width),
+         .color = scale_alpha(color, kPortAlpha)}
+      );
+    };
     for (const VisibleEdge &edge : frame.edges)
     {
       if (!drawn(edge))
@@ -537,12 +558,14 @@ void main()
           screen_radius(view, camera, edge.to),
           kMinLineLength
         );
-        painter.line(
-          to_vector2(segment.from),
-          to_vector2(segment.to),
-          edge_width(edge.weight, kLineMaxFactor),
-          color
-        );
+        const float width = edge_width(edge.weight, kLineMaxFactor);
+        painter.line(to_vector2(segment.from), to_vector2(segment.to), width, color);
+        // Nested disks: the line ends at the outer centre, which is no port.
+        if (!view.contains(edge.from, edge.to) && !view.contains(edge.to, edge.from))
+        {
+          port(to_vector2(segment.from), width, color);
+          port(to_vector2(segment.to), width, color);
+        }
         continue;
       }
       const bool from_inside = view.contains(edge.via, edge.from);
@@ -557,9 +580,16 @@ void main()
       const Vector2 rim {
         .x = centre.x + (dx / length * radius), .y = centre.y + (dy / length * radius)
       };
-      painter.line(
-        screen_centre(view, camera, near), rim, edge_width(edge.weight, kFibreMaxFactor), color
+      const Comprendo::Segment fibre = Comprendo::rim_to_rim(
+        to_vec2(screen_centre(view, camera, near)),
+        screen_radius(view, camera, near),
+        to_vec2(rim),
+        0.0F,
+        0.0F
       );
+      const float width = edge_width(edge.weight, kFibreMaxFactor);
+      painter.line(to_vector2(fibre.from), rim, width, color);
+      port(to_vector2(fibre.from), width, color);
       Trunk &trunk = trunks[{edge.via, far}];
       trunk.rim = rim;
       trunk.by_kind.at(static_cast<std::size_t>(edge.kind)) += edge.weight;
@@ -577,12 +607,15 @@ void main()
         screen_radius(view, camera, ends.second),
         kMinLineLength
       );
-      painter.line(
-        to_vector2(segment.from),
-        to_vector2(segment.to),
-        edge_width(trunk.weight, kTrunkMaxFactor),
-        scale_alpha(edge_color(kind), emphasis(trunk.touched))
-      );
+      const float width = edge_width(trunk.weight, kTrunkMaxFactor);
+      const Color color = scale_alpha(edge_color(kind), emphasis(trunk.touched));
+      painter.line(to_vector2(segment.from), to_vector2(segment.to), width, color);
+      port(to_vector2(segment.from), width, color);
+      port(to_vector2(segment.to), width, color);
+    }
+    for (const Port &item : ports)
+    {
+      painter.disk(item.at, item.radius, item.color);
     }
   }
 } // namespace

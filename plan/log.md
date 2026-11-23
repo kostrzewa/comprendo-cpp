@@ -376,3 +376,12 @@ commit. Newest last.
   (`Layout engine`), and a field (`layout`).
 
 - Commit: `f66641e`.
+
+## 2026-11-23 — M9m fibres from the rims, ports
+
+- User request: lines of circles inside circles should also leave from the
+  rim, with a small node marking the spot. Fibres now start at the children's
+  rims; every rim end of a line, fibre, or trunk gets a port dot in the line's
+  colour (slightly more opaque, sized by the line width), drawn after all
+  lines. Nested straight lines (inner rim to outer centre) get no ports.
+- Checked under xvfb: nothing selected and `Layout engine` selected.

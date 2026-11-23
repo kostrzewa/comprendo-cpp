@@ -409,7 +409,9 @@ Input is ignored while ImGui uses the mouse or keyboard.
   group with lines, lines touching it and the trunks they feed are drawn at
   double opacity and the rest at 20%. Straight lines and trunks end at the
   rims of the disks they connect (`rim_to_rim`; a 6 px stub between touching
-  disks, inner rim to outer centre for nested ones);
+  disks, inner rim to outer centre for nested ones), fibres start at the
+  children's rims, and a port (dot, radius 1.5 px + 0.6 × line width, drawn
+  above all lines) marks each rim end;
 - one line per pair of groups (`merge_pairs`): kinds and directions merge,
   weight sums, colour = kind with the largest weight, direction = heavier one;
 - edge aggregation (default): each edge is lifted to the two sibling groups
