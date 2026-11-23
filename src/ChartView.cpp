@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -551,20 +552,38 @@ namespace Comprendo
         edges.push_back({.from = from, .to = to, .kind = edge.kind, .weight = edge.weight});
       }
     }
-    const auto key
-      = [](const VisibleEdge &edge) { return std::tuple {edge.from, edge.to, edge.kind}; };
-    std::ranges::sort(edges, {}, key);
-    std::vector<VisibleEdge> merged;
+    return merge_pairs(edges);
+  }
+
+  std::vector<VisibleEdge>
+  merge_pairs(const std::vector<VisibleEdge> &edges)
+  {
+    struct Pair
+    {
+      std::array<float, kEdgeKindCount> by_kind {};
+      float forward = 0.0F;
+      float backward = 0.0F;
+    };
+    std::map<std::pair<std::size_t, std::size_t>, Pair> pairs;
     for (const VisibleEdge &edge : edges)
     {
-      if (!merged.empty() && key(merged.back()) == key(edge))
-      {
-        merged.back().weight += edge.weight;
-      }
-      else
-      {
-        merged.push_back(edge);
-      }
+      const bool forward = edge.from <= edge.to;
+      Pair &pair = pairs[{std::min(edge.from, edge.to), std::max(edge.from, edge.to)}];
+      pair.by_kind.at(static_cast<std::size_t>(edge.kind)) += edge.weight;
+      (forward ? pair.forward : pair.backward) += edge.weight;
+    }
+    std::vector<VisibleEdge> merged;
+    merged.reserve(pairs.size());
+    for (const auto &[ends, pair] : pairs)
+    {
+      const auto dominant = std::ranges::max_element(pair.by_kind);
+      const bool forward = pair.forward >= pair.backward;
+      merged.push_back({
+        .from = forward ? ends.first : ends.second,
+        .to = forward ? ends.second : ends.first,
+        .kind = static_cast<EdgeKind>(dominant - pair.by_kind.begin()),
+        .weight = pair.forward + pair.backward,
+      });
     }
     return merged;
   }

@@ -468,11 +468,11 @@ namespace Comprendo
     /// groups' layout positions even when those are off screen or too small
     /// to draw. An endpoint whose kind (or an ancestor's) \p filter hides moves
     /// to the nearest shown ancestor. Edges whose endpoints coincide are
-    /// dropped; parallel edges of one kind are merged with summed weight.
+    /// dropped; the rest are merged into one line per pair (see merge_pairs()).
     ///
     /// \param filter Hidden kinds and the edge display mode.
     /// \param focus Selected group whose crossing edges are refined.
-    /// \return Edges sorted by (from, to, kind).
+    /// \return One edge per pair of groups, sorted by the pair.
     [[nodiscard]]
     std::vector<VisibleEdge>
     shown_edges(
@@ -599,6 +599,20 @@ namespace Comprendo
     /// Edges touching each node.
     std::vector<NodeEdges> m_node_edges;
   };
+  /// Merge edges into one line per unordered pair of groups.
+  ///
+  /// Lines have no arrowheads and their colour shows one kind, so edges of
+  /// every kind and both directions between two groups become one line: its
+  /// weight is the sum, its kind the one with the largest summed weight (the
+  /// lower kind on ties), its direction the heavier one (from the lower group
+  /// index on ties).
+  ///
+  /// \param edges Edges, possibly several per pair.
+  /// \return One edge per pair, ordered by (lower group, higher group).
+  [[nodiscard]]
+  std::vector<VisibleEdge>
+  merge_pairs(const std::vector<VisibleEdge> &edges);
+
   /// Maps between the chart and a small overview box in a corner of the graph area.
   struct Minimap
   {

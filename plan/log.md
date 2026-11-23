@@ -292,3 +292,11 @@ commit. Newest last.
   choice, which fans out on real charts.
 
 - Commit: `7347d1d`.
+
+## 2026-11-23 — M9i one line per pair
+
+- Uses, calls, and includes between two groups, in both directions, merge
+  into one line (colour = heaviest kind). The overview of the user's chart is
+  now one line per cluster pair; with Tests selected about 60-80 links remain,
+  real ones (20 test files reaching 3-5 clusters each).
+

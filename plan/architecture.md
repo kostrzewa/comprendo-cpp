@@ -361,6 +361,8 @@ Input is ignored while ImGui uses the mouse or keyboard.
 - cluster grouping (convex-hull fills over the file layout were dropped:
   clusters span files, so hulls would overlap everything); side panel with
   summary/detail/file:line/edges;
+- one line per pair of groups (`merge_pairs`): kinds and directions merge,
+  weight sums, colour = kind with the largest weight, direction = heavier one;
 - edge aggregation (default): each edge is lifted to the two sibling groups
   directly below its endpoints' deepest common group (`GroupEdge::lifted_*`,
   computed once per grouping); such a line is drawn only when that common

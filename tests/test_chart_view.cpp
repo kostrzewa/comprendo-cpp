@@ -499,22 +499,21 @@ TEST_CASE("minimap maps between overview and chart", "[view]")
 }
 
 /// Thousands of member-to-member lines drown the chart, so by default edges
-/// are summarized between sibling groups. In the fully expanded sample, checks
-/// the two calls from n1 to A's methods become one call line of weight 2
-/// between b.cpp and a.cpp, and checks contains() on the hierarchy the lines
-/// are lifted along.
+/// are summarized between sibling groups. In the sample, checks the two calls
+/// from n1 to A's methods and b.cpp's include of a.cpp become one line of
+/// weight 3 between b.cpp and a.cpp, coloured as calls, and checks contains()
+/// on the hierarchy the lines are lifted along.
 TEST_CASE("edges are aggregated between sibling groups by default", "[view]")
 {
   const ChartView view {sample_chart(), Grouping::File};
   const auto aggregated = view.shown_edges();
-  const auto call = std::ranges::find(aggregated, EdgeKind::Calls, &Comprendo::VisibleEdge::kind);
-  CHECK(std::ranges::count(aggregated, EdgeKind::Calls, &Comprendo::VisibleEdge::kind) == 1);
-  CHECK(call != aggregated.end());
-  if (call != aggregated.end())
+  CHECK(aggregated.size() == 1);
+  if (aggregated.size() == 1)
   {
-    CHECK(call->from == group_of(view, 2));
-    CHECK(call->to == group_of(view, 1));
-    CHECK(call->weight == 2.0F);
+    CHECK(aggregated.front().from == group_of(view, 2));
+    CHECK(aggregated.front().to == group_of(view, 1));
+    CHECK(aggregated.front().kind == EdgeKind::Calls);
+    CHECK(aggregated.front().weight == 3.0F);
   }
   CHECK(view.contains(group_of(view, 1), group_of(view, 7)));
   CHECK_FALSE(view.contains(group_of(view, 7), group_of(view, 1)));
@@ -557,8 +556,8 @@ TEST_CASE("selection refines its crossing edges by one level", "[view]")
   };
   using Calls = std::vector<std::pair<Pair, float>>;
 
-  CHECK(call_pairs(std::nullopt) == Calls {{{cluster(200), cluster(100)}, 2.0F}});
-  CHECK(call_pairs(cluster(200)) == Calls {{{group_of(view, 2), cluster(100)}, 2.0F}});
+  CHECK(call_pairs(std::nullopt) == Calls {{{cluster(200), cluster(100)}, 3.0F}});
+  CHECK(call_pairs(cluster(200)) == Calls {{{group_of(view, 2), cluster(100)}, 3.0F}});
   CHECK(call_pairs(group_of(view, 2)) == Calls {{{group_of(view, 4), group_of(view, 1)}, 2.0F}});
   CHECK(call_pairs(group_of(view, 6)) == Calls {{{group_of(view, 9), group_of(view, 5)}, 2.0F}});
   CHECK(
@@ -649,4 +648,27 @@ TEST_CASE("internal lines are drawn only along the selection's path", "[view]")
       { return edge.from == group_of(view, 2) && edge.to == group_of(view, 1); }
     )
   );
+}
+
+/// Uses, calls, and includes between the same two groups, in either direction,
+/// used to stack as separate lines. Merges a mix of kinds and directions and
+/// checks one line per pair remains, with summed weight, the heaviest kind as
+/// colour, the heavier direction, and pairs ordered by their groups.
+TEST_CASE("edges merge into one line per pair", "[view]")
+{
+  using Comprendo::VisibleEdge;
+  const std::vector<VisibleEdge> edges = {
+    {.from = 4, .to = 2, .kind = EdgeKind::Uses, .weight = 3.0F},
+    {.from = 2, .to = 4, .kind = EdgeKind::Calls, .weight = 2.0F},
+    {.from = 4, .to = 2, .kind = EdgeKind::Includes, .weight = 1.0F},
+    {.from = 1, .to = 3, .kind = EdgeKind::Calls, .weight = 1.0F},
+  };
+  CHECK(
+    Comprendo::merge_pairs(edges)
+    == std::vector<VisibleEdge> {
+      {.from = 1, .to = 3, .kind = EdgeKind::Calls, .weight = 1.0F},
+      {.from = 4, .to = 2, .kind = EdgeKind::Uses, .weight = 6.0F},
+    }
+  );
+  CHECK(Comprendo::merge_pairs({}).empty());
 }

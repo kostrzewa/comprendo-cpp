@@ -311,4 +311,5 @@ Open (waiting for a decision, see [log](log.md)):
   level and one line per pair regardless of kind.
 - h. (done) The selection's crossing lines end at the selection's peers (the
   far end at the selection's depth) instead of one level deeper on both sides.
+- i. (done) One line per pair of groups regardless of kind and direction.
 
