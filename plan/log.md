@@ -203,3 +203,17 @@ commit. Newest last.
   this touch" question that member lines used to answer.
 
 - Commit: `9b7a05b`.
+- Commit: `2cd06d8`.
+
+## 2026-11-23 — M8e–h Inspector lists, keyboard, animated navigation
+
+- Items 5 and 8 of the request overlap; implemented as: double click centres
+  without zooming, animated (0.25 s, ease-out), and Backspace returns,
+  animated, to the previous view and selection.
+- The double click's first click already changes the selection, so the view
+  to return to is captured when a click sequence starts, not on the double
+  click itself.
+- Camera maths, cursor movement, and history are pure (`Navigation`) and unit
+  tested; the smoke test drives a jump and a Backspace in the real viewer.
+  Key handling itself is untested: no input automation tool is installed.
+

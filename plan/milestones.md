@@ -270,7 +270,7 @@ Open (waiting for a decision, see [log](log.md)):
 
 - SFML DSP tones; Jolt cosmetic particles.
 
-## M8 — Documentation-aware charts and viewer navigation (in progress)
+## M8 — Documentation-aware charts and viewer navigation (complete)
 
 - a. (done) Doxygen comments become summaries and details at extraction (both
   backends; header documentation reaches source definitions); the `/chart`
@@ -285,9 +285,9 @@ Open (waiting for a decision, see [log](log.md)):
   selection keeps its own edges; View → Member connections shows all.
 - e. (done) Inspector: Detail, Contains, Outgoing, Incoming always shown as headed
   lists, each with its own scrollbar.
-- f. Double-click centres the object with a short, smooth animation (zoom
+- f. (done) Double-click centres the object with a short, smooth animation (zoom
   unchanged); Backspace returns to the previous view and selection.
 - g. (done) Inspector keyboard navigation: Up/Down move through the lists, Enter
   jumps to the highlighted entry.
-- h. Graph keyboard navigation: WASD pans, E zooms in, Q zooms out.
+- h. (done) Graph keyboard navigation: WASD pans, E zooms in, Q zooms out.
 

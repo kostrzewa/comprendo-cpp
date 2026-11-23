@@ -4,7 +4,11 @@
 /// \brief Pure navigation helpers for the viewer: list cursors, camera animations, and history.
 
 #include <cstddef>
+#include <cstdint>
+#include <deque>
 #include <optional>
+
+#include "Comprendo/QuadTree.hpp"
 
 namespace Comprendo
 {
@@ -20,4 +24,122 @@ namespace Comprendo
   [[nodiscard]]
   std::optional<std::size_t>
   move_list_cursor(std::optional<std::size_t> cursor, std::size_t rows, int delta);
+
+  /// Where a camera looks: the chart point at the screen centre and the zoom.
+  struct CameraPose
+  {
+    /// Chart point shown at the centre of the screen.
+    Vec2 target;
+    /// Screen pixels per chart unit.
+    float zoom = 1.0F;
+
+    /// Memberwise equality.
+    ///
+    /// \return True when all members are equal.
+    bool
+    operator==(const CameraPose &) const = default;
+  };
+
+  /// A short camera move between two poses.
+  ///
+  /// Eases out (cubic), so the move starts fast and settles gently. The target
+  /// moves linearly in chart space and the zoom geometrically, so a pure pan
+  /// keeps the zoom exactly and zooming feels uniform.
+  class CameraAnimation
+  {
+  public:
+    /// Plan a move.
+    ///
+    /// \param from Pose at the start.
+    /// \param to Pose at the end.
+    /// \param start Start time in seconds.
+    /// \param duration Length in seconds; zero or less jumps immediately.
+    CameraAnimation(CameraPose from, CameraPose to, double start, double duration);
+
+    /// Pose at a time; clamped to the start and end poses outside the move.
+    ///
+    /// \param now Time in seconds.
+    /// \return The pose.
+    [[nodiscard]]
+    CameraPose
+    at(double now) const;
+
+    /// Check whether the move is over.
+    ///
+    /// \param now Time in seconds.
+    /// \return True from the end time on.
+    [[nodiscard]]
+    bool
+    finished(double now) const;
+
+  private:
+    /// Pose at the start.
+    CameraPose m_from;
+    /// Pose at the end.
+    CameraPose m_to;
+    /// Start time in seconds.
+    double m_start;
+    /// Length in seconds.
+    double m_duration;
+  };
+
+  /// A view to return to: camera pose and the selected group's stable key.
+  struct NavigationEntry
+  {
+    /// Camera pose.
+    CameraPose pose;
+    /// HierarchyGroup::key of the selection, or nothing when nothing was selected.
+    std::optional<std::uint64_t> selected;
+
+    /// Memberwise equality.
+    ///
+    /// \return True when all members are equal.
+    bool
+    operator==(const NavigationEntry &) const = default;
+  };
+
+  /// Views visited before jumps, newest last, for going back.
+  class NavigationHistory
+  {
+  public:
+    /// Create an empty history keeping kDefaultCapacity entries.
+    NavigationHistory() = default;
+
+    /// Create an empty history.
+    ///
+    /// \param capacity Most entries kept; the oldest are dropped beyond it.
+    explicit NavigationHistory(std::size_t capacity) : m_capacity(capacity) { }
+
+    /// Remember a view before jumping away from it.
+    ///
+    /// \param entry View to return to; ignored when equal to the newest entry.
+    void
+    push(const NavigationEntry &entry);
+
+    /// Take the newest view.
+    ///
+    /// \return The view, or nothing when the history is empty.
+    [[nodiscard]]
+    std::optional<NavigationEntry>
+    pop();
+
+    /// Number of views remembered.
+    ///
+    /// \return Entry count.
+    [[nodiscard]]
+    std::size_t
+    size() const
+    {
+      return m_entries.size();
+    }
+
+  private:
+    /// Default number of entries kept.
+    static constexpr std::size_t kDefaultCapacity = 100;
+
+    /// Most entries kept.
+    std::size_t m_capacity = kDefaultCapacity;
+    /// Entries, oldest first.
+    std::deque<NavigationEntry> m_entries;
+  };
 } // namespace Comprendo

@@ -85,7 +85,10 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | Mouse wheel | Zoom about the cursor |
 | Left drag, right or middle drag | Pan |
 | Left click | Select (Inspector shows it, Explorer reveals it) |
-| Double click | Drill down: select and zoom to the group |
+| Double click | Select and centre the object with a short animation (zoom unchanged) |
+| `Backspace` | Go back to the view and selection before the last jump (double click, Explorer, Inspector) |
+| `W` `A` `S` `D` | Pan |
+| `E` / `Q` | Zoom in / out |
 | Click or drag in the minimap | Move the view there (View → Minimap toggles it) |
 | Hover | Tooltip: name, kind, file:line |
 | `Home` | Fit the chart; it stays fitted until you zoom or pan |

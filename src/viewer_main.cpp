@@ -26,6 +26,7 @@
 #include "Comprendo/ChartStore.hpp"
 #include "Comprendo/ChartView.hpp"
 #include "Comprendo/ChartWatcher.hpp"
+#include "Comprendo/Navigation.hpp"
 #include "Comprendo/Cli.hpp"
 #include "Comprendo/GraphRenderer.hpp"
 #include "Comprendo/Ui.hpp"
@@ -52,6 +53,15 @@ namespace
 
   /// Side of the minimap in pixels.
   constexpr float kMinimapSize = 160.0F;
+
+  /// Length of the double-click and Backspace camera moves in seconds.
+  constexpr double kJumpSeconds = 0.25;
+
+  /// Keyboard panning speed, in graph-area sizes per second.
+  constexpr float kKeyPanSpeed = 0.9F;
+
+  /// Keyboard zoom rate: the zoom doubles (E) or halves (Q) every this many seconds.
+  constexpr float kKeyZoomDoubling = 0.5F;
 
   /// Distance of the minimap from the graph area's edges in pixels.
   constexpr float kMinimapMargin = 12.0F;
@@ -97,7 +107,7 @@ namespace
   constexpr float kFocusMargin = 0.6F;
 
   /// Number of frames rendered by the smoke test.
-  constexpr int kSmokeTestFrames = 34;
+  constexpr int kSmokeTestFrames = 36;
 
   /// Frame on which the smoke test fits the chart and checks it is visible.
   constexpr int kSmokeChartFitFrame = 18;
@@ -131,6 +141,12 @@ namespace
 
   /// Frame on which the smoke test checks the cluster grouping is shown.
   constexpr int kSmokeChartClusterCheckFrame = 32;
+
+  /// Frame on which the smoke test double-click-jumps to a group.
+  constexpr int kSmokeChartJumpFrame = 33;
+
+  /// Frame on which the smoke test goes back with Backspace.
+  constexpr int kSmokeChartBackFrame = 34;
 
   /// Window width used by the smoke test resize step.
   constexpr int kSmokeResizeWidth = 800;
@@ -329,6 +345,14 @@ namespace
     bool dragging = false;
     /// True while a left-button press that started on the minimap is held.
     bool minimap_drag = false;
+    /// Running camera move (double-click centring, Backspace), if any.
+    std::optional<Comprendo::CameraAnimation> animation;
+    /// Views to return to with Backspace.
+    Comprendo::NavigationHistory history;
+    /// View when the current click sequence began, remembered by a double click.
+    Comprendo::NavigationEntry click_origin;
+    /// Selection at the end of the previous frame, remembered by panel jumps.
+    std::optional<std::size_t> previous_selected;
     /// True until the user zooms or pans: the fit target is refitted whenever
     /// the graph area changes (startup layout, window resize, re-docked panels).
     bool auto_fit = true;
@@ -354,6 +378,44 @@ namespace
       .width = static_cast<float>(GetScreenWidth()),
       .height = static_cast<float>(GetScreenHeight()),
     };
+  }
+
+  /// Current camera pose.
+  ///
+  /// \param camera Camera.
+  /// \return Target and zoom.
+  Comprendo::CameraPose
+  pose_of(const Comprendo::ViewCamera &camera)
+  {
+    return {.target = camera.target, .zoom = camera.zoom};
+  }
+
+  /// Stable key of a selected group, valid across regrouping and reloads.
+  ///
+  /// \param view Chart view.
+  /// \param group Selected group, if any.
+  /// \return HierarchyGroup::key, or nothing.
+  std::optional<std::uint64_t>
+  group_key(const Comprendo::ChartView &view, std::optional<std::size_t> group)
+  {
+    return group && *group < view.hierarchy().groups.size()
+      ? std::optional {view.hierarchy().groups[*group].key}
+      : std::nullopt;
+  }
+
+  /// Find the group with a stable key.
+  ///
+  /// \param view Chart view.
+  /// \param key HierarchyGroup::key.
+  /// \return Group index, or nothing when the group no longer exists.
+  std::optional<std::size_t>
+  group_with_key(const Comprendo::ChartView &view, std::uint64_t key)
+  {
+    const auto &groups = view.hierarchy().groups;
+    const auto found = std::ranges::find(groups, key, &Comprendo::HierarchyGroup::key);
+    return found == groups.end() || found == groups.begin()
+      ? std::nullopt
+      : std::optional {static_cast<std::size_t>(found - groups.begin())};
   }
 
   /// Load a chart and prepare it for viewing.
@@ -463,6 +525,7 @@ namespace
     {
       next.camera = session->camera;
       next.auto_fit = session->auto_fit;
+      next.history = std::move(session->history);
     }
     state.selected.reset();
     if (const auto node = selected ? next.view.node_index(*selected) : std::nullopt)
@@ -579,8 +642,16 @@ namespace
   apply_requests(GraphSession &session, Comprendo::ViewerState &state)
   {
     apply_grouping(session, state);
+    if (state.focus_requested && state.selected)
+    {
+      session.history.push(
+        {.pose = pose_of(session.camera),
+         .selected = group_key(session.view, session.previous_selected)}
+      );
+    }
     if (state.fit_requested || (state.focus_requested && state.selected))
     {
+      session.animation.reset();
       session.auto_fit = true;
       session.fit_group = state.fit_requested ? std::nullopt : state.selected;
       session.fitted_area = {};
@@ -605,6 +676,112 @@ namespace
       session.fitted_area = state.graph_area;
     }
     state.zoom = session.camera.zoom;
+    session.previous_selected = state.selected;
+  }
+
+  /// Start a short camera move from the current pose.
+  ///
+  /// \param session Session whose camera moves.
+  /// \param to Pose at the end.
+  void
+  animate_to(GraphSession &session, const Comprendo::CameraPose &to)
+  {
+    session.animation.emplace(pose_of(session.camera), to, GetTime(), kJumpSeconds);
+    session.auto_fit = false;
+    session.fit_group.reset();
+  }
+
+  /// Advance a running camera move.
+  ///
+  /// \param session Session whose camera moves.
+  void
+  step_animation(GraphSession &session)
+  {
+    if (!session.animation)
+    {
+      return;
+    }
+    const double now = GetTime();
+    const Comprendo::CameraPose pose = session.animation->at(now);
+    session.camera.target = pose.target;
+    session.camera.zoom = pose.zoom;
+    if (session.animation->finished(now))
+    {
+      session.animation.reset();
+    }
+  }
+
+  /// Centre a group in the graph area with a short move, keeping the zoom, and
+  /// remember the view before the click sequence for Backspace.
+  ///
+  /// \param session Session to update.
+  /// \param state Viewer state receiving the selection.
+  /// \param group Group to centre.
+  void
+  jump_to(GraphSession &session, Comprendo::ViewerState &state, std::size_t group)
+  {
+    session.history.push(session.click_origin);
+    state.selected = group;
+    state.reveal_requested = true;
+    Comprendo::ViewCamera centred = session.camera;
+    Comprendo::centre_on(centred, session.view.group_centre(group), graph_area(state));
+    animate_to(session, {.target = centred.target, .zoom = session.camera.zoom});
+  }
+
+  /// Return to the newest remembered view and its selection.
+  ///
+  /// \param session Session to update.
+  /// \param state Viewer state receiving the selection.
+  void
+  go_back(GraphSession &session, Comprendo::ViewerState &state)
+  {
+    const auto entry = session.history.pop();
+    if (!entry)
+    {
+      return;
+    }
+    state.selected
+      = entry->selected ? group_with_key(session.view, *entry->selected) : std::nullopt;
+    state.reveal_requested = state.selected.has_value();
+    session.previous_selected = state.selected;
+    animate_to(session, entry->pose);
+  }
+
+  /// Pan with WASD and zoom with E (in) and Q (out) while the keys are held.
+  ///
+  /// \param session Session whose camera moves.
+  /// \param state Viewer state holding the graph area.
+  void
+  handle_graph_keys(GraphSession &session, const Comprendo::ViewerState &state)
+  {
+    if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL))
+    {
+      return;
+    }
+    const Comprendo::ScreenRect area = graph_area(state);
+    const float dt = GetFrameTime();
+    const float step = kKeyPanSpeed * std::min(area.width, area.height) * dt;
+    const Comprendo::Vec2 pan {
+      .x = (IsKeyDown(KEY_A) ? step : 0.0F) - (IsKeyDown(KEY_D) ? step : 0.0F),
+      .y = (IsKeyDown(KEY_W) ? step : 0.0F) - (IsKeyDown(KEY_S) ? step : 0.0F),
+    };
+    const float zoom_sign = (IsKeyDown(KEY_E) ? 1.0F : 0.0F) - (IsKeyDown(KEY_Q) ? 1.0F : 0.0F);
+    if (pan.x == 0.0F && pan.y == 0.0F && zoom_sign == 0.0F)
+    {
+      return;
+    }
+    session.animation.reset();
+    session.auto_fit = false;
+    session.camera.pan(pan);
+    if (zoom_sign != 0.0F)
+    {
+      const Comprendo::Vec2 centre {
+        .x = area.x + (area.width / 2.0F), .y = area.y + (area.height / 2.0F)
+      };
+      session.camera.zoom_at(
+        centre, std::exp2(zoom_sign * dt / kKeyZoomDoubling), kMinZoom, kMaxZoom
+      );
+    }
   }
 
   /// Handle mouse input over the graph itself: drill-down on double click,
@@ -622,9 +799,7 @@ namespace
     {
       if (const auto group = session.view.pick(camera, point, {}, state.kinds))
       {
-        state.selected = group;
-        state.focus_requested = true;
-        state.reveal_requested = true;
+        jump_to(session, state, *group);
       }
     }
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !session.dragging)
@@ -637,6 +812,7 @@ namespace
       || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)
     )
     {
+      session.animation.reset();
       const Vector2 delta = GetMouseDelta();
       camera.pan({.x = delta.x, .y = delta.y});
       session.auto_fit = session.auto_fit && delta.x == 0.0F && delta.y == 0.0F;
@@ -666,6 +842,7 @@ namespace
     camera.width = static_cast<float>(GetScreenWidth());
     camera.height = static_cast<float>(GetScreenHeight());
     session.hovered.reset();
+    step_animation(session);
     if (!Comprendo::Ui::wants_mouse())
     {
       const Vector2 mouse = GetMousePosition();
@@ -673,6 +850,7 @@ namespace
       const float wheel = GetMouseWheelMove();
       if (wheel != 0.0F)
       {
+        session.animation.reset();
         camera.zoom_at(point, std::pow(kZoomStep, wheel), kMinZoom, kMaxZoom);
         session.auto_fit = false;
       }
@@ -685,6 +863,11 @@ namespace
         session.press = mouse;
         session.dragging = false;
         session.minimap_drag = minimap && minimap->contains(point);
+        if (!Comprendo::Ui::double_clicked())
+        {
+          session.click_origin
+            = {.pose = pose_of(camera), .selected = group_key(session.view, state.selected)};
+        }
       }
       if (session.minimap_drag)
       {
@@ -711,6 +894,11 @@ namespace
       {
         state.grouping = Comprendo::next_grouping(state.grouping);
       }
+      if (IsKeyPressed(KEY_BACKSPACE))
+      {
+        go_back(session, state);
+      }
+      handle_graph_keys(session, state);
     }
     apply_requests(session, state);
   }
@@ -925,6 +1113,22 @@ namespace
     case kSmokeChartClusterCheckFrame:
       return session.view.grouping() == Comprendo::Grouping::Cluster
         && !session.view.visible(session.camera).empty();
+    case kSmokeChartJumpFrame:
+    {
+      session.click_origin
+        = {.pose = pose_of(session.camera), .selected = group_key(session.view, state.selected)};
+      const float zoom = session.camera.zoom;
+      jump_to(session, state, session.view.display_children(0).back());
+      return session.animation && session.animation->at(1e9).zoom == zoom
+        && session.history.size() > 0;
+    }
+    case kSmokeChartBackFrame:
+    {
+      const Comprendo::NavigationEntry origin = session.click_origin;
+      go_back(session, state);
+      return session.animation && session.animation->at(1e9) == origin.pose
+        && group_key(session.view, state.selected) == origin.selected;
+    }
     default: return true;
     }
   }
@@ -954,10 +1158,18 @@ namespace
     std::chrono::steady_clock::duration drawing {};
     for (int frame = 0; frame < kSmokeTestFrames; ++frame)
     {
-      passed = run_smoke_step(frame) && passed;
+      if (!run_smoke_step(frame))
+      {
+        Comprendo::Logger::warn("Smoke: window check failed at frame {}", frame);
+        passed = false;
+      }
       if (session)
       {
-        passed = run_chart_step(frame, *session, state) && passed;
+        if (!run_chart_step(frame, *session, state))
+        {
+          Comprendo::Logger::warn("Smoke: chart check failed at frame {}", frame);
+          passed = false;
+        }
         apply_requests(*session, state);
       }
 

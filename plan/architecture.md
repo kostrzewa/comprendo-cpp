@@ -369,7 +369,14 @@ Input is ignored while ImGui uses the mouse or keyboard.
   dropped. The selection's own edges stay member to member; View → Member
   connections (`ViewFilter::member_edges`) shows all edges that way;
 - search; View → Show kind filters (`ViewFilter`, applied in `visible`,
-  `visible_edges`, and `pick`); double-click drill-down (select and focus);
+  `visible_edges`, and `pick`); double click selects and centres the object
+  in the graph area with a 0.25 s ease-out move at the current zoom
+  (`CameraAnimation`); Backspace returns to the view and selection before the
+  last jump (`NavigationHistory`, 100 entries; selections stored by
+  `HierarchyGroup::key` so they survive regrouping and reloads); Explorer and
+  Inspector jumps are recorded too. WASD pans (0.9 graph sizes per second)
+  and E/Q zoom about the graph centre (doubling every 0.5 s); any manual
+  camera input cancels a running move;
   a minimap in the graph area's bottom-right corner (`Minimap`: the top two
   hierarchy levels plus the viewport, at least 6 px; click or drag recentres);
 - Jolt particles for cosmetic interaction feedback only — never layout;
