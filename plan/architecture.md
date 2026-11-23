@@ -361,6 +361,13 @@ Input is ignored while ImGui uses the mouse or keyboard.
 - cluster grouping (convex-hull fills over the file layout were dropped:
   clusters span files, so hulls would overlap everything); side panel with
   summary/detail/file:line/edges;
+- edge aggregation (default): each edge is lifted to the two sibling groups
+  directly below its endpoints' deepest common group (`GroupEdge::lifted_*`,
+  computed once per grouping), so clusters, subclusters, files, and classes
+  are linked by one line per pair, drawn wider with the summed weight
+  (1 + ½·log2 w, at most 4×); edges where one endpoint contains the other are
+  dropped. The selection's own edges stay member to member; View → Member
+  connections (`ViewFilter::member_edges`) shows all edges that way;
 - search; View → Show kind filters (`ViewFilter`, applied in `visible`,
   `visible_edges`, and `pick`); double-click drill-down (select and focus);
   a minimap in the graph area's bottom-right corner (`Minimap`: the top two

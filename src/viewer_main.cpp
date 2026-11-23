@@ -729,7 +729,7 @@ namespace
   {
     Comprendo::GraphFrame frame;
     frame.items = session.view.visible(session.camera, {}, state.kinds);
-    frame.edges = session.view.visible_edges(frame.items, state.kinds);
+    frame.edges = session.view.visible_edges(frame.items, state.kinds, state.selected);
     frame.selected = state.selected;
     frame.hovered = session.hovered;
     frame.area = graph_area(state);

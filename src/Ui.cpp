@@ -710,6 +710,7 @@ namespace Comprendo
       ImGui::MenuItem("Inspector", nullptr, &state.show_inspector);
       ImGui::MenuItem("Log", nullptr, &state.show_log);
       ImGui::MenuItem("Minimap", nullptr, &state.show_minimap);
+      ImGui::MenuItem("Member connections", nullptr, &state.kinds.member_edges);
       draw_kind_menu(state.kinds);
       ImGui::Separator();
       if (ImGui::MenuItem("Group by cluster", "G", state.grouping == Grouping::Cluster))

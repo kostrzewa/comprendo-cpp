@@ -189,3 +189,16 @@ commit. Newest last.
   the same structure. The file-layout golden changed accordingly
   (`COMPRENDO_UPDATE_GOLDEN=1`); the other layout tests passed unchanged.
 
+- Commit: `7330709`.
+
+## 2026-11-23 — M8d aggregated connections
+
+- Aggregation is general rather than cluster-specific: lifting each edge to
+  the sibling pair below the endpoints' common ancestor gives cluster-to-
+  cluster lines at the top, subcluster lines inside a cluster, and file or
+  class lines further down, in every grouping. On this repository's
+  clustered chart the top level shows a handful of lines instead of
+  thousands.
+- Keeping the selection's own edges unaggregated preserves the "what does
+  this touch" question that member lines used to answer.
+

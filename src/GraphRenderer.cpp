@@ -471,10 +471,13 @@ namespace Comprendo
     }
     for (const VisibleEdge &edge : frame.edges)
     {
+      constexpr float kMaxWidthFactor = 4.0F;
+      const float factor
+        = std::min(1.0F + (0.5F * std::log2(std::max(edge.weight, 1.0F))), kMaxWidthFactor);
       painter.line(
         screen_centre(view, camera, edge.from),
         screen_centre(view, camera, edge.to),
-        kEdgeWidth,
+        kEdgeWidth * factor,
         edge_color(edge.kind)
       );
     }

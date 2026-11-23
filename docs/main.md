@@ -94,6 +94,13 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |
 
+Connections are aggregated by default: a line between two clusters (or two
+subclusters, files, classes, ...) stands for every relationship between their
+contents, thicker the more there are, and the relationships inside a group
+appear once you zoom into it. The selected object always shows its own
+connections individually. View → Member connections draws every relationship
+between its endpoints instead.
+
 View → Show hides symbol kinds (with their contents) and relationship kinds,
 for example everything but calls.
 

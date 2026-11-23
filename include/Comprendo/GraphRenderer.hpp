@@ -85,7 +85,8 @@ namespace Comprendo
     /// Draws in passes so each layer stays readable: container fills and rings,
     /// edges, leaf disks and points, highlight rings, then labels at a fixed
     /// pixel size for groups large enough to carry them (greedily placed without
-    /// overlap). Lines stay one pixel wide at every zoom.
+    /// overlap). Lines keep their pixel width at every zoom; an edge standing
+    /// for many chart edges is drawn thicker (logarithmic in its weight).
     ///
     /// \param view Chart view.
     /// \param camera View camera.

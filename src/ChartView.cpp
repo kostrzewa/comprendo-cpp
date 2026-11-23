@@ -288,6 +288,40 @@ namespace Comprendo
       );
     }
 
+    m_depth.assign(m_hierarchy.groups.size(), 0);
+    for (std::size_t group = 1; group < m_hierarchy.groups.size(); ++group)
+    {
+      std::uint32_t depth = 0;
+      for (std::size_t current = group; current != 0; current = m_hierarchy.groups[current].parent)
+      {
+        ++depth;
+      }
+      m_depth[group] = depth;
+    }
+    const auto lift
+      = [this](std::size_t from, std::size_t to) -> std::pair<std::size_t, std::size_t>
+    {
+      const auto parent = [this](std::size_t group) { return m_hierarchy.groups[group].parent; };
+      while (m_depth[from] > m_depth[to])
+      {
+        from = parent(from);
+      }
+      while (m_depth[to] > m_depth[from])
+      {
+        to = parent(to);
+      }
+      if (from == to)
+      {
+        return {0, 0};
+      }
+      while (parent(from) != parent(to))
+      {
+        from = parent(from);
+        to = parent(to);
+      }
+      return {from, to};
+    };
+
     m_edges.clear();
     for (const Edge &edge : m_chart.edges)
     {
@@ -295,11 +329,16 @@ namespace Comprendo
       const auto dst = m_node_of_id.find(edge.dst);
       if (edge.kind != EdgeKind::Contains && src != m_node_of_id.end() && dst != m_node_of_id.end())
       {
+        const std::size_t from = m_hierarchy.group_of_node[src->second];
+        const std::size_t to = m_hierarchy.group_of_node[dst->second];
+        const auto [lifted_from, lifted_to] = lift(from, to);
         m_edges.push_back({
-          .from = m_hierarchy.group_of_node[src->second],
-          .to = m_hierarchy.group_of_node[dst->second],
+          .from = from,
+          .to = to,
           .kind = edge.kind,
           .weight = edge.weight,
+          .lifted_from = lifted_from,
+          .lifted_to = lifted_to,
         });
       }
     }
@@ -423,7 +462,9 @@ namespace Comprendo
   }
 
   std::vector<VisibleEdge>
-  ChartView::visible_edges(const std::vector<DrawItem> &items, const ViewFilter &filter) const
+  ChartView::visible_edges(
+    const std::vector<DrawItem> &items, const ViewFilter &filter, std::optional<std::size_t> focus
+  ) const
   {
     std::vector<bool> drawn(m_hierarchy.groups.size(), false);
     for (const DrawItem &item : items)
@@ -446,8 +487,15 @@ namespace Comprendo
       {
         continue;
       }
-      const std::size_t from = representative(edge.from);
-      const std::size_t to = representative(edge.to);
+      const bool focused
+        = focus && *focus != 0 && (contains(*focus, edge.from) || contains(*focus, edge.to));
+      const bool members = filter.member_edges || focused;
+      if (!members && edge.lifted_from == 0)
+      {
+        continue;
+      }
+      const std::size_t from = representative(members ? edge.from : edge.lifted_from);
+      const std::size_t to = representative(members ? edge.to : edge.lifted_to);
       if (from != 0 && to != 0 && from != to)
       {
         edges.push_back({.from = from, .to = to, .kind = edge.kind, .weight = edge.weight});
@@ -509,6 +557,16 @@ namespace Comprendo
       }
     }
     return current == 0 ? std::nullopt : std::optional<std::size_t> {current};
+  }
+
+  bool
+  ChartView::contains(std::size_t ancestor, std::size_t group) const
+  {
+    while (m_depth[group] > m_depth[ancestor])
+    {
+      group = m_hierarchy.groups[group].parent;
+    }
+    return group == ancestor;
   }
 
   bool

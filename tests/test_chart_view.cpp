@@ -191,24 +191,25 @@ TEST_CASE("level of detail follows zoom and culls", "[view]")
   CHECK(view.visible(away).empty());
 }
 
-/// Edges must stay readable at every zoom: drawn between the groups actually on
-/// screen and merged when their endpoints collapse together. At the fitted view,
-/// checks both calls appear separately plus the include; zoomed so classes are
-/// filled disks, checks the two calls merge into one edge of weight 2 between
-/// the class-level representatives and the include remains.
+/// With member connections on, edges must stay readable at every zoom: drawn
+/// between the groups actually on screen and merged when their endpoints
+/// collapse together. At the fitted view, checks both calls appear separately
+/// plus the include; zoomed so classes are filled disks, checks the two calls
+/// merge into one edge of weight 2 between the class-level representatives.
 TEST_CASE("edges attach to visible representatives", "[view]")
 {
   const ChartView view {sample_chart(), Grouping::File};
   const auto count = [](const std::vector<Comprendo::VisibleEdge> &edges, EdgeKind kind)
   { return std::ranges::count(edges, kind, &Comprendo::VisibleEdge::kind); };
+  const Comprendo::ViewFilter members {.member_edges = true};
 
-  const auto detailed = view.visible_edges(view.visible(fitted(view)));
+  const auto detailed = view.visible_edges(view.visible(fitted(view)), members);
   CHECK(count(detailed, EdgeKind::Calls) == 2);
   CHECK(count(detailed, EdgeKind::Includes) == 1);
 
   ViewCamera camera = fitted(view);
   camera.zoom = 5.0F / view.layout().groups.at(group_of(view, 5)).radius;
-  const auto collapsed = view.visible_edges(view.visible(camera));
+  const auto collapsed = view.visible_edges(view.visible(camera), members);
   CHECK(count(collapsed, EdgeKind::Calls) == 1);
   CHECK(count(collapsed, EdgeKind::Includes) == 1);
   const auto calls = std::ranges::find(collapsed, EdgeKind::Calls, &Comprendo::VisibleEdge::kind);
@@ -490,4 +491,39 @@ TEST_CASE("minimap maps between overview and chart", "[view]")
   const Comprendo::Minimap tiny
     = Comprendo::make_minimap(view, {.width = 120.0F, .height = 90.0F}, 160.0F, 0.0F);
   CHECK(tiny.box.width == 30.0F);
+}
+
+/// Thousands of member-to-member lines drown the chart, so by default edges
+/// are summarized between sibling groups, while the selection keeps its own
+/// connections. In the fully expanded sample, checks the two calls from n1 to
+/// A's methods become one call line of weight 2 between b.cpp and a.cpp; then
+/// focuses n1 and class A and checks both calls are drawn member to member.
+TEST_CASE("edges are aggregated between sibling groups by default", "[view]")
+{
+  const ChartView view {sample_chart(), Grouping::File};
+  const auto items = view.visible(fitted(view), {.point_pixels = 0.0F, .expand_pixels = 0.0F});
+  const auto calls = [](const std::vector<Comprendo::VisibleEdge> &edges)
+  {
+    std::vector<Comprendo::VisibleEdge> result;
+    std::ranges::copy_if(
+      edges,
+      std::back_inserter(result),
+      [](const auto &edge) { return edge.kind == EdgeKind::Calls; }
+    );
+    return result;
+  };
+
+  const auto aggregated = calls(view.visible_edges(items));
+  CHECK(aggregated.size() == 1);
+  if (aggregated.size() == 1)
+  {
+    CHECK(aggregated.front().from == group_of(view, 2));
+    CHECK(aggregated.front().to == group_of(view, 1));
+    CHECK(aggregated.front().weight == 2.0F);
+  }
+  CHECK(calls(view.visible_edges(items, {}, group_of(view, 9))).size() == 2);
+  CHECK(calls(view.visible_edges(items, {}, group_of(view, 5))).size() == 2);
+  CHECK(view.contains(group_of(view, 1), group_of(view, 7)));
+  CHECK_FALSE(view.contains(group_of(view, 7), group_of(view, 1)));
+  CHECK(view.contains(0, group_of(view, 9)));
 }

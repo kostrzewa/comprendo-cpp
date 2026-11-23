@@ -280,8 +280,9 @@ Open (waiting for a decision, see [log](log.md)):
   menu, the `G` cycle, and `--group`.
 - c. (done) File grouping shows the directory hierarchy, in the Explorer and
   the graph alike (directory groups; single-child chains merged).
-- d. Edges between members of different clusters are hidden by default and
-  summarized as aggregated lines between clusters and subclusters.
+- d. (done) Edges are aggregated by default into lines between sibling
+  groups (clusters, subclusters, files, ...), weighted by count; the
+  selection keeps its own edges; View → Member connections shows all.
 - e. Inspector: Detail, Contains, Outgoing, Incoming always shown as headed
   lists, each with its own scrollbar.
 - f. Double-click centres the object with a short, smooth animation (zoom

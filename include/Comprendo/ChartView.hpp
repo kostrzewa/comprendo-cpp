@@ -70,6 +70,9 @@ namespace Comprendo
     std::bitset<kNodeKindCount> hidden_nodes;
     /// Hidden edge kinds, indexed by EdgeKind value.
     std::bitset<kEdgeKindCount> hidden_edges;
+    /// True to draw every edge between its members' groups; false (default) to
+    /// aggregate edges into lines between sibling groups (see visible_edges()).
+    bool member_edges = false;
 
     /// Check whether a node kind is shown.
     ///
@@ -404,16 +407,39 @@ namespace Comprendo
 
     /// Non-`Contains` edges between visible groups.
     ///
-    /// Each chart edge is attached to the deepest visible ancestor-or-self of
-    /// both endpoints; edges whose endpoints share that group or are not visible
-    /// are dropped, and parallel edges of one kind are merged with summed weight.
+    /// By default edges are aggregated: each chart edge is first lifted to the
+    /// two sibling groups directly below the deepest group containing both
+    /// endpoints (two clusters, two subclusters of one cluster, two files of
+    /// one directory, ...), so one line stands for all edges between their
+    /// contents and edges inside a group appear only once that group is
+    /// expanded; edges where one endpoint contains the other are dropped. With
+    /// ViewFilter::member_edges, and for edges touching \p focus or its
+    /// contents, the endpoints' own groups are used instead. Either way each
+    /// endpoint is then attached to its deepest visible ancestor-or-self; edges
+    /// whose endpoints share that group or are not visible are dropped, and
+    /// parallel edges of one kind are merged with summed weight.
     ///
     /// \param items Result of visible().
-    /// \param filter Hidden kinds; edges of hidden edge kinds are dropped.
+    /// \param filter Hidden kinds and the edge display mode.
+    /// \param focus Group whose own edges are always shown member to member,
+    ///        usually the selection.
     /// \return Edges sorted by (from, to, kind).
     [[nodiscard]]
     std::vector<VisibleEdge>
-    visible_edges(const std::vector<DrawItem> &items, const ViewFilter &filter = {}) const;
+    visible_edges(
+      const std::vector<DrawItem> &items,
+      const ViewFilter &filter = {},
+      std::optional<std::size_t> focus = std::nullopt
+    ) const;
+
+    /// Check whether a group is another group or lies inside it.
+    ///
+    /// \param ancestor Possible ancestor.
+    /// \param group Group to test.
+    /// \return True when \p group is \p ancestor or one of its descendants.
+    [[nodiscard]]
+    bool
+    contains(std::size_t ancestor, std::size_t group) const;
 
     /// Group under a screen point, consistent with visible().
     ///
@@ -457,7 +483,15 @@ namespace Comprendo
       EdgeKind kind = EdgeKind::Other;
       /// Edge weight.
       float weight = 0.0F;
+      /// Sibling ancestor-or-self of `from` below the endpoints' deepest common
+      /// group; 0 when one endpoint contains the other.
+      std::size_t lifted_from = 0;
+      /// Sibling ancestor-or-self of `to`, paired with `lifted_from`.
+      std::size_t lifted_to = 0;
     };
+
+    /// Depth of each group below the root (the root has depth 0).
+    std::vector<std::uint32_t> m_depth;
 
     /// Rebuild hierarchy, layout, and group edges for the current grouping.
     void
