@@ -42,6 +42,12 @@ To annotate the chart, add the plugin to opencode (see \ref plugin) and run
 | `clangd` | Everything from `ctags`, plus `Calls` (overloads and virtual calls resolved), `Inherits`, and `Uses` (types, fields, variables) edges from clangd-22 |
 | `auto` (default) | `clangd` when `compile_commands.json` is found and clangd runs, otherwise `ctags` with a warning |
 
+Both backends copy Doxygen comments (`///`, `//!`, `/** */`, `///<`) into the
+chart: `\brief` or the first sentence becomes a symbol's summary, the rest of
+the description its detail. Documentation on a header declaration reaches the
+definition in the source file. `/chart` builds on these summaries instead of
+starting from nothing.
+
 The compilation database is looked up in the root, `build/`, then the first
 directory below `build/`. clangd runs without a background index, so nothing is
 written into the project besides the chart. On this repository, the clangd pass

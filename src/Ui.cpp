@@ -450,7 +450,12 @@ namespace
       {
         field_row("Cluster", cluster->label);
       }
-      field_row("Source", provenance_name(node.provenance));
+      const bool from_comments
+        = node.provenance == Comprendo::Provenance::Extractor && !node.summary.empty();
+      field_row(
+        "Source",
+        from_comments ? "extractor, summary from code comments" : provenance_name(node.provenance)
+      );
       ImGui::EndTable();
     }
 

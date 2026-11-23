@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { ChartError } from "../src/chart.ts";
+import { Chart, ChartError, DEFAULT_CHART_PATH } from "../src/chart.ts";
 import { formatId, fromSql, nodeId, Provenance } from "../src/ids.ts";
 import { ComprendoPlugin } from "../src/index.ts";
 import { createTools, runTool, type ToolArgs } from "../src/tools.ts";
@@ -134,6 +134,40 @@ describe("chart_find_node and chart_annotate_node", () => {
   });
 });
 
+describe("code documentation", () => {
+  // Summaries copied from Doxygen by the extractor must be visible as such, so
+  // the model keeps good ones and spends its effort elsewhere, and progress must
+  // count them apart from the model's own. Inserts a documented extractor node,
+  // checks chart_find_node marks it [doc] and chart_overview counts it as code
+  // documentation, then annotates it and checks it moves to the model's count.
+  test("is marked and counted apart from model annotations", () => {
+    const id = nodeId(8, "geo::volume", "src/geo.cpp", "()");
+    const chart = Chart.open(join(project, DEFAULT_CHART_PATH));
+    chart.transaction(() =>
+      chart.insertNode({
+        id,
+        kind: 8,
+        name: "volume",
+        qualifiedName: "geo::volume",
+        file: "src/geo.cpp",
+        lineStart: 1,
+        lineEnd: 2,
+        signature: "()",
+        summary: "Volume of a ball.",
+        detail: "",
+        clusterId: 0n,
+        provenance: Provenance.Extractor,
+      }),
+    );
+    chart.close();
+    expect(call("chart_find_node", { query: "volume" })).toContain("— [doc] Volume of a ball.");
+    expect(call("chart_overview")).toContain("src/geo.cpp  1 1 0");
+    call("chart_annotate_node", { id: formatId(id), summary: "Volume of a ball, used for collision radii." });
+    expect(call("chart_find_node", { query: "volume" })).toContain("— Volume of a ball, used");
+    expect(call("chart_overview")).toContain("src/geo.cpp  1 0 1");
+  });
+});
+
 describe("chart_annotate_cluster", () => {
   // Clusters are addressed by label so the model can refer to them without
   // ids; nesting must stay acyclic, and one bad member must not leave a half
@@ -192,7 +226,7 @@ describe("chart_add_edge and chart_finish", () => {
 
     const finished = call("chart_finish");
     expect(finished).toContain(`comprendo ${join(project, ".comprendo/chart.sqlite")}`);
-    expect(finished).toContain("1 of 2 symbols annotated");
+    expect(finished).toContain("1 of 2 symbols annotated by the model, 0 documented in code");
 
     const db = inspect();
     expect(db.query("SELECT weight, evidence FROM edges WHERE kind = 3").get()).toEqual({

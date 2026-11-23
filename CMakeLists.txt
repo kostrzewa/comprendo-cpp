@@ -63,6 +63,7 @@ add_library(
   src/ClangdExtractor.cpp
   src/Cli.cpp
   src/CtagsExtractor.cpp
+  src/DocComments.cpp
   src/ExtractConfig.cpp
   src/Files.cpp
   src/Hierarchy.cpp
@@ -111,6 +112,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_chart_watcher.cpp
     tests/test_clangd_extractor.cpp
     tests/test_cli.cpp
+    tests/test_doc_comments.cpp
     tests/test_ctags_extractor.cpp
     tests/test_extract_config.cpp
     tests/test_files.cpp

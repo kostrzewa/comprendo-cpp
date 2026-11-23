@@ -46,10 +46,10 @@ namespace Comprendo
     TypeAlias = 13,
   };
 
-  /// Kind of a chart edge.
   /// Number of NodeKind values.
   inline constexpr std::size_t kNodeKindCount = static_cast<std::size_t>(NodeKind::TypeAlias) + 1;
 
+  /// Kind of a chart edge.
   enum class EdgeKind : std::uint8_t
   {
     /// Unclassified edge.

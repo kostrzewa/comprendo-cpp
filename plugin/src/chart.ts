@@ -71,6 +71,20 @@ export interface ClusterRow {
   parentId: bigint;
 }
 
+/** Annotation progress of one file, from {@link Chart.files}. */
+export interface FileProgress {
+  /** Repository-relative file. */
+  file: string;
+  /** Symbols in the file, the file node excluded. */
+  symbols: number;
+  /** Symbols whose summary came from code comments. */
+  documented: number;
+  /** Symbols whose summary the model wrote. */
+  annotated: number;
+  /** Summary of the file node itself. */
+  summary: string;
+}
+
 /** Search options for {@link Chart.findNodes}. */
 export interface NodeQuery {
   /** Exact qualified name, exact name, or substring of the qualified name; empty for all. */
@@ -460,16 +474,21 @@ export class Chart {
   }
 
   /**
-   * Summarize the chart per file: symbol count and how many carry a summary.
+   * Summarize the chart per file: symbol count, how many summaries came from
+   * code comments (provenance `Extractor`), and how many the model wrote.
    *
    * @returns One entry per file, ordered by path.
    */
-  files(): { file: string; symbols: number; annotated: number; summary: string }[] {
+  files(): FileProgress[] {
     return this.#db
-      .query<{ file: string; symbols: bigint; annotated: bigint; summary: string | null }, []>(
+      .query<
+        { file: string; symbols: bigint; documented: bigint; annotated: bigint; summary: string | null },
+        []
+      >(
         `SELECT n.file AS file,
            sum(n.kind <> 1) AS symbols,
-           sum(n.kind <> 1 AND n.summary <> '') AS annotated,
+           sum(n.kind <> 1 AND n.summary <> '' AND n.provenance <> ${Provenance.Model}) AS documented,
+           sum(n.kind <> 1 AND n.summary <> '' AND n.provenance = ${Provenance.Model}) AS annotated,
            max(CASE WHEN n.kind = 1 THEN n.summary END) AS summary
          FROM nodes n GROUP BY n.file ORDER BY n.file`,
       )
@@ -477,6 +496,7 @@ export class Chart {
       .map((row) => ({
         file: row.file,
         symbols: Number(row.symbols),
+        documented: Number(row.documented),
         annotated: Number(row.annotated),
         summary: row.summary ?? "",
       }));
@@ -526,12 +546,14 @@ export class Chart {
    *
    * @param node Node.
    * @param kindName Name of the node's kind.
-   * @returns `id kind qualified_name signature file:start-end`, plus the summary.
+   * @returns `id kind qualified_name signature file:start-end`, plus the
+   *          summary, marked `[doc]` when it came from code comments.
    */
   static describe(node: NodeRow, kindName: string): string {
     const lines = node.lineStart > 0 ? `:${node.lineStart}-${node.lineEnd}` : "";
     const signature = node.signature === "" ? "" : ` ${node.signature}`;
-    const summary = node.summary === "" ? "" : ` — ${node.summary}`;
+    const source = node.provenance === Provenance.Model ? "" : "[doc] ";
+    const summary = node.summary === "" ? "" : ` — ${source}${node.summary}`;
     return `${formatId(node.id)} ${kindName} ${node.qualifiedName}${signature} ${node.file}${lines}${summary}`;
   }
 }

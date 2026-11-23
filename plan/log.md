@@ -165,3 +165,16 @@ commit. Newest last.
   on a stale copy, and a test runs the tools from a copy of `plugin/src` alone.
 
 - Commit: `81fc846`.
+
+## 2026-11-23 — M8a documentation-aware charts
+
+- Added milestone M8 at the user's request (doc comments plus eight viewer
+  items).
+- Extraction fills 1105 of 1544 node summaries in this repository from
+  Doxygen. Most documentation here sits on header declarations while the
+  nodes sit at source definitions, so matched prototypes now report their
+  location (`DeclarationSite`) and the comment is taken from there.
+- Only Doxygen markers are read at extraction: plain `//` blocks above
+  declarations are as often commented-out code or separators. The model still
+  reads plain comments while exploring, as the prompt asks.
+

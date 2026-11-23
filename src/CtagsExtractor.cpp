@@ -26,6 +26,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include "Comprendo/DocComments.hpp"
 #include "Comprendo/Files.hpp"
 #include "Comprendo/Json.hpp"
 #include "Comprendo/Process.hpp"
@@ -319,35 +320,45 @@ namespace
   /// \param candidates Indices of callable definitions with the prototype's
   ///        qualified name.
   /// \param signature Prototype signature.
-  /// \return True when a definition matches.
-  bool
-  has_definition(
+  /// \return Index of the matching definition, or nothing.
+  std::optional<std::size_t>
+  find_definition(
     const Comprendo::Chart &chart,
     const std::vector<std::size_t> &candidates,
     std::string_view signature
   )
   {
     const SplitSignature wanted = split_signature(signature);
+    std::optional<std::size_t> parameters_match;
+    std::optional<std::size_t> arity_match;
     std::size_t same_arity = 0;
     for (const std::size_t candidate : candidates)
     {
       const std::string &defined = chart.nodes[candidate].signature;
       if (defined == signature)
       {
-        return true;
+        return candidate;
       }
       const SplitSignature split = split_signature(defined);
       if (split.qualifiers != wanted.qualifiers)
       {
         continue;
       }
-      if (split.parameters == wanted.parameters)
+      if (split.parameters == wanted.parameters && !parameters_match)
       {
-        return true;
+        parameters_match = candidate;
       }
-      same_arity += split.parameters.size() == wanted.parameters.size() ? 1 : 0;
+      if (split.parameters.size() == wanted.parameters.size())
+      {
+        ++same_arity;
+        arity_match = candidate;
+      }
     }
-    return same_arity == 1;
+    if (parameters_match)
+    {
+      return parameters_match;
+    }
+    return same_arity == 1 ? arity_match : std::nullopt;
   }
 
   /// Check whether a node kind is callable.
@@ -687,7 +698,8 @@ namespace Comprendo
   build_ctags_chart(
     const std::vector<CtagsSourceFile> &files,
     const std::vector<CtagsTag> &tags,
-    const std::vector<std::string> &include_paths
+    const std::vector<std::string> &include_paths,
+    std::vector<DeclarationSite> *declaration_sites
   )
   {
     const ProfileScope profile {"build_ctags_chart"};
@@ -778,8 +790,18 @@ namespace Comprendo
               [&chart](std::size_t index) { return is_callable(chart.nodes[index].kind); }
             );
           }
-          if (tag->deleted || has_definition(chart, callables, tag->signature))
+          if (tag->deleted)
           {
+            continue;
+          }
+          if (const auto definition = find_definition(chart, callables, tag->signature))
+          {
+            if (declaration_sites != nullptr)
+            {
+              declaration_sites->push_back(
+                {.node = chart.nodes[*definition].id, .path = tag->path, .line = tag->line}
+              );
+            }
             continue;
           }
         }
@@ -871,6 +893,58 @@ namespace Comprendo
     return chart;
   }
 
+  std::size_t
+  apply_doc_comments(
+    Chart &chart,
+    const std::vector<DeclarationSite> &declarations,
+    const std::unordered_map<std::string, std::vector<std::string>> &lines
+  )
+  {
+    const ProfileScope profile {"apply_doc_comments"};
+    std::unordered_map<std::uint64_t, std::vector<const DeclarationSite *>> sites;
+    for (const DeclarationSite &site : declarations)
+    {
+      sites[site.node].push_back(&site);
+    }
+    const auto comment_at = [&lines](const std::string &path, std::uint32_t line)
+    {
+      const auto file = lines.find(path);
+      return file == lines.end() ? std::nullopt : doc_comment_at(file->second, line);
+    };
+    std::size_t documented = 0;
+    for (Node &node : chart.nodes)
+    {
+      if (!node.summary.empty())
+      {
+        continue;
+      }
+      std::optional<DocComment> doc;
+      if (node.kind == NodeKind::File)
+      {
+        const auto file = lines.find(node.file);
+        doc = file == lines.end() ? std::nullopt : file_doc_comment(file->second);
+      }
+      else
+      {
+        doc = comment_at(node.file, node.line_start);
+        if (const auto found = sites.find(node.id); !doc && found != sites.end())
+        {
+          for (const DeclarationSite *site : found->second)
+          {
+            doc = doc ? doc : comment_at(site->path, site->line);
+          }
+        }
+      }
+      if (doc)
+      {
+        node.summary = std::move(doc->summary);
+        node.detail = std::move(doc->detail);
+        ++documented;
+      }
+    }
+    return documented;
+  }
+
   std::expected<Chart, std::string>
   CtagsExtractor::extract(const ExtractConfig &config)
   {
@@ -903,7 +977,20 @@ namespace Comprendo
     }
     read_sources(config.root, *sources);
 
-    Chart chart = build_ctags_chart(*sources, *tags, config.include_paths);
+    std::vector<DeclarationSite> declarations;
+    Chart chart = build_ctags_chart(*sources, *tags, config.include_paths, &declarations);
+    std::unordered_map<std::string, std::vector<std::string>> lines;
+    for (const CtagsSourceFile &source : *sources)
+    {
+      if (
+        const auto text
+        = is_c_family(source.language) ? read_file(config.root / source.path) : std::nullopt
+      )
+      {
+        lines.emplace(source.path, split_source_lines(*text));
+      }
+    }
+    const std::size_t documented = apply_doc_comments(chart, declarations, lines);
     const std::filesystem::path root = std::filesystem::weakly_canonical(config.root);
     chart.project = root.filename().string();
     chart.source_root = root.string();
@@ -914,9 +1001,10 @@ namespace Comprendo
       std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
     );
     Logger::info(
-      "ctags extraction: {} files, {} nodes, {} edges",
+      "ctags extraction: {} files, {} nodes ({} documented in code), {} edges",
       sources->size(),
       chart.nodes.size(),
+      documented,
       chart.edges.size()
     );
     return chart;

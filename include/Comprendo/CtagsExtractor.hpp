@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "Comprendo/Chart.hpp"
@@ -80,6 +81,23 @@ namespace Comprendo
   std::optional<NodeKind>
   map_ctags_kind(std::string_view language, std::string_view kind, std::string_view scope_kind);
 
+  /// Where a charted definition was also declared (a matched prototype).
+  struct DeclarationSite
+  {
+    /// Id of the definition's node.
+    std::uint64_t node = 0;
+    /// Repository-relative file of the declaration.
+    std::string path;
+    /// 1-based line of the declaration.
+    std::uint32_t line = 0;
+
+    /// Memberwise equality.
+    ///
+    /// \return True when all members are equal.
+    bool
+    operator==(const DeclarationSite &) const = default;
+  };
+
   /// Build a chart from files and tags. Pure and deterministic.
   ///
   /// Each file becomes a File node. Each charted definition becomes a node whose
@@ -97,13 +115,37 @@ namespace Comprendo
   /// \param files Source files; tags in other files are ignored.
   /// \param tags Tags in any order.
   /// \param include_paths Include search paths (see resolve_include()).
+  /// \param declarations When not null, receives the location of every matched
+  ///        prototype, so documentation on a header declaration can be found
+  ///        for a definition in a source file.
   /// \return Chart in canonical order, header fields empty.
   [[nodiscard]]
   Chart
   build_ctags_chart(
     const std::vector<CtagsSourceFile> &files,
     const std::vector<CtagsTag> &tags,
-    const std::vector<std::string> &include_paths
+    const std::vector<std::string> &include_paths,
+    std::vector<DeclarationSite> *declarations = nullptr
+  );
+
+  /// Fill empty node summaries and details from Doxygen comments.
+  ///
+  /// A node takes the comment at its own line (see doc_comment_at()), else the
+  /// comment at one of its declaration sites; a file node takes its `\file`
+  /// comment (see file_doc_comment()). Nodes that already have a summary are
+  /// left alone. Provenance stays `Extractor`, which marks the text as coming
+  /// from the code rather than from the model.
+  ///
+  /// \param chart Chart to annotate in place.
+  /// \param declarations Declaration sites from build_ctags_chart().
+  /// \param lines Source lines per repository-relative path; files missing from
+  ///        the map are skipped.
+  /// \return Number of nodes that received a summary.
+  std::size_t
+  apply_doc_comments(
+    Chart &chart,
+    const std::vector<DeclarationSite> &declarations,
+    const std::unordered_map<std::string, std::vector<std::string>> &lines
   );
 
   /// Extractor backed by the Universal Ctags executable.

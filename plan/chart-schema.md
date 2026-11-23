@@ -54,7 +54,8 @@ finishes; readers ignore keys they do not know.
 | `provenance` | INTEGER | `Provenance`, checked `0..2` |
 
 `provenance` records who wrote the node's content: the extractor sets
-`Extractor`; the plugin sets `Model` on nodes it adds and on nodes it
+`Extractor` (a non-empty summary then comes from the code's Doxygen
+comments); the plugin sets `Model` on nodes it adds and on nodes it
 annotates. Edges keep the provenance of their first writer.
 
 #### NodeKind

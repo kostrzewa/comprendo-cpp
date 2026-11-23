@@ -134,6 +134,16 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    (matching kind and same file preferred, across files otherwise, e.g. an
    out-of-line method under its class in the header), or its file. Duplicate
    ids keep the first tag in `(path, line)` order.
+7. **Doc comments** (`DocComments`, `apply_doc_comments`): empty summaries are
+   filled from Doxygen comments only (`///`, `//!`, `/** */`, `/*! */`,
+   trailing `///<`; plain comments are ignored), found directly above the
+   declared name (attributes, template headers, and a return type may sit in
+   between) or, for a definition, above its matched prototype, so header
+   documentation reaches definitions in source files. File nodes take their
+   `\file` comment. `\brief` (else the first sentence) becomes the summary;
+   the rest of the description, without `\param`, `\return`, and similar
+   sections or `\code` blocks, becomes the detail. Summaries are capped at 200
+   bytes and details at 600. Provenance stays `Extractor`.
 
 ### clangd backend (M2b)
 
@@ -211,6 +221,11 @@ requires the default export `{ id, server }`. It does not invoke
 `comprendo-cli` itself.
 
 - **Command**: the `config` hook adds `/chart` unless the user defined one.
+  The prompt tells the model to treat Doxygen summaries (shown as `[doc]`)
+  and other comments as the authors' intent: keep accurate ones, rewrite only
+  to correct or add the why, and keep explanations to one sentence and two to
+  four sentences of detail regardless of comment length. `chart_overview` and
+  `chart_finish` count code-documented and model-annotated symbols apart.
   The prompt has the model run `comprendo-cli extract` through its shell tool
   when the CLI is on `PATH` (this rewrites `.comprendo/chart.sqlite`), then
   explore, annotate, cluster, and call `chart_finish`.

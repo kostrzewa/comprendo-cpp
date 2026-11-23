@@ -252,10 +252,13 @@ export function createTools(root: string): Record<string, ToolSpec> {
           `edges: ${counts(edges, EDGE_KINDS)}`,
           `clusters: ${clusters.map((c) => `${c.label} (${c.members})`).join(", ") || "none"}`,
           "",
-          "files (symbols, annotated, file summary):",
+          "files (symbols, summaries from code docs, summaries by you, file summary):",
           ...files
             .slice(0, MAX_OVERVIEW_FILES)
-            .map((f) => `  ${f.file}  ${f.symbols} ${f.annotated}${f.summary ? `  — ${f.summary}` : ""}`),
+            .map(
+              (f) =>
+                `  ${f.file}  ${f.symbols} ${f.documented} ${f.annotated}${f.summary ? `  — ${f.summary}` : ""}`,
+            ),
         ];
         if (files.length > MAX_OVERVIEW_FILES) {
           lines.push(`  … ${files.length - MAX_OVERVIEW_FILES} more files; use chart_find_node with file`);
@@ -487,11 +490,13 @@ export function createTools(root: string): Record<string, ToolSpec> {
         if (chart.meta("project") === "") {
           chart.setMeta("project", root.split("/").filter(Boolean).at(-1) ?? "");
         }
-        const annotated = chart.files().reduce((total, f) => total + f.annotated, 0);
-        const symbols = chart.files().reduce((total, f) => total + f.symbols, 0);
+        const files = chart.files();
+        const total = (field: "symbols" | "documented" | "annotated") =>
+          files.reduce((sum, f) => sum + f[field], 0);
         return [
           `chart: ${chart.path}`,
-          `${annotated} of ${symbols} symbols annotated, ${chart.clusters().length} clusters`,
+          `${total("annotated")} of ${total("symbols")} symbols annotated by the model, ` +
+            `${total("documented")} documented in code, ${chart.clusters().length} clusters`,
           `open it with: comprendo ${chart.path}`,
         ].join("\n");
       },

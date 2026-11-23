@@ -270,3 +270,21 @@ Open (waiting for a decision, see [log](log.md)):
 
 - SFML DSP tones; Jolt cosmetic particles.
 
+## M8 — Documentation-aware charts and viewer navigation (in progress)
+
+- a. Doxygen comments become summaries and details at extraction (both
+  backends; header documentation reaches source definitions); the `/chart`
+  prompt uses them and other comments as intent without lengthening
+  explanations; code-documented and model summaries are counted apart.
+- b. Cluster grouping is the default and first in the Explorer.
+- c. File grouping shows the directory hierarchy in the Explorer.
+- d. Edges between members of different clusters are hidden by default and
+  summarized as aggregated lines between clusters and subclusters.
+- e. Inspector: Detail, Contains, Outgoing, Incoming always shown as headed
+  lists, each with its own scrollbar.
+- f. Double-click centres the object with a short, smooth animation (zoom
+  unchanged); Backspace returns to the previous view and selection.
+- g. Inspector keyboard navigation: Up/Down move through the lists, Enter
+  jumps to the highlighted entry.
+- h. Graph keyboard navigation: WASD pans, E zooms in, Q zooms out.
+

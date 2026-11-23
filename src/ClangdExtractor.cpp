@@ -28,6 +28,7 @@
 #include <fmt/format.h>
 
 #include "Comprendo/CtagsExtractor.hpp"
+#include "Comprendo/DocComments.hpp"
 #include "Comprendo/Json.hpp"
 #include "Comprendo/Lsp.hpp"
 #include "Comprendo/Process.hpp"
@@ -216,7 +217,7 @@ namespace
         {
           return std::unexpected(opened.error());
         }
-        m_lines[node.file] = split_lines(text);
+        m_lines[node.file] = Comprendo::split_source_lines(text);
         m_uris[node.file] = uri;
       }
       for (const auto &[file, uri] : m_uris)
@@ -303,26 +304,6 @@ namespace
     }
 
   private:
-    /// Split text into lines without terminators.
-    ///
-    /// \param text File contents.
-    /// \return Lines.
-    static std::vector<std::string>
-    split_lines(std::string_view text)
-    {
-      std::vector<std::string> lines;
-      for (const auto line : std::views::split(text, '\n'))
-      {
-        std::string_view view {line.begin(), line.end()};
-        if (view.ends_with('\r'))
-        {
-          view.remove_suffix(1);
-        }
-        lines.emplace_back(view);
-      }
-      return lines;
-    }
-
     /// Prepare a hierarchy item for a node.
     ///
     /// \param index Node index.
