@@ -312,4 +312,6 @@ Open (waiting for a decision, see [log](log.md)):
 - h. (done) The selection's crossing lines end at the selection's peers (the
   far end at the selection's depth) instead of one level deeper on both sides.
 - i. (done) One line per pair of groups regardless of kind and direction.
+- j. (done) Bundling of the selection's lines through its rim (fibres and one
+  trunk per destination) and hover emphasis of a group's lines.
 

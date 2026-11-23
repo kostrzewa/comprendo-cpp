@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -417,6 +419,121 @@ void main()
       DrawText(label.c_str(), x, y, kLabelSize, kLabelColor);
     }
   }
+  /// Line width for an edge weight: one pixel for a single edge, growing
+  /// logarithmically with the number of edges a line stands for.
+  ///
+  /// \param weight Summed weight.
+  /// \param max_factor Largest multiple of the base width.
+  /// \return Width in pixels.
+  float
+  edge_width(float weight, float max_factor)
+  {
+    return kEdgeWidth * std::min(1.0F + (0.5F * std::log2(std::max(weight, 1.0F))), max_factor);
+  }
+
+  /// Scale a colour's opacity.
+  ///
+  /// \param color Colour.
+  /// \param factor Opacity factor; values above 1 strengthen up to opaque.
+  /// \return The colour with scaled alpha.
+  Color
+  scale_alpha(Color color, float factor)
+  {
+    color.a = static_cast<unsigned char>(std::min(255.0F, static_cast<float>(color.a) * factor));
+    return color;
+  }
+
+  /// Draw the frame's edges: straight lines, and lines bundled through the
+  /// selection's rim (thin fibres from its children to the rim, one trunk per
+  /// peer from there). While the mouse is over a group with lines, its lines
+  /// (and the trunks its fibres feed) are emphasized and all others dimmed.
+  ///
+  /// \param painter Shape painter.
+  /// \param view Chart view.
+  /// \param camera View camera.
+  /// \param frame Edges and hover state.
+  void
+  draw_edges(
+    const Painter &painter,
+    const Comprendo::ChartView &view,
+    const Comprendo::ViewCamera &camera,
+    const Comprendo::GraphFrame &frame
+  )
+  {
+    using Comprendo::EdgeKind;
+    using Comprendo::VisibleEdge;
+    constexpr float kLineMaxFactor = 4.0F;
+    constexpr float kFibreMaxFactor = 2.0F;
+    constexpr float kTrunkMaxFactor = 6.0F;
+    constexpr float kHighlight = 2.0F;
+    constexpr float kDimmed = 0.2F;
+
+    const auto touches = [&](std::size_t group)
+    {
+      return frame.hovered
+        && (view.contains(group, *frame.hovered) || view.contains(*frame.hovered, group));
+    };
+    const bool hovering = std::ranges::any_of(
+      frame.edges, [&](const VisibleEdge &edge) { return touches(edge.from) || touches(edge.to); }
+    );
+    const auto emphasis
+      = [&](bool touched) { return !hovering ? 1.0F : (touched ? kHighlight : kDimmed); };
+
+    struct Trunk
+    {
+      Vector2 rim {};
+      std::array<float, Comprendo::kEdgeKindCount> by_kind {};
+      float weight = 0.0F;
+      bool touched = false;
+    };
+    std::map<std::pair<std::size_t, std::size_t>, Trunk> trunks;
+    for (const VisibleEdge &edge : frame.edges)
+    {
+      const bool touched = touches(edge.from) || touches(edge.to);
+      const Color color = scale_alpha(edge_color(edge.kind), emphasis(touched));
+      if (edge.via == 0)
+      {
+        painter.line(
+          screen_centre(view, camera, edge.from),
+          screen_centre(view, camera, edge.to),
+          edge_width(edge.weight, kLineMaxFactor),
+          color
+        );
+        continue;
+      }
+      const bool from_inside = view.contains(edge.via, edge.from);
+      const std::size_t near = from_inside ? edge.from : edge.to;
+      const std::size_t far = from_inside ? edge.to : edge.from;
+      const Vector2 centre = screen_centre(view, camera, edge.via);
+      const Vector2 target = screen_centre(view, camera, far);
+      const float dx = target.x - centre.x;
+      const float dy = target.y - centre.y;
+      const float length = std::max(std::hypot(dx, dy), 1e-6F);
+      const float radius = screen_radius(view, camera, edge.via);
+      const Vector2 rim {
+        .x = centre.x + (dx / length * radius), .y = centre.y + (dy / length * radius)
+      };
+      painter.line(
+        screen_centre(view, camera, near), rim, edge_width(edge.weight, kFibreMaxFactor), color
+      );
+      Trunk &trunk = trunks[{edge.via, far}];
+      trunk.rim = rim;
+      trunk.by_kind.at(static_cast<std::size_t>(edge.kind)) += edge.weight;
+      trunk.weight += edge.weight;
+      trunk.touched = trunk.touched || touched;
+    }
+    for (const auto &[ends, trunk] : trunks)
+    {
+      const auto kind
+        = static_cast<EdgeKind>(std::ranges::max_element(trunk.by_kind) - trunk.by_kind.begin());
+      painter.line(
+        trunk.rim,
+        screen_centre(view, camera, ends.second),
+        edge_width(trunk.weight, kTrunkMaxFactor),
+        scale_alpha(edge_color(kind), emphasis(trunk.touched))
+      );
+    }
+  }
 } // namespace
 
 namespace Comprendo
@@ -469,18 +586,7 @@ namespace Comprendo
         painter.ring(centre, radius, 1.0F, Fade(color, kContainerRing));
       }
     }
-    for (const VisibleEdge &edge : frame.edges)
-    {
-      constexpr float kMaxWidthFactor = 4.0F;
-      const float factor
-        = std::min(1.0F + (0.5F * std::log2(std::max(edge.weight, 1.0F))), kMaxWidthFactor);
-      painter.line(
-        screen_centre(view, camera, edge.from),
-        screen_centre(view, camera, edge.to),
-        kEdgeWidth * factor,
-        edge_color(edge.kind)
-      );
-    }
+    draw_edges(painter, view, camera, frame);
     for (const DrawItem &item : frame.items)
     {
       const Vector2 centre = screen_centre(view, camera, item.group);

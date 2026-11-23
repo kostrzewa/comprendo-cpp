@@ -515,6 +515,7 @@ namespace Comprendo
       }
       std::size_t from = 0;
       std::size_t to = 0;
+      std::size_t via = 0;
       if (in_focus[edge.from] != in_focus[edge.to])
       {
         // Crossing the selection: the near end one level below the selection,
@@ -526,6 +527,7 @@ namespace Comprendo
         const std::uint32_t peer_depth = m_depth[focus_group];
         from = ancestor_at_depth(edge.from, in_focus[edge.from] ? refined_depth : peer_depth);
         to = ancestor_at_depth(edge.to, in_focus[edge.to] ? refined_depth : peer_depth);
+        via = (in_focus[edge.from] ? from : to) == focus_group ? 0 : focus_group;
       }
       else if (filter.member_edges)
       {
@@ -549,7 +551,9 @@ namespace Comprendo
       to = shown_endpoint(to);
       if (from != 0 && to != 0 && from != to)
       {
-        edges.push_back({.from = from, .to = to, .kind = edge.kind, .weight = edge.weight});
+        edges.push_back(
+          {.from = from, .to = to, .kind = edge.kind, .weight = edge.weight, .via = via}
+        );
       }
     }
     return merge_pairs(edges);
@@ -563,6 +567,7 @@ namespace Comprendo
       std::array<float, kEdgeKindCount> by_kind {};
       float forward = 0.0F;
       float backward = 0.0F;
+      std::size_t via = 0;
     };
     std::map<std::pair<std::size_t, std::size_t>, Pair> pairs;
     for (const VisibleEdge &edge : edges)
@@ -571,6 +576,7 @@ namespace Comprendo
       Pair &pair = pairs[{std::min(edge.from, edge.to), std::max(edge.from, edge.to)}];
       pair.by_kind.at(static_cast<std::size_t>(edge.kind)) += edge.weight;
       (forward ? pair.forward : pair.backward) += edge.weight;
+      pair.via = std::max(pair.via, edge.via);
     }
     std::vector<VisibleEdge> merged;
     merged.reserve(pairs.size());
@@ -583,6 +589,7 @@ namespace Comprendo
         .to = forward ? ends.second : ends.first,
         .kind = static_cast<EdgeKind>(dominant - pair.by_kind.begin()),
         .weight = pair.forward + pair.backward,
+        .via = pair.via,
       });
     }
     return merged;

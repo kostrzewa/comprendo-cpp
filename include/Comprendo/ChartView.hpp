@@ -235,6 +235,9 @@ namespace Comprendo
     EdgeKind kind = EdgeKind::Other;
     /// Summed weight of the aggregated chart edges.
     float weight = 0.0F;
+    /// Group through whose rim the line is bundled (the selection, for lines
+    /// from its children to its peers), or 0 for a straight line.
+    std::size_t via = 0;
 
     /// Memberwise equality.
     ///
@@ -461,7 +464,9 @@ namespace Comprendo
     /// ancestor-or-self at the depth of \p focus (each stays itself when
     /// shallower). Selecting a cluster thus links its files to other clusters,
     /// a file links its classes to other files, and a leaf links to the members
-    /// it uses. Crossing edges to an ancestor of \p focus are dropped.
+    /// it uses. Crossing edges to an ancestor of \p focus are dropped. Lines
+    /// from a child of \p focus carry VisibleEdge::via = \p focus so they can
+    /// be bundled through its rim.
     ///
     /// Which groups an edge connects depends only on the hierarchy, the
     /// filter, and \p focus, never on zoom or position: lines end at their
@@ -605,7 +610,7 @@ namespace Comprendo
   /// every kind and both directions between two groups become one line: its
   /// weight is the sum, its kind the one with the largest summed weight (the
   /// lower kind on ties), its direction the heavier one (from the lower group
-  /// index on ties).
+  /// index on ties). A pair keeps the bundling group of its edges.
   ///
   /// \param edges Edges, possibly several per pair.
   /// \return One edge per pair, ordered by (lower group, higher group).

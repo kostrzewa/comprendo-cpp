@@ -365,6 +365,12 @@ Input is ignored while ImGui uses the mouse or keyboard.
 - cluster grouping (convex-hull fills over the file layout were dropped:
   clusters span files, so hulls would overlap everything); side panel with
   summary/detail/file:line/edges;
+- bundling and hover: lines from the selection's children carry
+  `VisibleEdge::via` = selection; the renderer draws a fibre from the child to
+  the selection's rim (the point facing the peer) and one trunk per (rim,
+  peer) with the summed weight (up to 6× width). While the mouse is over a
+  group with lines, lines touching it and the trunks they feed are drawn at
+  double opacity and the rest at 20%;
 - one line per pair of groups (`merge_pairs`): kinds and directions merge,
   weight sums, colour = kind with the largest weight, direction = heavier one;
 - edge aggregation (default): each edge is lifted to the two sibling groups

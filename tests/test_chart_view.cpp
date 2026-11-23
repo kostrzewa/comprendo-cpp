@@ -525,7 +525,8 @@ TEST_CASE("edges are aggregated between sibling groups by default", "[view]")
 /// the selection's peers. Clusters the sample (cluster, file, namespace, class,
 /// method) and selects b's cluster, b.cpp, class B, and method n1, checking
 /// the call lines run file to cluster, namespace to file, method to class, and
-/// finally method to method.
+/// finally method to method; lines from the selection's children are marked
+/// for bundling through it, a leaf's own lines and unselected lines are not.
 TEST_CASE("selection refines its crossing edges by one level", "[view]")
 {
   Chart chart = sample_chart();
@@ -566,6 +567,19 @@ TEST_CASE("selection refines its crossing edges by one level", "[view]")
       {{group_of(view, 9), group_of(view, 7)}, 1.0F}, {{group_of(view, 9), group_of(view, 8)}, 1.0F}
     }
   );
+
+  const auto vias = [&](std::optional<std::size_t> focus)
+  {
+    std::vector<std::size_t> result;
+    for (const auto &edge : view.shown_edges({}, focus))
+    {
+      result.push_back(edge.via);
+    }
+    return result;
+  };
+  CHECK(std::ranges::all_of(vias(std::nullopt), [](std::size_t via) { return via == 0; }));
+  CHECK(vias(cluster(200)) == std::vector<std::size_t> {cluster(200)});
+  CHECK(std::ranges::all_of(vias(group_of(view, 9)), [](std::size_t via) { return via == 0; }));
 }
 
 /// The Inspector of a cluster or file lists what it connects to at its own

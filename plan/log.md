@@ -311,3 +311,10 @@ commit. Newest last.
   recorded, since a chart may not hold duplicates.
 
 - Commit: `23a9450`.
+
+## 2026-11-23 — M9j bundling and hover emphasis
+
+- The user chose bundling and hover detail. Outside the selected cluster,
+  only one trunk per destination remains; inside, fibres meet at the rim.
+  Checked with screenshots of the user's chart, hovering through XTest.
+
