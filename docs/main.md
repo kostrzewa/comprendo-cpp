@@ -101,6 +101,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | `Up` / `Down`, `Enter` (Inspector focused) | Move through the Inspector's lists; jump to the highlighted entry |
 | `Right` / `Left` (Inspector focused) | Unfold / fold the highlighted row of Contains |
 | `Ctrl` + `+` / `Ctrl` + `-` / `Ctrl` + `0` | Larger / smaller / default text in the panels and graph labels (also View menu; keypad works too, and so does `Ctrl` + `=`) |
+| ▼ on a docked panel's tab bar | Fold the panel to its tab (its neighbour takes the space); click again to unfold |
 | View → Fonts... | Floating dialog: choose the font of the panels and graph labels (Proggy, Atkinson Hyperlegible, Inter, JetBrains Mono) and the text size; changes apply at once |
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |

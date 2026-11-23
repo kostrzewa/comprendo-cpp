@@ -395,4 +395,9 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   graph; opened only from View → Source (visibility persists per user) and
   kept in step with the selection while closed, so it opens on the current
   selection.
+- g. (done) Folding docked panels: ImGui cannot collapse docked windows (its
+  ▼ becomes a tab-list "window menu" there), so `Ui` replaces that menu's
+  handler: ▼ folds the panel's dock node to its tab bar (a narrow strip for
+  side-by-side nodes) and unfolds it to its previous size (or 35% when
+  unknown); folded sizes persist with the layout.
 

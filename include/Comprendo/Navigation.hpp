@@ -81,6 +81,34 @@ namespace Comprendo
   TextSizeKey
   text_size_key(char character);
 
+  /// Share of the available space a panel unfolds to when its size before
+  /// folding is unknown (e.g. folded in an earlier session).
+  inline constexpr float kUnfoldShare = 0.35F;
+
+  /// Size of a docked panel after its fold button is clicked.
+  ///
+  /// A panel larger than its folded size folds to it; a folded panel unfolds
+  /// to the size it had before folding, or to kUnfoldShare of the available
+  /// space when that is unknown, leaving room for its neighbour's tab bar.
+  ///
+  /// \param size Current size along the panel's split axis.
+  /// \param folded Folded size: the height of its tab bar.
+  /// \param remembered Size before folding, or 0 when unknown.
+  /// \param available Space the panel shares with its neighbour.
+  /// \return New size along the split axis.
+  [[nodiscard]]
+  float
+  fold_toggle_size(float size, float folded, float remembered, float available);
+
+  /// Whether a panel of a given size counts as folded.
+  ///
+  /// \param size Size along the panel's split axis.
+  /// \param folded Folded size.
+  /// \return True when the size is at most a pixel or two above \p folded.
+  [[nodiscard]]
+  bool
+  is_folded(float size, float folded);
+
   /// Share a height between stacked panels so they fill it without wasting space.
   ///
   /// Panels that need less than an equal share get exactly what they need;

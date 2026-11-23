@@ -543,6 +543,14 @@ graph:
   symbol's lines, and rereads the file when its mtime changes. Layouts saved
   before the panel existed get it docked below the graph via DockBuilder
   before the dock space is submitted; the panel waits one frame for that.
+- **Folding** (M12g): `ImGuiContext::DockNodeWindowMenuHandler` (internal
+  hook for the ▼ button of docked nodes) is replaced by
+  `Ui::fold_menu_handler`, which records the node (via `io.UserData`) and
+  closes the popup; `Ui::apply_fold_request` then, before the dock space is
+  submitted, sets the node's size along its parent's split axis to the tab
+  bar (`fold_toggle_size`, `is_folded` in `Navigation.hpp`) and sets
+  `WantLockSizeOnce` so the split applies it unclamped. `style.WindowMinSize.y`
+  is the tab bar height so nothing of the content remains.
 - **Panel visibility** (Explorer, Inspector, Log, minimap) is part of
   `ViewerSettings` and so persists per user with the font and text size.
 

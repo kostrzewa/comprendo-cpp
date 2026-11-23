@@ -146,3 +146,22 @@ TEST_CASE("text size shortcuts are recognised by character", "[navigation]")
   CHECK(text_size_key(']') == TextSizeKey::None);
   CHECK(text_size_key('\0') == TextSizeKey::None);
 }
+
+/// Docked panels fold to their tab bar with the ▼ button and unfold again,
+/// so a second click must restore the previous size, and a panel folded in an
+/// earlier session must still unfold to something useful without crowding out
+/// its neighbour. Folds a panel, unfolds it with and without a remembered
+/// size, and checks the result leaves room for the neighbour's tab bar.
+TEST_CASE("panels fold to their tab bar and unfold", "[navigation]")
+{
+  using Comprendo::fold_toggle_size;
+  using Comprendo::is_folded;
+  constexpr float kTab = 20.0F;
+  CHECK(fold_toggle_size(300.0F, kTab, 0.0F, 800.0F) == kTab);
+  CHECK(is_folded(kTab, kTab));
+  CHECK(is_folded(kTab + 1.0F, kTab));
+  CHECK_FALSE(is_folded(kTab + 10.0F, kTab));
+  CHECK(fold_toggle_size(kTab, kTab, 300.0F, 800.0F) == 300.0F);
+  CHECK(fold_toggle_size(kTab, kTab, 0.0F, 800.0F) == 800.0F * Comprendo::kUnfoldShare);
+  CHECK(fold_toggle_size(kTab, kTab, 900.0F, 800.0F) == 800.0F - kTab);
+}

@@ -130,6 +130,15 @@ namespace
   /// Frame on which the smoke test opens the Source panel with that file.
   constexpr int kSmokeSourceOpenFrame = 31;
 
+  /// Frame on which the smoke test folds the Explorer as its ▼ button would.
+  constexpr int kSmokeFoldFrame = 25;
+
+  /// Frame on which the smoke test checks the Explorer is folded and unfolds it.
+  constexpr int kSmokeFoldCheckFrame = 30;
+
+  /// Frame on which the smoke test checks the Explorer is unfolded again.
+  constexpr int kSmokeUnfoldCheckFrame = 35;
+
   /// Frame on which the smoke test zooms into the chart.
   constexpr int kSmokeChartZoomFrame = 20;
 
@@ -1475,6 +1484,23 @@ namespace
       if (session && frame == kSmokeSourceOpenFrame)
       {
         state.show_source = true;
+      }
+      if (frame == kSmokeFoldFrame)
+      {
+        ui_shell.toggle_fold("Explorer");
+      }
+      if (frame == kSmokeFoldCheckFrame || frame == kSmokeUnfoldCheckFrame)
+      {
+        const bool folded = Comprendo::Ui::panel_folded("Explorer");
+        if (folded != (frame == kSmokeFoldCheckFrame))
+        {
+          Comprendo::Logger::warn("Smoke: Explorer folded={} at frame {}", folded, frame);
+          passed = false;
+        }
+        if (frame == kSmokeFoldCheckFrame)
+        {
+          ui_shell.toggle_fold("Explorer");
+        }
       }
       if (frame == kSmokeFontFrame)
       {

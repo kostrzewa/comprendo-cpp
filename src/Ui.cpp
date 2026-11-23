@@ -11,6 +11,7 @@
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #include <fmt/format.h>
@@ -945,6 +946,9 @@ namespace Comprendo
     rlImGuiSetup(true);
 
     ImGuiIO &imgui_io = ImGui::GetIO();
+    // Docked panels fold to their tab with the ▼ button (see fold_menu_handler).
+    imgui_io.UserData = this;
+    ImGui::GetCurrentContext()->DockNodeWindowMenuHandler = &Ui::fold_menu_handler;
     bitmap_font_ = imgui_io.Fonts->Fonts.empty() ? nullptr : imgui_io.Fonts->Fonts[0];
     vector_font_ = imgui_io.Fonts->AddFontDefaultVector();
     // Docking comes from the pinned docking branch; enable it at runtime.
@@ -1030,7 +1034,10 @@ namespace Comprendo
     const auto found = fonts_.find(state.font);
     ImGui::GetIO().FontDefault = found == fonts_.end() ? builtin_font(state) : found->second.first;
     const float factor = found == fonts_.end() ? 1.0F : font_size_factor(state.font);
-    ImGui::GetStyle().FontScaleMain = text_scale(state.text_level) * factor;
+    ImGuiStyle &style = ImGui::GetStyle();
+    style.FontScaleMain = text_scale(state.text_level) * factor;
+    // Let a docked panel fold down to exactly its tab bar (see apply_fold_request).
+    style.WindowMinSize.y = ImGui::GetFrameHeight() + 1.0F;
   }
 
   void
@@ -1118,6 +1125,8 @@ namespace Comprendo
       layout_initialized_ = true;
     }
 
+    apply_fold_request();
+
     // A Source panel unknown to the saved layout (layouts from before it
     // existed) gets its own area below the graph instead of floating.
     // DockBuilder edits must precede the dock space's submission; the saved
@@ -1155,6 +1164,84 @@ namespace Comprendo
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Q))
     {
       state.quit_requested = true;
+    }
+  }
+
+  void
+  Ui::fold_menu_handler(ImGuiContext *context, ImGuiDockNode *node, ImGuiTabBar * /*tab_bar*/)
+  {
+    if (auto *ui = static_cast<Ui *>(context->IO.UserData); ui != nullptr && node != nullptr)
+    {
+      ui->fold_request_ = node->ID;
+    }
+    ImGui::CloseCurrentPopup();
+  }
+
+  float
+  Ui::folded_size(const ImGuiDockNode &node)
+  {
+    const ImGuiAxis axis = node.ParentNode->SplitAxis;
+    // Stacked panels fold to their tab bar's height; side-by-side ones to a
+    // strip as wide as a few tab bar heights. Docked windows are never smaller
+    // than the style's minimum window size.
+    constexpr float kStripTabs = 3.0F;
+    const float tab_bar = ImGui::GetFrameHeight() + 1.0F;
+    const float minimum = ImGui::GetStyle().WindowMinSize[axis];
+    return std::max(minimum, axis == ImGuiAxis_Y ? tab_bar : tab_bar * kStripTabs);
+  }
+
+  void
+  Ui::toggle_fold(const char *window)
+  {
+    if (const ImGuiWindow *found = ImGui::FindWindowByName(window); found != nullptr)
+    {
+      fold_request_ = found->DockId;
+    }
+  }
+
+  bool
+  Ui::panel_folded(const char *window)
+  {
+    const ImGuiWindow *found = ImGui::FindWindowByName(window);
+    const ImGuiDockNode *node = found == nullptr ? nullptr : found->DockNode;
+    if (node == nullptr || node->ParentNode == nullptr)
+    {
+      return false;
+    }
+    const ImGuiAxis axis = node->ParentNode->SplitAxis;
+    return is_folded(node->Size[axis], folded_size(*node));
+  }
+
+  void
+  Ui::apply_fold_request()
+  {
+    const ImGuiID id = std::exchange(fold_request_, 0U);
+    ImGuiDockNode *node = id == 0 ? nullptr : ImGui::DockBuilderGetNode(id);
+    if (node == nullptr || node->ParentNode == nullptr)
+    {
+      return;
+    }
+    const ImGuiDockNode *parent = node->ParentNode;
+    const ImGuiAxis axis = parent->SplitAxis;
+    const float folded = folded_size(*node);
+    const float available = parent->Size[axis] - ImGui::GetStyle().DockingSeparatorSize;
+    const float current = node->Size[axis];
+    const auto remembered = fold_sizes_.find(id);
+    const float size = fold_toggle_size(
+      current, folded, remembered == fold_sizes_.end() ? 0.0F : remembered->second, available
+    );
+    if (!is_folded(current, folded))
+    {
+      fold_sizes_[id] = current;
+    }
+    node->Size[axis] = node->SizeRef[axis] = size;
+    node->WantLockSizeOnce = true;
+    for (ImGuiDockNode *child : parent->ChildNodes)
+    {
+      if (child != nullptr && child != node)
+      {
+        child->WantLockSizeOnce = false;
+      }
     }
   }
 

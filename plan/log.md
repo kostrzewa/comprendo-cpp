@@ -615,3 +615,21 @@ commit. Newest last.
   shows Layout.cpp at lines 598–686.
 
 - Commit: `6b3bf32`.
+
+## 2026-11-23 — M12g fold docked panels with ▼
+
+- Question: can panels be tucked away to their tab? Not natively: ImGui
+  collapses only floating windows; in a dock node the collapse button is the
+  window menu (`imgui.cpp`: "the Collapse Button turns into the Window Menu
+  button"). The user chose ▼ as the fold button.
+- `Ui::fold_menu_handler` replaces `DockNodeWindowMenuHandler`; the request
+  is applied at the next frame's start (DockBuilder-style edits must precede
+  the dock space): size along the parent split axis = tab bar (or a 3-tab
+  strip for side-by-side nodes), `WantLockSizeOnce` so the split takes it
+  exactly. Unfold restores the size before folding (kept per node id for the
+  session) or 35% of the parent. First attempt stopped at 33 px because
+  docked windows obey `style.WindowMinSize` (32 px), so the second click did
+  not recognise the fold; the minimum height now equals the tab bar.
+- Tests: `fold_toggle_size`/`is_folded`; smoke test folds and unfolds the
+  Explorer (default layout: side-by-side strip). Checked with XTest on a
+  copy of the user's layout: fold, unfold, fold across a restart.

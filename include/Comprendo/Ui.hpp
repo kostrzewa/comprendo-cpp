@@ -22,6 +22,9 @@
 #include "Comprendo/ViewerSettings.hpp"
 
 struct ImFont;
+struct ImGuiContext;
+struct ImGuiDockNode;
+struct ImGuiTabBar;
 
 namespace Comprendo
 {
@@ -151,6 +154,20 @@ namespace Comprendo
       return source_.lines.size();
     }
 
+    /// Fold or unfold a docked panel as its ▼ button would, from the next frame.
+    ///
+    /// \param window Panel name, e.g. "Explorer".
+    void
+    toggle_fold(const char *window);
+
+    /// Whether a docked panel is folded to its tab bar.
+    ///
+    /// \param window Panel name.
+    /// \return False for unknown, floating, or unfolded panels.
+    [[nodiscard]]
+    static bool
+    panel_folded(const char *window);
+
     /// Whether a font can be used: the built-in font, or a loaded file.
     ///
     /// \param id Font id.
@@ -234,6 +251,29 @@ namespace Comprendo
     /// \param dockspace_id Dock space identifier.
     static void
     build_default_layout(unsigned int dockspace_id);
+
+    /// Replacement for the ▼ window menu of docked panels: instead of listing
+    /// the node's tabs, it asks the Ui to fold or unfold the node.
+    ///
+    /// \param context ImGui context; its IO user data is the Ui.
+    /// \param node Dock node whose button was clicked.
+    /// \param tab_bar The node's tab bar (unused).
+    static void
+    fold_menu_handler(ImGuiContext *context, ImGuiDockNode *node, ImGuiTabBar *tab_bar);
+
+    /// Size of a folded dock node along its parent's split axis.
+    ///
+    /// \param node Dock node with a parent split.
+    /// \return Tab bar height for stacked nodes, a narrow strip for side-by-side ones.
+    [[nodiscard]]
+    static float
+    folded_size(const ImGuiDockNode &node);
+
+    /// Fold or unfold the dock node whose ▼ button was clicked: folded, it
+    /// keeps only its tab bar and its neighbour takes the space. Must run
+    /// before the dock space is submitted.
+    void
+    apply_fold_request();
 
     /// Dock a window in a new area split off the bottom of the graph.
     ///
@@ -371,6 +411,12 @@ namespace Comprendo
 
     /// True once the Source panel's place in the dock layout was settled.
     bool source_docked_ = false;
+
+    /// Dock node whose ▼ button was clicked, waiting to be folded or unfolded.
+    unsigned int fold_request_ = 0;
+
+    /// Size of folded dock nodes before folding, by node id, to unfold to.
+    std::map<unsigned int, float> fold_sizes_;
 
     /// Loaded TrueType fonts by font id, with their files.
     std::map<std::string, std::pair<ImFont *, std::filesystem::path>, std::less<>> fonts_;

@@ -53,6 +53,24 @@ namespace Comprendo
     }
   }
 
+  bool
+  is_folded(float size, float folded)
+  {
+    constexpr float kTolerance = 2.0F;
+    return size <= folded + kTolerance;
+  }
+
+  float
+  fold_toggle_size(float size, float folded, float remembered, float available)
+  {
+    if (!is_folded(size, folded))
+    {
+      return folded;
+    }
+    const float target = remembered > folded ? remembered : available * kUnfoldShare;
+    return std::clamp(target, folded, std::max(folded, available - folded));
+  }
+
   std::vector<float>
   share_heights(std::span<const float> needs, float available, float minimum)
   {
