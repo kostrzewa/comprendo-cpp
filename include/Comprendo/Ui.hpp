@@ -135,6 +135,15 @@ namespace Comprendo
     static bool
     wants_keyboard();
 
+    /// Check whether a text field (such as the Explorer filter) is being edited.
+    ///
+    /// Keys ImGui's navigation does not use, like Backspace for going back,
+    /// reach the graph whenever this is false, even while a panel has focus.
+    ///
+    /// \return True while ImGui wants text input.
+    static bool
+    wants_text_input();
+
     /// Check whether the dockable panels exist in the current ImGui context.
     ///
     /// \return True when the panels exist.

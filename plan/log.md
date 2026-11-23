@@ -401,3 +401,23 @@ commit. Newest last.
   file and folding a subcluster leave the selection unchanged.
 
 - Commit: `eea8f34`.
+
+## 2026-11-23 — M9o reliable Backspace history
+
+- The user found going back unreliable. Exercised it under xvfb with XTest
+  clicks and key presses on this repository's chart, with temporary
+  navigation logging (removed afterwards). Found three bugs:
+  - the release of a double click's second press re-picked the selection
+    under the already moving camera, usually clearing it, so history entries
+    recorded the wrong selection (going back restored "nothing");
+  - after an Explorer click, ImGui's keyboard navigation kept
+    `WantCaptureKeyboard` set, swallowing Backspace until the graph was
+    clicked; Backspace is now read unless ImGui wants text input;
+  - jumps during a camera move recorded the half-way pose; they now record
+    where the move is heading (`settled_pose`).
+- Verified: two graph double clicks then Backspace ×3, Explorer clicks with
+  the Explorer focused, an Explorer double click (one entry), Inspector row
+  clicks, a second jump 0.15 s into the first one's move (back lands on the
+  first jump's end pose exactly), and Backspace inside the filter (edits the
+  text, no navigation). A harness artefact on the way: a release and a press
+  in the same frame are seen as one held press by raylib.

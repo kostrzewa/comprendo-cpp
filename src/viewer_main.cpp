@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <exception>
 #include <expected>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -345,6 +346,9 @@ namespace
     bool dragging = false;
     /// True while a left-button press that started on the minimap is held.
     bool minimap_drag = false;
+    /// True while the second press of a double click is held: its release
+    /// keeps the jump's selection instead of picking under the moving camera.
+    bool double_press = false;
     /// Running camera move (double-click centring, Backspace), if any.
     std::optional<Comprendo::CameraAnimation> animation;
     /// Views to return to with Backspace.
@@ -388,6 +392,18 @@ namespace
   pose_of(const Comprendo::ViewCamera &camera)
   {
     return {.target = camera.target, .zoom = camera.zoom};
+  }
+
+  /// Pose the camera is settling at: the end of a running move, otherwise the
+  /// current pose. Jumps made during a move remember where it was heading.
+  ///
+  /// \param session Session holding the camera and its move.
+  /// \return Target and zoom.
+  Comprendo::CameraPose
+  settled_pose(const GraphSession &session)
+  {
+    return session.animation ? session.animation->at(std::numeric_limits<double>::infinity())
+                             : pose_of(session.camera);
   }
 
   /// Stable key of a selected group, valid across regrouping and reloads.
@@ -645,7 +661,7 @@ namespace
     if (state.focus_requested && state.selected)
     {
       session.history.push(
-        {.pose = pose_of(session.camera),
+        {.pose = settled_pose(session),
          .selected = group_key(session.view, session.previous_selected)}
       );
     }
@@ -819,12 +835,13 @@ namespace
     }
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
     {
-      if (!session.dragging)
+      if (!session.dragging && !session.double_press)
       {
         state.selected = session.view.pick(camera, point, {}, state.kinds);
         state.reveal_requested = state.selected.has_value();
       }
       session.dragging = false;
+      session.double_press = false;
     }
     session.hovered = session.view.pick(camera, point, {}, state.kinds);
   }
@@ -863,10 +880,11 @@ namespace
         session.press = mouse;
         session.dragging = false;
         session.minimap_drag = minimap && minimap->contains(point);
-        if (!Comprendo::Ui::double_clicked())
+        session.double_press = Comprendo::Ui::double_clicked();
+        if (!session.double_press)
         {
           session.click_origin
-            = {.pose = pose_of(camera), .selected = group_key(session.view, state.selected)};
+            = {.pose = settled_pose(session), .selected = group_key(session.view, state.selected)};
         }
       }
       if (session.minimap_drag)
@@ -894,11 +912,11 @@ namespace
       {
         state.grouping = Comprendo::next_grouping(state.grouping);
       }
-      if (IsKeyPressed(KEY_BACKSPACE))
-      {
-        go_back(session, state);
-      }
       handle_graph_keys(session, state);
+    }
+    if (!Comprendo::Ui::wants_text_input() && IsKeyPressed(KEY_BACKSPACE))
+    {
+      go_back(session, state);
     }
     apply_requests(session, state);
   }

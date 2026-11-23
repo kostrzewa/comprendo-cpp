@@ -323,6 +323,9 @@ Open (waiting for a decision, see [log](log.md)):
 - n. (done) The Inspector's Contains list is a foldable tree: subclusters
   (and subdirectories) unfold by default, other contents fold; arrows and
   Right/Left fold and unfold rows.
+- o. (done) Reliable Backspace history: a double click's release keeps the
+  jump's selection, jumps during a camera move remember where it was heading,
+  and Backspace works while a panel has focus (not while typing).
 
 ## M10 — opencode 2.x plugin (complete)
 

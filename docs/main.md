@@ -86,7 +86,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | Left drag, right or middle drag | Pan |
 | Left click | Select (Inspector shows it, Explorer reveals it) |
 | Double click | Select and centre the object with a short animation (zoom unchanged) |
-| `Backspace` | Go back to the view and selection before the last jump (double click, Explorer, Inspector) |
+| `Backspace` | Go back to the view and selection before the last jump (double click, Explorer, Inspector); works while a panel has focus, except when typing in a text field |
 | `W` `A` `S` `D` | Pan |
 | `E` / `Q` | Zoom in / out |
 | Click or drag in the minimap | Move the view there (View → Minimap toggles it) |

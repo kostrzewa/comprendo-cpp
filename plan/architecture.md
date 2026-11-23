@@ -438,7 +438,10 @@ Input is ignored while ImGui uses the mouse or keyboard.
   (`CameraAnimation`); Backspace returns to the view and selection before the
   last jump (`NavigationHistory`, 100 entries; selections stored by
   `HierarchyGroup::key` so they survive regrouping and reloads); Explorer and
-  Inspector jumps are recorded too. WASD pans (0.9 graph sizes per second)
+  Inspector jumps are recorded too. Recorded poses are where the camera is
+  settling (the end of a running move), the release of a double click's
+  second press does not re-pick the selection, and Backspace is read unless
+  ImGui wants text input (a focused panel would otherwise swallow it). WASD pans (0.9 graph sizes per second)
   and E/Q zoom about the graph centre (doubling every 0.5 s); any manual
   camera input cancels a running move;
   a minimap in the graph area's bottom-right corner (`Minimap`: the top two

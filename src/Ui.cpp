@@ -956,6 +956,12 @@ namespace Comprendo
   }
 
   bool
+  Ui::wants_text_input()
+  {
+    return ImGui::GetIO().WantTextInput;
+  }
+
+  bool
   Ui::panels_created()
   {
     return ImGui::FindWindowByName("Explorer") != nullptr
