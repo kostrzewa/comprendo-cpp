@@ -102,7 +102,9 @@ Groupings:
 - **Cluster** (default): the subsystems the model named with `/chart`,
   nested, each member with its contents; everything else under
   "(unclustered)". A chart without clusters looks like the file grouping.
-- **File**: the containment tree, file → namespace → class → member.
+- **File**: directories → files → namespaces → classes → members. A
+  directory whose only content is one subdirectory is shown merged with it
+  ("include/proj").
 - **Namespace**: namespaces merged across files.
 
 ![Cluster grouping: the subsystems named during /chart, the Viewer cluster selected](viewer_clusters.png)

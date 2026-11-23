@@ -276,9 +276,10 @@ Open (waiting for a decision, see [log](log.md)):
   backends; header documentation reaches source definitions); the `/chart`
   prompt uses them and other comments as intent without lengthening
   explanations; code-documented and model summaries are counted apart.
-- b. Cluster grouping is the default and first in the Explorer, the View
-  menu, the `G` cycle, and `--group` (done).
-- c. File grouping shows the directory hierarchy in the Explorer.
+- b. (done) Cluster grouping is the default and first in the Explorer, the View
+  menu, the `G` cycle, and `--group`.
+- c. (done) File grouping shows the directory hierarchy, in the Explorer and
+  the graph alike (directory groups; single-child chains merged).
 - d. Edges between members of different clusters are hidden by default and
   summarized as aggregated lines between clusters and subclusters.
 - e. Inspector: Detail, Contains, Outgoing, Incoming always shown as headed

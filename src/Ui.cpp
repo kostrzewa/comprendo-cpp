@@ -426,6 +426,10 @@ namespace
       }
       ImGui::PopTextWrapPos();
     }
+    if (!entry.directory.empty())
+    {
+      text_disabled(fmt::format("Directory {}/", entry.directory).c_str());
+    }
     if (entry.nodes.empty())
     {
       draw_children(view, state, group);

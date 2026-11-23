@@ -7,6 +7,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
+#include <ranges>
+#include <utility>
+#include <tuple>
+#include <set>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -205,6 +210,98 @@ namespace
     return result;
   }
 
+  /// Directory groups added for Grouping::File.
+  struct DirectoryGroups
+  {
+    /// Group of each directory that holds files ("" maps to the root).
+    std::unordered_map<std::string, std::size_t> group_of_directory;
+    /// Parent group of each added directory group.
+    std::unordered_map<std::size_t, std::size_t> parent_of_group;
+  };
+
+  /// Directory part of a repository-relative path.
+  ///
+  /// \param path Path with '/' separators.
+  /// \return Everything before the last '/', or empty.
+  std::string
+  parent_directory(std::string_view path)
+  {
+    const std::size_t slash = path.rfind('/');
+    return slash == std::string_view::npos ? std::string {} : std::string {path.substr(0, slash)};
+  }
+
+  /// Add one group per directory of the top-level file nodes.
+  ///
+  /// Directories without files whose only child is one subdirectory are merged
+  /// into that subdirectory's group, whose label then shows both ("a/b").
+  ///
+  /// \param chart Chart being grouped.
+  /// \param node_parent `Contains` parent of each node, cycles cut.
+  /// \param hierarchy Hierarchy receiving the groups.
+  /// \return The added groups.
+  DirectoryGroups
+  add_directory_groups(
+    const Chart &chart, const std::vector<std::size_t> &node_parent, Hierarchy &hierarchy
+  )
+  {
+    struct Directory
+    {
+      std::set<std::string> subdirectories;
+      bool has_files = false;
+    };
+    std::map<std::string, Directory> directories;
+    for (std::size_t index = 0; index < chart.nodes.size(); ++index)
+    {
+      const Comprendo::Node &node = chart.nodes[index];
+      if (node.kind != Comprendo::NodeKind::File || node_parent[index] != kNone)
+      {
+        continue;
+      }
+      std::string path = parent_directory(node.file);
+      directories[path].has_files = true;
+      while (!path.empty())
+      {
+        std::string up = parent_directory(path);
+        directories[up].subdirectories.insert(path);
+        path = std::move(up);
+      }
+    }
+
+    DirectoryGroups result;
+    result.group_of_directory[""] = 0;
+    const auto name_of = [](const std::string &path)
+    { return path.substr(path.rfind('/') == std::string::npos ? 0 : path.rfind('/') + 1); };
+    // Depth-first, in path order, so group indices do not depend on node order.
+    std::vector<std::tuple<std::string, std::size_t, std::string>> stack;
+    for (const std::string &top : directories[""].subdirectories | std::views::reverse)
+    {
+      stack.emplace_back(top, 0, "");
+    }
+    while (!stack.empty())
+    {
+      auto [path, parent, prefix] = std::move(stack.back());
+      stack.pop_back();
+      const Directory &directory = directories.at(path);
+      std::string label = prefix + name_of(path);
+      if (!directory.has_files && directory.subdirectories.size() == 1)
+      {
+        stack.emplace_back(*directory.subdirectories.begin(), parent, label + "/");
+        continue;
+      }
+      const std::size_t group = hierarchy.groups.size();
+      hierarchy.groups.push_back(
+        {.key = Comprendo::fnv1a64("directory\x1f" + path), .label = label, .directory = path}
+      );
+      result.group_of_directory[path] = group;
+      result.parent_of_group[group] = parent;
+      for (const std::string &sub : directory.subdirectories | std::views::reverse)
+      {
+        stack.emplace_back(sub, group, "");
+      }
+    }
+    return result;
+  }
+
   bool
   merges(const Comprendo::Node &node, Comprendo::Grouping grouping)
   {
@@ -294,6 +391,9 @@ namespace Comprendo
     const ClusterGroups clusters = grouping == Grouping::Cluster
       ? add_cluster_groups(chart, node_parent, by_id, hierarchy)
       : ClusterGroups {};
+    const DirectoryGroups directories = grouping == Grouping::File
+      ? add_directory_groups(chart, node_parent, hierarchy)
+      : DirectoryGroups {};
 
     const auto parent_group_of_node = [&](std::size_t index) -> std::size_t
     {
@@ -306,6 +406,10 @@ namespace Comprendo
           return hierarchy.group_of_node[parent];
         }
         return cluster == 0 ? clusters.unclustered : clusters.group_of_cluster.at(cluster);
+      }
+      if (grouping == Grouping::File && parent == kNone && chart.nodes[index].kind == NodeKind::File)
+      {
+        return directories.group_of_directory.at(parent_directory(chart.nodes[index].file));
       }
       if (
         parent == kNone
@@ -322,9 +426,22 @@ namespace Comprendo
     group_order.reserve(hierarchy.groups.size());
     for (std::size_t group = 1; group < hierarchy.groups.size(); ++group)
     {
-      const std::size_t parent = group < node_groups
-        ? parent_group_of_node(hierarchy.groups[group].nodes.front())
-        : clusters.parent_of_group.at(group);
+      std::size_t parent = 0;
+      if (group < node_groups)
+      {
+        parent = parent_group_of_node(hierarchy.groups[group].nodes.front());
+      }
+      else if (
+        const auto directory = directories.parent_of_group.find(group);
+        directory != directories.parent_of_group.end()
+      )
+      {
+        parent = directory->second;
+      }
+      else
+      {
+        parent = clusters.parent_of_group.at(group);
+      }
       group_parent[group] = parent == group || parent == 0 ? kNone : parent;
       group_order.push_back(group);
     }

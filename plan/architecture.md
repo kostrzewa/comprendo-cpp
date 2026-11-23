@@ -344,7 +344,10 @@ pans, left-click selects, hovering shows a tooltip (label, kind, file:line).
 `Home` or View → Fit chart fits the chart; the view stays fitted (also across
 window resizes and dock changes) until the user zooms or pans. `G` or the View
 menu cycles cluster (the default, first in the Explorer), file, and
-namespace grouping, keeping the selection;
+namespace grouping, keeping the selection. The file grouping nests files in
+directory groups (`HierarchyGroup::directory`), so the Explorer shows the
+directory tree and the graph draws directories as disks; a directory without
+files and with a single subdirectory merges into it ("include/proj");
 `--group` picks the grouping at startup. The cluster grouping nests the
 model's clusters (`parent_id`); a node moves into its cluster together with
 its `Contains` subtree, except members of other clusters, and top-level

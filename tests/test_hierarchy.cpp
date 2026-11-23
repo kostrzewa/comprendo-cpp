@@ -283,3 +283,53 @@ TEST_CASE("cluster grouping tolerates cycles and missing clusters", "[hierarchy]
   CHECK(Comprendo::next_grouping(Grouping::Namespace) == Grouping::Cluster);
   CHECK(Comprendo::to_string(Grouping::Cluster) == "cluster");
 }
+
+/// The Explorer and the graph show files inside their directories, and long
+/// single-child chains (include/Project) should not cost a tree level each.
+/// Builds files in nested directories, groups by file, and checks each file's
+/// parent directory group, the merged "include/proj" label, nesting of
+/// src/core under src, a root-level file under the root, and symbols staying
+/// under their files.
+TEST_CASE("file grouping nests files in directories", "[hierarchy]")
+{
+  Chart chart;
+  const auto file = [&chart](std::uint64_t id, const char *path)
+  {
+    chart.nodes.push_back(
+      {.id = id, .kind = NodeKind::File, .name = path, .qualified_name = path, .file = path}
+    );
+  };
+  file(1, "include/proj/a.hpp");
+  file(2, "src/main.cpp");
+  file(3, "src/core/b.cpp");
+  file(4, "README.cpp");
+  chart.nodes.push_back(
+    {.id = 5,
+     .kind = NodeKind::Function,
+     .name = "f",
+     .qualified_name = "f",
+     .file = "src/main.cpp"}
+  );
+  chart.edges.push_back({.src = 2, .dst = 5, .kind = EdgeKind::Contains});
+  const Hierarchy hierarchy = Comprendo::build_hierarchy(chart, Grouping::File);
+
+  CHECK(parent_label(chart, hierarchy, 1) == "include/proj");
+  CHECK(parent_label(chart, hierarchy, 2) == "src");
+  CHECK(parent_label(chart, hierarchy, 3) == "core");
+  CHECK(parent_label(chart, hierarchy, 4).empty());
+  CHECK(parent_label(chart, hierarchy, 5) == "src/main.cpp");
+  const auto core = std::ranges::find(
+    hierarchy.groups, std::string {"src/core"}, &Comprendo::HierarchyGroup::directory
+  );
+  CHECK(core != hierarchy.groups.end());
+  if (core != hierarchy.groups.end())
+  {
+    CHECK(hierarchy.groups.at(core->parent).directory == "src");
+  }
+  CHECK(
+    std::ranges::none_of(
+      hierarchy.groups, [](const auto &group) { return group.directory == "include"; }
+    )
+  );
+  CHECK(is_tree(hierarchy));
+}

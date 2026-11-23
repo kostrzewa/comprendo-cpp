@@ -16,7 +16,9 @@ namespace Comprendo
   /// How chart nodes are nested into groups.
   enum class Grouping : std::uint8_t
   {
-    /// The stored `Contains` tree: file → namespace → class → member.
+    /// The stored `Contains` tree: file → namespace → class → member, with
+    /// files nested in their directories. A directory whose only content is one
+    /// subdirectory merges with it into one group labelled "a/b".
     File,
     /// Namespace nodes with equal qualified names are merged across files;
     /// file nodes become leaves of the root and their contents move to the root.
@@ -59,6 +61,8 @@ namespace Comprendo
     std::size_t parent = 0;
     /// Cluster id for groups standing for a cluster, otherwise 0.
     std::uint64_t cluster = 0;
+    /// Repository-relative path for groups standing for a directory, otherwise empty.
+    std::string directory;
   };
 
   /// A chart's nodes arranged as a tree of groups.

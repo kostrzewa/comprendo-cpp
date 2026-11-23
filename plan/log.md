@@ -179,3 +179,13 @@ commit. Newest last.
   reads plain comments while exploring, as the prompt asks.
 
 - Commit: `6f2f1e2`.
+- Commit: `5676387`.
+
+## 2026-11-23 — M8b, M8c cluster-first viewer, directory tree
+
+- M8b: cluster grouping is the default and listed first everywhere.
+- M8c: directories are groups of the file hierarchy rather than an
+  Explorer-only tree, so the list on the left and the disks on the right stay
+  the same structure. The file-layout golden changed accordingly
+  (`COMPRENDO_UPDATE_GOLDEN=1`); the other layout tests passed unchanged.
+
