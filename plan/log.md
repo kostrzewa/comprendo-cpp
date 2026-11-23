@@ -574,3 +574,5 @@ commit. Newest last.
   logs a warning.
 - Verified under xvfb: `xprop _NET_WM_ICON` on the window lists all five
   sizes, and the decoded 48 px icon shows ¿?.
+
+- Commit: `6585753`.
