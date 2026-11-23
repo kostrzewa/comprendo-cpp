@@ -700,3 +700,5 @@ commit. Newest last.
   determinism, blend ends; centring survives regrouping; smoke test centres
   and restores. Measured on this chart (release): 0.8 ms for a top-level
   cluster, 0.9 ms for a function four levels deep.
+
+- Commit: `d556075`.
