@@ -670,3 +670,5 @@ commit. Newest last.
   immediate auto-fit, so `--select` still frames the selection at startup.
 - Checked under xvfb: after an Explorer click the status zoom read 0.162,
   0.226, 0.273, 0.311, 0.344, 0.373 in successive captures over 0.14 s.
+
+- Commit: `23f8905`.
