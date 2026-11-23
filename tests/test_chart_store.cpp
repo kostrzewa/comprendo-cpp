@@ -130,7 +130,7 @@ namespace
         .src = kMaxId,
         .dst = kHighBitId,
         .kind = static_cast<EdgeKind>(kind),
-        .weight = 0.25F * kind,
+        .weight = 0.25F * static_cast<float>(kind),
         .evidence = "src/file.cpp:" + std::to_string(kind),
         .provenance = static_cast<Provenance>(kind % 3),
       });

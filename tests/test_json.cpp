@@ -2,6 +2,8 @@
 /// \brief Tests for the JSON parser and serializer.
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <array>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <string>
@@ -69,7 +71,7 @@ TEST_CASE("json parses nested containers", "[json]")
 /// keys) and checks each fails with an offset in the message.
 TEST_CASE("json rejects malformed input", "[json]")
 {
-  const char *const bad[] = {
+  const std::array bad = {
     "",
     "[1,]",
     "{\"a\" 1}",

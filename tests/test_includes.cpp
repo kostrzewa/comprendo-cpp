@@ -49,7 +49,7 @@ TEST_CASE("resolve follows the include search order", "[includes]")
   const std::unordered_set<std::string> known
     = {"src/circle.hpp", "include/geo/shape.hpp", "src/geo/shape.hpp", "top.hpp"};
   const std::vector<std::string> paths = {"include", "src", "."};
-  const auto resolve = [&](const char *includer, IncludeDirective directive)
+  const auto resolve = [&](const char *includer, const IncludeDirective &directive)
   { return resolve_include(includer, directive, known, paths); };
 
   CHECK(resolve("src/main.cpp", {.target = "circle.hpp"}) == "src/circle.hpp");

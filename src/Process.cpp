@@ -25,8 +25,6 @@
 
 #include <fmt/format.h>
 
-extern char **environ;
-
 namespace
 {
   /// Exit-code offset used for children terminated by a signal, as shells do.
@@ -232,6 +230,8 @@ namespace Comprendo
     args.reserve(argv.size() + 1);
     for (const std::string &arg : argv)
     {
+      // POSIX takes argv as char *const[] but does not modify the strings.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       args.push_back(const_cast<char *>(arg.c_str()));
     }
     args.push_back(nullptr);
@@ -292,6 +292,8 @@ namespace Comprendo
     args.reserve(argv.size() + 1);
     for (const std::string &arg : argv)
     {
+      // POSIX takes argv as char *const[] but does not modify the strings.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       args.push_back(const_cast<char *>(arg.c_str()));
     }
     args.push_back(nullptr);

@@ -278,6 +278,7 @@ namespace Comprendo
   LspClient::shutdown()
   {
     auto stopped = request("shutdown", Json {});
+    // NOLINTNEXTLINE(bugprone-unused-return-value): exit fails only when the server already left.
     static_cast<void>(notify("exit", Json {}));
     m_process.finish(kExitGrace);
     if (!stopped)

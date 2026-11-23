@@ -1,0 +1,17 @@
+# clang-tidy-22 configuration; run with `cmake --build --preset clang-22 --target clang-tidy`.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  performance-*,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-*,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-avoid-do-while,
+  readability-else-after-return,
+  readability-redundant-*,
+  modernize-use-nodiscard,
+  modernize-use-override
+HeaderFilterRegex: '.*/(include|src|tests)/.*'
+ExcludeHeaderFilterRegex: '.*/_deps/.*'

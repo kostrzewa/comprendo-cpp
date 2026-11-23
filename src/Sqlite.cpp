@@ -112,6 +112,7 @@ namespace Comprendo::Sqlite
     }
     sqlite3_stmt *raw = nullptr;
     const int length = static_cast<int>(sql.size());
+    // NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage): the length is passed explicitly.
     if (sqlite3_prepare_v2(db.handle(), sql.data(), length, &raw, nullptr) != SQLITE_OK)
     {
       return std::unexpected(db.error_message());
@@ -198,6 +199,8 @@ namespace Comprendo::Sqlite
       return {};
     }
     const int bytes = sqlite3_column_bytes(m_stmt.get(), column);
+    // SQLite returns UTF-8 text as unsigned char.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     return {reinterpret_cast<const char *>(text), static_cast<std::size_t>(bytes)};
   }
 

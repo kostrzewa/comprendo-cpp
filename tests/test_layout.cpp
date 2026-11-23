@@ -59,7 +59,7 @@ namespace
     Chart chart;
     Comprendo::SplitMix64 random {shape.seed};
     const auto add
-      = [&chart](NodeKind kind, std::string name, std::string qualified, std::string file)
+      = [&chart](NodeKind kind, std::string name, std::string qualified, const std::string &file)
     {
       const std::uint64_t id = Comprendo::make_node_id(kind, qualified, file, "");
       chart.nodes.push_back(

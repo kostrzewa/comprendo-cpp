@@ -32,6 +32,21 @@ configure_file(
 
 include(cmake/dependencies.cmake)
 
+find_program(COMPRENDO_RUN_CLANG_TIDY run-clang-tidy-22)
+find_program(COMPRENDO_CLANG_TIDY clang-tidy-22)
+if(COMPRENDO_RUN_CLANG_TIDY AND COMPRENDO_CLANG_TIDY)
+  add_custom_target(
+    clang-tidy
+    COMMAND
+      ${COMPRENDO_RUN_CLANG_TIDY} -clang-tidy-binary ${COMPRENDO_CLANG_TIDY} -p ${CMAKE_BINARY_DIR}
+      -quiet "${CMAKE_SOURCE_DIR}/(src|tests)/.*\\.cpp$"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Running clang-tidy-22 on src/ and tests/"
+    USES_TERMINAL
+    VERBATIM
+  )
+endif()
+
 option(COMPRENDO_BUILD_DOXYGEN "Build html and latex documentation. Requires a texlive and doxygen installation" OFF)
 if(COMPRENDO_BUILD_DOXYGEN)    
   find_package(Doxygen REQUIRED doxygen)    

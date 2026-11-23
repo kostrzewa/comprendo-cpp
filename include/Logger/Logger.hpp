@@ -47,9 +47,9 @@ namespace Comprendo::Logger
   /// hash so every log file can be traced back to a revision.
   inline void
   init(
-    std::string level = "info",
-    std::string log_file = "",
-    std::string pattern = kDefaultPattern,
+    const std::string &level = "info",
+    const std::string &log_file = "",
+    const std::string &pattern = kDefaultPattern,
     ConsoleStream console = ConsoleStream::Stdout
   )
   {
@@ -132,8 +132,9 @@ namespace Comprendo::Logger
   inline void
   error(fmt::format_string<Args...> fmt, Args &&...args)
   {
-    spdlog::error(fmt, std::forward<Args>(args)...);
-    throw LoggerError(fmt::format(fmt, std::forward<Args>(args)...));
+    const std::string message = fmt::format(fmt, std::forward<Args>(args)...);
+    spdlog::error("{}", message);
+    throw LoggerError(message);
   }
 
 } // namespace Comprendo::Logger

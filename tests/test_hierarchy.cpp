@@ -21,23 +21,22 @@ namespace
   using Comprendo::Hierarchy;
   using Comprendo::NodeKind;
 
-  /// Fixed node ids of the test chart, chosen so that sorting by id is meaningful.
-  enum Id : std::uint64_t
-  {
-    kFileA = 10,
-    kFileB = 11,
-    kGeoA = 20,
-    kGeoB = 21,
-    kDetailA = 22,
-    kAnonB = 23,
-    kShape = 30,
-    kFunctionF = 31,
-    kHelper = 32,
-    kMain = 33,
-    kTwoParents = 40,
-    kCycleX = 50,
-    kCycleY = 51,
-  };
+  /// \name Fixed node ids of the test chart, chosen so that sorting by id is meaningful.
+  ///@{
+  constexpr std::uint64_t kFileA = 10;
+  constexpr std::uint64_t kFileB = 11;
+  constexpr std::uint64_t kGeoA = 20;
+  constexpr std::uint64_t kGeoB = 21;
+  constexpr std::uint64_t kDetailA = 22;
+  constexpr std::uint64_t kAnonB = 23;
+  constexpr std::uint64_t kShape = 30;
+  constexpr std::uint64_t kFunctionF = 31;
+  constexpr std::uint64_t kHelper = 32;
+  constexpr std::uint64_t kMain = 33;
+  constexpr std::uint64_t kTwoParents = 40;
+  constexpr std::uint64_t kCycleX = 50;
+  constexpr std::uint64_t kCycleY = 51;
+  ///@}
 
   /// Build a chart covering merged, nested, and anonymous namespaces, a node with
   /// two `Contains` parents, and a `Contains` cycle.

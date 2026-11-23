@@ -20,7 +20,7 @@ unversioned binaries.
 - `clang-22`, `clang++-22` — compiler
 - `clangd-22` — semantic extractor backend
 - `clang-format-22` — formatting
-- `clang-tidy-22` — lint
+- `clang-tidy-22` — lint: `cmake --build --preset clang-22 --target clang-tidy`
 - `llvm-cov-22`, `llvm-profdata-22` — coverage
 
 Build with CMake + Ninja through the presets:

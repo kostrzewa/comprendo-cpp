@@ -92,3 +92,12 @@ commit. Newest last.
 - Checked with a screenshot of this repository's chart clustered into four
   subsystems through the plugin's tools (`--group cluster --select Viewer`).
 
+- Commit: `ea16a7c`.
+
+## 2026-11-23 — M7c clang-tidy target
+
+- `.clang-tidy` and a `clang-tidy` target; 32 findings fixed. One was a real
+  bug: `Logger::error` forwarded its arguments twice, so moved-from values
+  could reach the exception message. The exit codes became constants instead
+  of an unscoped enum.
+

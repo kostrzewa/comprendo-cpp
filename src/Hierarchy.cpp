@@ -145,6 +145,7 @@ namespace
       return result;
     }
     std::vector<const Comprendo::Cluster *> clusters;
+    clusters.reserve(chart.clusters.size());
     for (const Comprendo::Cluster &cluster : chart.clusters)
     {
       clusters.push_back(&cluster);

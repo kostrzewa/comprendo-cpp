@@ -31,7 +31,7 @@ Every clang-family tool is invoked with its version suffix, preferring 22:
 - `clang-22`, `clang++-22` — compiler
 - `clangd-22` — semantic extractor backend
 - `clang-format-22` — formatting
-- `clang-tidy-22` — optional lint target
+- `clang-tidy-22` — lint (`clang-tidy` target, checks in `.clang-tidy`)
 - `llvm-cov-22`, `llvm-profdata-22` — coverage
 
 `CMakePresets.json` pins `CMAKE_C_COMPILER=clang-22` and

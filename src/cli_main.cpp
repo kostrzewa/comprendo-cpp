@@ -16,7 +16,7 @@
 ///
 /// \param argc Number of command-line arguments.
 /// \param argv Command-line argument vector.
-/// \return Process exit code (see Comprendo::ExitCode).
+/// \return Process exit code (Comprendo::kExitOk, kExitFailure, or kExitUsage).
 int
 main(int argc, char **argv)
 {

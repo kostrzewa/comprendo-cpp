@@ -28,6 +28,12 @@ namespace Comprendo
   public:
     Profiler() = default;
     ~Profiler() = default;
+    Profiler(const Profiler &) = delete;
+    Profiler &
+    operator=(const Profiler &) = delete;
+    Profiler(Profiler &&) = delete;
+    Profiler &
+    operator=(Profiler &&) = delete;
 
     // ---- constants ------------------------------------------------------------
 
@@ -52,15 +58,15 @@ namespace Comprendo
     /// A single invocation recorded for Perfetto / Chrome trace output.
     struct TraceEvent
     {
-      double ts_ns;  // timestamp in ns relative to m_start_time
-      double dur_ns; // duration in ns
-      int tid;       // thread id
+      double ts_ns = 0.0;  // timestamp in ns relative to m_start_time
+      double dur_ns = 0.0; // duration in ns
+      int tid = 0;         // thread id
       std::string name;
     };
 
     // ---- public API ----------------------------------------------------------
 
-    inline static Profiler &
+    static Profiler &
     instance()
     {
       static Profiler instance;
@@ -90,7 +96,7 @@ namespace Comprendo
 
     /// Enter a named scope.  The scope identity is (parent_scope, name), so
     /// the same name under different callers produces distinct scope records.
-    inline static void
+    static void
     push(const std::string &name)
     {
 #if !COMPRENDO_PROFILER_ENABLED
@@ -107,7 +113,7 @@ namespace Comprendo
 
     /// Exit the innermost scope and accumulate its wall-clock time (inclusive
     /// of any children) into the corresponding aggregated Scope record.
-    inline static void
+    static void
     pop()
     {
 #if !COMPRENDO_PROFILER_ENABLED
@@ -169,14 +175,14 @@ namespace Comprendo
 
     /// Access the aggregated scope records (scope_id → Scope).
     /// Scope 0 is the implicit root.
-    inline static const std::vector<Scope> &
+    static const std::vector<Scope> &
     get_scopes()
     {
       return m_scopes;
     }
 
     /// Enable / disable per-invocation trace recording (on by default).
-    inline static void
+    static void
     set_tracing(bool on)
     {
       m_tracing = on;
@@ -185,7 +191,7 @@ namespace Comprendo
     /// Write the trace buffer to \p path in Chrome Trace Event JSON format.
     /// The file can be opened directly in Perfetto (ui.perfetto.dev) or
     /// chrome://tracing.
-    inline static void
+    static void
     dump_perfetto(const std::string &path)
     {
 #if !COMPRENDO_PROFILER_ENABLED
@@ -272,7 +278,7 @@ namespace Comprendo
     ///
     /// A grand-total footer reports program wall time, total accounted time,
     /// and total missing (unprofiled) time.
-    inline static void
+    static void
     print_profile(int max_depth = 1)
     {
 #if !COMPRENDO_PROFILER_ENABLED
@@ -546,6 +552,8 @@ namespace Comprendo
     inline static uint64_t m_next_scope_id = 1;
 
     /// Program-start timestamp for time-zero reference.
+    // time_point's default constructor cannot throw.
+    // NOLINTNEXTLINE(bugprone-throwing-static-initialization)
     inline static std::chrono::high_resolution_clock::time_point m_start_time;
 
     // ---- trace buffer (Perfetto / Chrome Trace Event output) -----------------
@@ -577,6 +585,8 @@ namespace Comprendo
     explicit ProfileScope(const std::string &name) { Profiler::push(name); }
 
     /// Leave the scope.
+    // pop() throws only std::bad_alloc, and terminating then is acceptable.
+    // NOLINTNEXTLINE(bugprone-exception-escape)
     ~ProfileScope() { Profiler::pop(); }
 
     ProfileScope(const ProfileScope &) = delete;

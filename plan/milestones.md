@@ -249,11 +249,15 @@ Done:
   Inspector shows a cluster's summary and a node's cluster. Replaces the
   planned convex-hull fills.
 
+- `clang-tidy` target (`run-clang-tidy-22` over `src/` and `tests/` with the
+  repository `.clang-tidy`); the code base is clean, with justified `NOLINT`s
+  only for POSIX and SQLite API casts.
+
 Open:
 
 - Kind filters, drill-down, minimap.
 - clangd `Uses` edges (`references`) and hover text for node details.
-- `clang-tidy-22` target; profiler scopes and Perfetto dump.
+- Profiler scopes and Perfetto dump.
 - Documentation pass (`docs/main.md`) and screenshots.
 - SFML DSP tones; Jolt cosmetic particles.
 
