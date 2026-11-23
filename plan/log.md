@@ -282,3 +282,4 @@ commit. Newest last.
   cluster selected comes from the crossing lines (proposed next: end them at
   the selection's peers, ~113 → ~30 for Tests).
 
+- Commit: `3af5403`.
