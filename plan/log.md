@@ -633,3 +633,5 @@ commit. Newest last.
 - Tests: `fold_toggle_size`/`is_folded`; smoke test folds and unfolds the
   Explorer (default layout: side-by-side strip). Checked with XTest on a
   copy of the user's layout: fold, unfold, fold across a restart.
+
+- Commit: `622db4c`.
