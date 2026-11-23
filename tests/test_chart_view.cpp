@@ -612,3 +612,40 @@ TEST_CASE("connections aggregate by groups of the same type", "[view]")
   CHECK(incoming.size() == 2);
   CHECK(std::ranges::all_of(incoming, [&](const auto &c) { return c.group == b_file; }));
 }
+
+/// Lines inside every group at once drown the chart, so internal lines are
+/// drawn only where the user is looking: at the top level and inside the
+/// selection and the groups enclosing it. Adds a call between A's two methods
+/// and checks the line m1 -> m2 is hidden with no selection or with another
+/// part of the chart selected, and shown once class A, or a method in it, is
+/// selected; member connections still show it regardless.
+TEST_CASE("internal lines are drawn only along the selection's path", "[view]")
+{
+  Chart chart = sample_chart();
+  chart.edges.push_back({.src = 7, .dst = 8, .kind = EdgeKind::Calls});
+  const ChartView view {chart, Grouping::File};
+  const std::size_t m1 = group_of(view, 7);
+  const std::size_t m2 = group_of(view, 8);
+  const auto shows_m1_m2
+    = [&](const Comprendo::ViewFilter &filter, std::optional<std::size_t> focus)
+  {
+    return std::ranges::any_of(
+      view.shown_edges(filter, focus),
+      [&](const auto &edge) { return edge.from == m1 && edge.to == m2; }
+    );
+  };
+  CHECK_FALSE(shows_m1_m2({}, std::nullopt));
+  CHECK_FALSE(shows_m1_m2({}, group_of(view, 1)));
+  CHECK_FALSE(shows_m1_m2({}, group_of(view, 6)));
+  CHECK(shows_m1_m2({}, group_of(view, 5)));
+  CHECK(shows_m1_m2({}, m1));
+  CHECK(shows_m1_m2({.member_edges = true}, std::nullopt));
+  const auto top = view.shown_edges();
+  CHECK(
+    std::ranges::any_of(
+      top,
+      [&](const auto &edge)
+      { return edge.from == group_of(view, 2) && edge.to == group_of(view, 1); }
+    )
+  );
+}

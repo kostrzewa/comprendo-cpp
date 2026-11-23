@@ -448,8 +448,12 @@ namespace Comprendo
     /// sibling groups directly below the deepest group containing both
     /// endpoints (two clusters, two subclusters of one cluster, two files of
     /// one directory, ...), so one line stands for all edges between their
-    /// contents; edges where one endpoint contains the other are dropped. With
-    /// ViewFilter::member_edges the endpoints' own groups are used instead.
+    /// contents; edges where one endpoint contains the other are dropped.
+    /// Aggregated lines are drawn only between children of the root or of a
+    /// group on the path from \p focus to the root, so the insides of groups
+    /// that are not selected (or enclosing the selection) carry no lines. With
+    /// ViewFilter::member_edges every edge is drawn between the endpoints' own
+    /// groups instead.
     ///
     /// Edges crossing the boundary of \p focus (one endpoint inside it) are
     /// refined by one level: both endpoints become their ancestor-or-self one

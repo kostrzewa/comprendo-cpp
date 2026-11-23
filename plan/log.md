@@ -272,3 +272,13 @@ commit. Newest last.
   zoom-dependent merging were replaced by one asserting exact endpoints.
 
 - Commit: `a57fa9e`.
+
+## 2026-11-23 — M9g internal lines along the selection's path
+
+- Measured on the user's chart (1509 nodes, 4662 edges): of ~1000 lines drawn
+  with Tests selected, all but ~20 were inside groups at every level; 113
+  were the selection's crossing lines. Internal lines are now drawn only
+  inside the root, the selection, and its ancestors. Remaining density with a
+  cluster selected comes from the crossing lines (proposed next: end them at
+  the selection's peers, ~113 → ~30 for Tests).
+

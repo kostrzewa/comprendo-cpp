@@ -363,7 +363,10 @@ Input is ignored while ImGui uses the mouse or keyboard.
   summary/detail/file:line/edges;
 - edge aggregation (default): each edge is lifted to the two sibling groups
   directly below its endpoints' deepest common group (`GroupEdge::lifted_*`,
-  computed once per grouping), so clusters, subclusters, files, and classes
+  computed once per grouping); such a line is drawn only when that common
+  group is the root or on the path from the selection to the root, so
+  unselected groups carry no internal lines (on the user's chart: ~1000 lines
+  down to ~20 with nothing selected); so clusters, subclusters, files, and classes
   are linked by one line per pair, drawn wider with the summed weight
   (1 + ½·log2 w, at most 4×); edges where one endpoint contains the other are
   dropped. Line ends do not depend on the camera (`ChartView::shown_edges`

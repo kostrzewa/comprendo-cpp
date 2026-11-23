@@ -101,8 +101,9 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 
 Connections are aggregated by default: a line between two clusters (or two
 subclusters, files, classes, ...) stands for every relationship between their
-contents, thicker the more there are, and the relationships inside a group
-are drawn between its parts. Which lines are drawn never depends on zooming
+contents, thicker the more there are. Lines inside a group are drawn only
+for the selected group and the groups enclosing it, so with nothing selected
+only the lines between top-level clusters are shown. Which lines are drawn never depends on zooming
 or panning: lines to groups off screen or too small to see still point at
 them. Selecting an object refines its
 connections by one level: a selected cluster shows the connections of its

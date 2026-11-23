@@ -305,4 +305,8 @@ Open (waiting for a decision, see [log](log.md)):
   every member edge; leaves show member detail.
 - f. (done) Shown connections no longer depend on zoom or panning: line ends
   are the groups the hierarchy and selection pick, at their layout positions.
+- g. (done) Internal lines only along the selection's path (top level, the
+  selection, and the groups enclosing it). Under evaluation by the user; the
+  next candidates are the selection's crossing lines ending at its peers'
+  level and one line per pair regardless of kind.
 

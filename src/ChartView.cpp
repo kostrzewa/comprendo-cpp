@@ -496,6 +496,14 @@ namespace Comprendo
       }
     }
     const std::uint32_t refined_depth = m_depth[focus_group] + 1;
+    // Groups whose internal lines are drawn: the root and every group from the
+    // selection up to it. Insides of other groups stay free of lines.
+    std::vector<bool> on_path(m_hierarchy.groups.size(), false);
+    for (std::size_t group = focus_group; group != 0; group = m_hierarchy.groups[group].parent)
+    {
+      on_path[group] = true;
+    }
+    on_path.front() = true;
 
     std::vector<VisibleEdge> edges;
     for (const GroupEdge &edge : m_edges)
@@ -523,6 +531,10 @@ namespace Comprendo
       }
       else
       {
+        if (edge.lifted_from == 0 || !on_path[m_hierarchy.groups[edge.lifted_from].parent])
+        {
+          continue;
+        }
         from = edge.lifted_from;
         to = edge.lifted_to;
       }
