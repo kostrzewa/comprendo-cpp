@@ -50,6 +50,9 @@ namespace
   /// Child count above which Explorer leaf rows are clipped to the visible ones.
   constexpr std::size_t kClipThreshold = 256;
 
+  /// Longest time between the clicks of a double click, as on common desktops.
+  constexpr float kDoubleClickSeconds = 0.5F;
+
   /// Rows an Inspector list keeps when space is short.
   constexpr std::size_t kInspectorMinimumRows = 3;
 
@@ -146,15 +149,6 @@ namespace
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
     {
       select_from_panel(state, group);
-    }
-    // Double-clicking a container (directory, cluster, file, ...) unfolds or
-    // folds it; the open state applies from the next frame.
-    if (
-      !leaf && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
-      && !ImGui::IsItemToggledOpen()
-    )
-    {
-      ImGui::GetStateStorage()->SetInt(ImGui::GetItemID(), open ? 0 : 1);
     }
     if (state.reveal_requested && state.selected == group)
     {
@@ -801,6 +795,9 @@ namespace Comprendo
     // Docking comes from the pinned docking branch; enable it at runtime.
     imgui_io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     imgui_io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // ImGui's default of 0.30 s is shorter than desktop defaults (0.4-0.5 s),
+    // so ordinary double clicks registered as two single clicks.
+    imgui_io.MouseDoubleClickTime = kDoubleClickSeconds;
 
     if (!persist_layout)
     {

@@ -241,3 +241,12 @@ commit. Newest last.
   automation, so the fix is guarded to be harmless if ImGui does toggle.
 
 - Commit: `6ce841d`.
+
+## 2026-11-23 — M9d fix: double-click timing
+
+- Reproduced with real X input (XTest through ctypes under xvfb): double
+  clicks with about 130 ms between presses unfolded Explorer rows, 400 ms did
+  not. ImGui's double-click window defaults to 0.30 s, shorter than desktop
+  defaults; it is now 0.5 s. The explicit toggle added in M9d was the wrong
+  diagnosis and is removed; ImGui's `OpenOnDoubleClick` does the unfolding.
+
