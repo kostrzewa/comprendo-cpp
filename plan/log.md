@@ -283,3 +283,11 @@ commit. Newest last.
   the selection's peers, ~113 → ~30 for Tests).
 
 - Commit: `3af5403`.
+
+## 2026-11-23 — M9h crossing lines end at the selection's peers
+
+- The user's screenshot with Tests selected was still dense: every test file
+  linked to individual files in other clusters. The far end of a crossing
+  line is now at the selection's own depth, revising M9e's "same depth"
+  choice, which fans out on real charts.
+

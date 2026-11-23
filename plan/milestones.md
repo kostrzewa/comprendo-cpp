@@ -309,4 +309,6 @@ Open (waiting for a decision, see [log](log.md)):
   selection, and the groups enclosing it). Under evaluation by the user; the
   next candidates are the selection's crossing lines ending at its peers'
   level and one line per pair regardless of kind.
+- h. (done) The selection's crossing lines end at the selection's peers (the
+  far end at the selection's depth) instead of one level deeper on both sides.
 

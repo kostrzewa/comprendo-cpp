@@ -106,9 +106,9 @@ for the selected group and the groups enclosing it, so with nothing selected
 only the lines between top-level clusters are shown. Which lines are drawn never depends on zooming
 or panning: lines to groups off screen or too small to see still point at
 them. Selecting an object refines its
-connections by one level: a selected cluster shows the connections of its
-files, a selected file those of its classes, and a selected method or other
-leaf its connections to the members it uses. View → Member connections draws every relationship
+connections by one level: a selected cluster links its files to the other
+clusters, a selected file links its classes to other files, and a selected
+method or other leaf links to the members it uses. View → Member connections draws every relationship
 between its endpoints instead.
 
 For a cluster, directory, file, or namespace the Inspector lists its

@@ -455,12 +455,13 @@ namespace Comprendo
     /// ViewFilter::member_edges every edge is drawn between the endpoints' own
     /// groups instead.
     ///
-    /// Edges crossing the boundary of \p focus (one endpoint inside it) are
-    /// refined by one level: both endpoints become their ancestor-or-self one
-    /// level below \p focus, or stay themselves when shallower. Selecting a
-    /// cluster thus shows its files' connections, a file its classes', and a
-    /// leaf its own connections to the members it uses. Crossing edges to an
-    /// ancestor of \p focus are dropped.
+    /// Edges crossing the boundary of \p focus (one endpoint inside it) connect
+    /// the selection's children to its peers: the inside endpoint becomes its
+    /// ancestor-or-self one level below \p focus, the outside endpoint its
+    /// ancestor-or-self at the depth of \p focus (each stays itself when
+    /// shallower). Selecting a cluster thus links its files to other clusters,
+    /// a file links its classes to other files, and a leaf links to the members
+    /// it uses. Crossing edges to an ancestor of \p focus are dropped.
     ///
     /// Which groups an edge connects depends only on the hierarchy, the
     /// filter, and \p focus, never on zoom or position: lines end at their

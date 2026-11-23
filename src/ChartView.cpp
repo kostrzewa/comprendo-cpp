@@ -516,13 +516,15 @@ namespace Comprendo
       std::size_t to = 0;
       if (in_focus[edge.from] != in_focus[edge.to])
       {
-        // Crossing the selection: both ends one level below the selection.
+        // Crossing the selection: the near end one level below the selection,
+        // the far end at the selection's own level (its peers).
         if (contains(in_focus[edge.from] ? edge.to : edge.from, focus_group))
         {
           continue;
         }
-        from = ancestor_at_depth(edge.from, refined_depth);
-        to = ancestor_at_depth(edge.to, refined_depth);
+        const std::uint32_t peer_depth = m_depth[focus_group];
+        from = ancestor_at_depth(edge.from, in_focus[edge.from] ? refined_depth : peer_depth);
+        to = ancestor_at_depth(edge.to, in_focus[edge.to] ? refined_depth : peer_depth);
       }
       else if (filter.member_edges)
       {

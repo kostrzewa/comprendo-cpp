@@ -372,10 +372,11 @@ Input is ignored while ImGui uses the mouse or keyboard.
   dropped. Line ends do not depend on the camera (`ChartView::shown_edges`
   takes no draw list): lines end at their groups' layout positions even off
   screen or inside a disk too small to expand; only the kind filter moves an
-  end, to the nearest shown ancestor. Edges crossing the selection's boundary are refined by one level:
-  both ends become their ancestor-or-self one level below the selection
-  (`ancestor_at_depth`), so a cluster shows its files' connections, a file its
-  classes', and a leaf member detail; crossing edges to an ancestor of the
+  end, to the nearest shown ancestor. Edges crossing the selection's boundary link the selection's
+  children to its peers: the inside end one level below the selection, the
+  outside end at the selection's depth (`ancestor_at_depth`), so a cluster
+  links its files to other clusters, a file its classes to other files, and a
+  leaf shows member detail; crossing edges to an ancestor of the
   selection are dropped. View → Member connections
   (`ViewFilter::member_edges`) shows all other edges member to member;
 - search; View → Show kind filters (`ViewFilter`, applied in `visible`,

@@ -522,10 +522,11 @@ TEST_CASE("edges are aggregated between sibling groups by default", "[view]")
 }
 
 /// Selecting a group must show its connections one level finer than the
-/// aggregated view, following the hierarchy down to member detail at a leaf.
-/// Clusters the sample (cluster, file, namespace, class, method) and selects,
-/// in turn, b's cluster, b.cpp, class B, and method n1, checking the call lines
-/// end at files, namespaces, methods, and finally the called methods.
+/// aggregated view without fanning out: the selection's children connect to
+/// the selection's peers. Clusters the sample (cluster, file, namespace, class,
+/// method) and selects b's cluster, b.cpp, class B, and method n1, checking
+/// the call lines run file to cluster, namespace to file, method to class, and
+/// finally method to method.
 TEST_CASE("selection refines its crossing edges by one level", "[view]")
 {
   Chart chart = sample_chart();
@@ -557,15 +558,15 @@ TEST_CASE("selection refines its crossing edges by one level", "[view]")
   using Calls = std::vector<std::pair<Pair, float>>;
 
   CHECK(call_pairs(std::nullopt) == Calls {{{cluster(200), cluster(100)}, 2.0F}});
-  CHECK(call_pairs(cluster(200)) == Calls {{{group_of(view, 2), group_of(view, 1)}, 2.0F}});
-  CHECK(call_pairs(group_of(view, 2)) == Calls {{{group_of(view, 4), group_of(view, 3)}, 2.0F}});
+  CHECK(call_pairs(cluster(200)) == Calls {{{group_of(view, 2), cluster(100)}, 2.0F}});
+  CHECK(call_pairs(group_of(view, 2)) == Calls {{{group_of(view, 4), group_of(view, 1)}, 2.0F}});
+  CHECK(call_pairs(group_of(view, 6)) == Calls {{{group_of(view, 9), group_of(view, 5)}, 2.0F}});
   CHECK(
-    call_pairs(group_of(view, 6))
+    call_pairs(group_of(view, 9))
     == Calls {
       {{group_of(view, 9), group_of(view, 7)}, 1.0F}, {{group_of(view, 9), group_of(view, 8)}, 1.0F}
     }
   );
-  CHECK(call_pairs(group_of(view, 9)) == call_pairs(group_of(view, 6)));
 }
 
 /// The Inspector of a cluster or file lists what it connects to at its own
