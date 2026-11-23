@@ -121,6 +121,12 @@ namespace
   /// Frame on which the smoke test selects a group from the panels and focuses it.
   constexpr int kSmokeChartSelectFrame = 19;
 
+  /// Frame on which the smoke test selects a symbol to open its source.
+  constexpr int kSmokeSourceFrame = 27;
+
+  /// Frame on which the smoke test checks the Source panel shows the file.
+  constexpr int kSmokeSourceCheckFrame = 29;
+
   /// Frame on which the smoke test zooms into the chart.
   constexpr int kSmokeChartZoomFrame = 20;
 
@@ -413,6 +419,8 @@ namespace
     state.show_inspector = settings.show_inspector;
     state.show_log = settings.show_log;
     state.show_minimap = settings.show_minimap;
+    state.show_source = settings.show_source;
+    state.source_on_select = settings.source_on_select;
     return settings;
   }
 
@@ -435,6 +443,8 @@ namespace
       .show_inspector = state.show_inspector,
       .show_log = state.show_log,
       .show_minimap = state.show_minimap,
+      .show_source = state.show_source,
+      .source_on_select = state.source_on_select,
     };
     if (current == saved)
     {
@@ -1266,6 +1276,30 @@ namespace
     return matches;
   }
 
+  /// Find a group standing for a symbol with known lines, for the smoke test's
+  /// Source panel check.
+  ///
+  /// \param view Chart view.
+  /// \return The first such group, or nothing.
+  std::optional<std::size_t>
+  first_symbol_with_lines(const Comprendo::ChartView &view)
+  {
+    const auto &groups = view.hierarchy().groups;
+    for (std::size_t group = 0; group < groups.size(); ++group)
+    {
+      if (groups[group].nodes.empty())
+      {
+        continue;
+      }
+      const Comprendo::Node &node = view.chart().nodes[groups[group].nodes.front()];
+      if (node.kind != Comprendo::NodeKind::File && node.line_start > 0)
+      {
+        return group;
+      }
+    }
+    return std::nullopt;
+  }
+
   /// Record or check the panels' font size during the smoke test's text size
   /// steps; called right after the ImGui frame began.
   ///
@@ -1433,6 +1467,10 @@ namespace
       {
         state.text_level = 0;
       }
+      if (session && frame == kSmokeSourceFrame)
+      {
+        state.selected = first_symbol_with_lines(session->view);
+      }
       if (frame == kSmokeFontFrame)
       {
         state.font = "inter";
@@ -1453,6 +1491,15 @@ namespace
         passed = false;
       }
       draw_frame(session, build_info, note, ui_shell, state, renderer);
+      if (session && frame == kSmokeSourceCheckFrame)
+      {
+        Comprendo::Logger::info("Smoke: source panel shows {} lines", ui_shell.source_line_count());
+        if (!state.show_source || ui_shell.source_line_count() == 0)
+        {
+          Comprendo::Logger::warn("Smoke: source panel check failed at frame {}", frame);
+          passed = false;
+        }
+      }
       Comprendo::Ui::end_frame();
       EndDrawing();
       drawing += std::chrono::steady_clock::now() - start;

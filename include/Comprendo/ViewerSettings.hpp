@@ -66,6 +66,10 @@ namespace Comprendo
     bool show_log = false;
     /// Whether the minimap is drawn in the graph's corner.
     bool show_minimap = true;
+    /// Whether the Source panel is shown.
+    bool show_source = false;
+    /// Whether selecting a symbol opens the Source panel at it.
+    bool source_on_select = true;
 
     /// Memberwise equality.
     ///

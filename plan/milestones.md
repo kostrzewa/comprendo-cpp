@@ -386,4 +386,11 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
 - e. (done) The window uses the Comprendo icon: `claude_plugin/assets/icon.png`
   is copied next to the viewer (`comprendo-icon.png`) and set in sizes
   16–256 px with `SetWindowIcons` (X11 `_NET_WM_ICON`).
+- f. (done) Source panel: selecting anything with a source location opens its
+  file (resolved from the working directory, the chart's `source_root`, or
+  the directory above `.comprendo/`) with our own C++ highlighter
+  (`SourceHighlight.hpp`: keywords, types, preprocessor, strings incl. raw
+  strings across lines, characters, numbers, comments across lines), line
+  numbers, and the symbol's lines tinted and scrolled to. Docked below the
+  graph; panel visibility and "open on selection" persist per user.
 

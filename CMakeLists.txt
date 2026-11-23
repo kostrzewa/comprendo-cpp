@@ -77,6 +77,7 @@ add_library(
   src/Process.cpp
   src/QuadTree.cpp
   src/RadixSort.cpp
+  src/SourceHighlight.cpp
   src/Threads.cpp
   src/ViewerSettings.cpp
   src/Sqlite.cpp
@@ -118,6 +119,7 @@ if(COMPRENDO_BUILD_TESTS)
   add_executable(
     comprendo_tests
     tests/test_smoke.cpp
+    tests/test_source_highlight.cpp
     tests/test_threads.cpp
     tests/test_viewer_settings.cpp
     tests/test_chart.cpp

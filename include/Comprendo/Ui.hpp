@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -17,6 +18,7 @@
 
 #include "Comprendo/ChartView.hpp"
 #include "Comprendo/Hierarchy.hpp"
+#include "Comprendo/SourceHighlight.hpp"
 #include "Comprendo/ViewerSettings.hpp"
 
 struct ImFont;
@@ -59,6 +61,12 @@ namespace Comprendo
 
     /// Whether the floating Fonts dialog is open.
     bool show_fonts = false;
+
+    /// Whether the Source panel is visible.
+    bool show_source = false;
+
+    /// Whether selecting a symbol opens the Source panel at it.
+    bool source_on_select = true;
 
     /// Font of the panels and graph labels (see font_choices()).
     std::string font {kBuiltinFontId};
@@ -134,6 +142,16 @@ namespace Comprendo
     /// \param state Viewer state holding the font and text level.
     void
     apply_settings(const ViewerState &state) const;
+
+    /// Number of lines of the file shown in the Source panel.
+    ///
+    /// \return Line count; 0 when no file is open.
+    [[nodiscard]]
+    std::size_t
+    source_line_count() const
+    {
+      return source_.lines.size();
+    }
 
     /// Whether a font can be used: the built-in font, or a loaded file.
     ///
@@ -219,6 +237,14 @@ namespace Comprendo
     static void
     build_default_layout(unsigned int dockspace_id);
 
+    /// Dock a window in a new area split off the bottom of the graph.
+    ///
+    /// \param dockspace_id Dock space of the viewer.
+    /// \param window Window name.
+    /// \return False when the dock space has no graph area yet.
+    static bool
+    dock_below_graph(unsigned int dockspace_id, const char *window);
+
     /// Draw the main menu bar, with the status at its right end.
     ///
     /// \param state Viewer state.
@@ -264,6 +290,31 @@ namespace Comprendo
     void
     draw_fonts(ViewerState &state) const;
 
+    /// Follow the selection: when a different symbol with a source location is
+    /// selected, open its file at its lines (and show the panel when
+    /// ViewerState::source_on_select is set).
+    ///
+    /// \param state Viewer state holding the selection.
+    /// \param view Loaded chart, or null.
+    void
+    update_source(ViewerState &state, const ChartView *view);
+
+    /// Read and highlight a file for the Source panel, keeping the previous
+    /// one when it is already shown and unchanged on disk.
+    ///
+    /// \param file Repository-relative path from the chart.
+    /// \param state Viewer state holding the chart path.
+    /// \param view Loaded chart, for its source root.
+    void
+    open_source(const std::string &file, const ViewerState &state, const ChartView &view);
+
+    /// Draw the Source panel: the file with line numbers and C++ highlighting,
+    /// the selected symbol's lines tinted and scrolled into view.
+    ///
+    /// \param state Viewer state.
+    void
+    draw_source(ViewerState &state);
+
     /// Draw the About window.
     ///
     /// \param state Viewer state.
@@ -288,6 +339,39 @@ namespace Comprendo
 
     /// ImGui's scalable font, used at every other text size.
     ImFont *vector_font_ = nullptr;
+
+    /// Node whose source the Source panel shows (0 for none).
+    std::uint64_t source_node_ = 0;
+
+    /// Repository-relative file shown in the Source panel.
+    std::string source_file_;
+
+    /// File on disk, once found.
+    std::filesystem::path source_path_;
+
+    /// Modification time of source_path_ when it was read.
+    std::filesystem::file_time_type source_time_;
+
+    /// Highlighted contents of the file.
+    HighlightedSource source_;
+
+    /// Why the file could not be shown, or empty.
+    std::string source_error_;
+
+    /// First and last line of the selected symbol, 1-based (0 when unknown).
+    std::uint32_t source_first_ = 0;
+
+    /// Last line of the selected symbol.
+    std::uint32_t source_last_ = 0;
+
+    /// True until the panel has scrolled to the symbol.
+    bool source_scroll_ = false;
+
+    /// ImGui time of the next check whether the shown file changed on disk.
+    double source_next_check_ = 0.0;
+
+    /// True once the Source panel's place in the dock layout was settled.
+    bool source_docked_ = false;
 
     /// Loaded TrueType fonts by font id, with their files.
     std::map<std::string, std::pair<ImFont *, std::filesystem::path>, std::less<>> fonts_;

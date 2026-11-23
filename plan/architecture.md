@@ -533,6 +533,15 @@ graph:
 - **Window icon**: `comprendo-icon.png` next to the executable (copied from
   `claude_plugin/assets/icon.png` at configure time), resized to 16–256 px
   and set before the hidden window is first shown.
+- **Source panel** (M12f): `Ui::update_source` follows `ViewerState::selected`
+  (by node id, so regrouping does not reopen), `open_source` resolves the
+  file (`resolve_source`) and highlights it once (`highlight_source`, a
+  line-by-line lexer whose `LexState` carries block comments and raw
+  strings); `draw_source` clips to visible lines, draws numbers in a gutter
+  and tokens in a monospace font (JetBrains Mono, else Proggy), tints the
+  symbol's lines, and rereads the file when its mtime changes. Layouts saved
+  before the panel existed get it docked below the graph via DockBuilder
+  before the dock space is submitted; the panel waits one frame for that.
 - **Panel visibility** (Explorer, Inspector, Log, minimap) is part of
   `ViewerSettings` and so persists per user with the font and text size.
 

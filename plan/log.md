@@ -576,3 +576,26 @@ commit. Newest last.
   sizes, and the decoded 48 px icon shows ¿?.
 
 - Commit: `6585753`.
+
+## 2026-11-23 — M12f Source panel
+
+- Selection (single click in graph, Explorer, or Inspector; the user chose
+  selection over double click, which keeps centring/unfolding) opens the
+  symbol's file in a docked Source panel, tinted at its lines and scrolled
+  there. Groups without nodes (clusters, directories) leave it unchanged.
+- `SourceHighlight` (core): own C++ lexer per line with carried state
+  (block comments, raw strings with delimiters), literal prefixes, digit
+  separators and exponents, preprocessor directives with `<header>` names;
+  `highlight_source` expands tabs and splits `\n`/`\r\n`; `resolve_source`
+  tries roots in order. Tests in `test_source_highlight.cpp`.
+- Layout: existing `ui.ini` files have no Source window; docking it via the
+  Log's node failed (a hidden Log's node is pruned) and DockBuilder edits
+  after the dock space's submission do not apply, so the panel is docked
+  into a split of the graph area before submission, retrying until the
+  layout exists, and is first drawn one frame later so it is never created
+  floating.
+- Smoke test: selects the first symbol with lines and checks the panel shows
+  its file (35 and 21 lines for the fixture charts).
+- Mistake on the way: one test run started in the repository and saved a
+  floating Source window into the user's `.comprendo/ui.ini`; that entry was
+  removed and later runs used a scratch directory with a copy of the layout.

@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <filesystem>
+#include <cstdint>
+#include <iterator>
+#include <fstream>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -46,6 +49,54 @@ namespace
 
   /// Pixel size ImGui loads the TrueType fonts at; sizes are scaled from it.
   constexpr float kBuiltinFontPixels = 13.0F;
+
+  /// Largest file the Source panel reads, in bytes.
+  constexpr std::uintmax_t kMaxSourceBytes = std::uintmax_t {8} * 1024 * 1024;
+
+  /// How often the Source panel checks its file for changes, in seconds.
+  constexpr double kSourceCheckSeconds = 1.0;
+
+  /// Read a whole file.
+  ///
+  /// \param path File.
+  /// \return Its contents; empty when it cannot be read.
+  std::string
+  read_file(const std::filesystem::path &path)
+  {
+    std::ifstream stream {path, std::ios::binary};
+    return {std::istreambuf_iterator<char> {stream}, {}};
+  }
+
+  /// Colour of a highlighted span (a dark editor palette).
+  ///
+  /// \param kind Span kind.
+  /// \return ImGui colour.
+  ImVec4
+  token_color(Comprendo::TokenKind kind)
+  {
+    constexpr float kMax = 255.0F;
+    const auto rgb = [](int r, int g, int b)
+    {
+      return ImVec4(
+        static_cast<float>(r) / kMax,
+        static_cast<float>(g) / kMax,
+        static_cast<float>(b) / kMax,
+        1.0F
+      );
+    };
+    switch (kind)
+    {
+    case Comprendo::TokenKind::Keyword: return rgb(198, 120, 221);
+    case Comprendo::TokenKind::Type: return rgb(86, 182, 194);
+    case Comprendo::TokenKind::Preprocessor: return rgb(209, 154, 102);
+    case Comprendo::TokenKind::String:
+    case Comprendo::TokenKind::Character: return rgb(152, 195, 121);
+    case Comprendo::TokenKind::Number: return rgb(229, 192, 123);
+    case Comprendo::TokenKind::Comment: return rgb(127, 132, 142);
+    case Comprendo::TokenKind::Text:
+    default: return rgb(220, 223, 228);
+    }
+  }
 
   /// Most search results listed by the Explorer.
   constexpr std::size_t kSearchLimit = 500;
@@ -1067,6 +1118,20 @@ namespace Comprendo
       layout_initialized_ = true;
     }
 
+    // A Source panel unknown to the saved layout (layouts from before it
+    // existed) gets its own area below the graph instead of floating.
+    // DockBuilder edits must precede the dock space's submission; the saved
+    // layout's nodes exist only after its first submission, so this retries.
+    if (state.show_source && !source_docked_)
+    {
+      const bool known = ImGui::FindWindowSettingsByID(ImHashStr("Source")) != nullptr
+        || ImGui::FindWindowByName("Source") != nullptr;
+      // After the first frame a missing graph area means there is nothing to
+      // split; the panel then floats rather than never appearing.
+      source_docked_
+        = known || dock_below_graph(dockspace_id, "Source") || ImGui::GetFrameCount() > 1;
+    }
+
     // The central node is transparent so the raylib graph shows through.
     ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
     if (const ImGuiDockNode *central = ImGui::DockBuilderGetCentralNode(dockspace_id))
@@ -1082,6 +1147,8 @@ namespace Comprendo
     draw_explorer(state, view);
     draw_inspector(state, view);
     draw_log(state);
+    update_source(state, view);
+    draw_source(state);
     draw_fonts(state);
     draw_about(state);
 
@@ -1089,6 +1156,23 @@ namespace Comprendo
     {
       state.quit_requested = true;
     }
+  }
+
+  bool
+  Ui::dock_below_graph(unsigned int dockspace_id, const char *window)
+  {
+    constexpr float kShare = 0.35F;
+    const ImGuiDockNode *central = ImGui::DockBuilderGetCentralNode(dockspace_id);
+    if (central == nullptr)
+    {
+      return false;
+    }
+    ImGuiID graph = central->ID;
+    const ImGuiID below
+      = ImGui::DockBuilderSplitNode(graph, ImGuiDir_Down, kShare, nullptr, &graph);
+    ImGui::DockBuilderDockWindow(window, below);
+    ImGui::DockBuilderFinish(dockspace_id);
+    return true;
   }
 
   void
@@ -1111,6 +1195,7 @@ namespace Comprendo
     ImGui::DockBuilderDockWindow("Explorer", dock_left);
     ImGui::DockBuilderDockWindow("Inspector", dock_right);
     ImGui::DockBuilderDockWindow("Log", dock_bottom);
+    ImGui::DockBuilderDockWindow("Source", dock_bottom);
     ImGui::DockBuilderFinish(dockspace_id);
   }
 
@@ -1170,6 +1255,9 @@ namespace Comprendo
         state.text_level = 0;
       }
       ImGui::MenuItem("Fonts...", nullptr, &state.show_fonts);
+      ImGui::Separator();
+      ImGui::MenuItem("Source", nullptr, &state.show_source);
+      ImGui::MenuItem("Open source on selection", nullptr, &state.source_on_select);
       ImGui::Separator();
       if (ImGui::MenuItem("Reset layout"))
       {
@@ -1309,6 +1397,193 @@ namespace Comprendo
         }
       }
     }
+    ImGui::End();
+  }
+
+  void
+  Ui::update_source(ViewerState &state, const ChartView *view)
+  {
+    if (view == nullptr || !state.selected)
+    {
+      return;
+    }
+    const HierarchyGroup &group = view->hierarchy().groups[*state.selected];
+    if (group.nodes.empty())
+    {
+      return;
+    }
+    const Node &node = view->chart().nodes[group.nodes.front()];
+    if (node.id == source_node_ || node.file.empty())
+    {
+      return;
+    }
+    source_node_ = node.id;
+    source_first_ = node.kind == NodeKind::File ? 0 : node.line_start;
+    source_last_ = node.kind == NodeKind::File ? 0 : std::max(node.line_end, node.line_start);
+    source_scroll_ = true;
+    open_source(node.file, state, *view);
+    if (state.source_on_select)
+    {
+      state.show_source = true;
+    }
+  }
+
+  void
+  Ui::open_source(const std::string &file, const ViewerState &state, const ChartView &view)
+  {
+    const std::filesystem::path chart_path {state.chart_path};
+    std::error_code error;
+    const std::vector<std::filesystem::path> roots = {
+      std::filesystem::current_path(error),
+      std::filesystem::path {view.chart().source_root},
+      chart_path.parent_path().parent_path(),
+    };
+    const auto found = resolve_source(file, roots);
+    if (!found)
+    {
+      source_file_ = file;
+      source_path_.clear();
+      source_ = {};
+      source_error_ = fmt::format(
+        "{} not found. Start the viewer in the source tree (it looks in the working directory, "
+        "the chart's source root, and the directory above .comprendo).",
+        file
+      );
+      return;
+    }
+    const auto time = std::filesystem::last_write_time(*found, error);
+    if (*found == source_path_ && time == source_time_ && source_error_.empty())
+    {
+      return;
+    }
+    source_file_ = file;
+    source_path_ = *found;
+    source_time_ = time;
+    source_error_.clear();
+    if (std::filesystem::file_size(*found, error) > kMaxSourceBytes)
+    {
+      source_ = {};
+      source_error_ = fmt::format("{} is too large to show", file);
+      return;
+    }
+    source_ = highlight_source(read_file(*found));
+  }
+
+  void
+  Ui::draw_source(ViewerState &state)
+  {
+    // Wait until the panel's place in the layout is settled (next frame's
+    // start) so it is not created floating first.
+    if (!state.show_source || !source_docked_)
+    {
+      return;
+    }
+    constexpr float kFloatingWidth = 720.0F;
+    constexpr float kFloatingHeight = 320.0F;
+    ImGui::SetNextWindowSize(ImVec2(kFloatingWidth, kFloatingHeight), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Source", &state.show_source))
+    {
+      ImGui::End();
+      return;
+    }
+    if (source_file_.empty())
+    {
+      text_disabled("Select a symbol or file to see its source.");
+      ImGui::End();
+      return;
+    }
+    // Follow edits made in an editor while the file is shown.
+    if (const double now = ImGui::GetTime(); now >= source_next_check_ && !source_path_.empty())
+    {
+      source_next_check_ = now + kSourceCheckSeconds;
+      std::error_code error;
+      const auto time = std::filesystem::last_write_time(source_path_, error);
+      if (!error && time != source_time_)
+      {
+        source_ = highlight_source(read_file(source_path_));
+        source_time_ = time;
+      }
+    }
+    const std::string header = source_first_ > 0
+      ? fmt::format("{}  (lines {}-{})", source_file_, source_first_, source_last_)
+      : source_file_;
+    ImGui::TextUnformatted(header.c_str());
+    if (!source_error_.empty())
+    {
+      ImGui::PushTextWrapPos(0.0F);
+      text_disabled(source_error_.c_str());
+      ImGui::PopTextWrapPos();
+      ImGui::End();
+      return;
+    }
+    ImGui::BeginChild(
+      "##code", ImVec2(0.0F, 0.0F), ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar
+    );
+    // Code reads best in a monospace font: JetBrains Mono when installed,
+    // otherwise the built-in Proggy fonts, which are monospace too.
+    const auto mono = fonts_.find(std::string_view {"jetbrains-mono"});
+    const float current_factor = fonts_.contains(state.font) ? font_size_factor(state.font) : 1.0F;
+    ImFont *font = mono == fonts_.end() ? builtin_font(state) : mono->second.first;
+    const float factor = mono == fonts_.end() ? 1.0F : font_size_factor("jetbrains-mono");
+    ImGui::PushFont(font, ImGui::GetStyle().FontSizeBase * factor / current_factor);
+    const float line_height = ImGui::GetTextLineHeightWithSpacing();
+    if (source_scroll_)
+    {
+      const float top = static_cast<float>(source_first_ > 0 ? source_first_ - 1 : 0) * line_height;
+      ImGui::SetScrollY(std::max(0.0F, top - (ImGui::GetWindowHeight() / 3.0F)));
+      source_scroll_ = false;
+    }
+    const std::string widest = std::to_string(source_.lines.size());
+    const float gutter
+      = ImGui::CalcTextSize(widest.c_str()).x + ImGui::GetStyle().ItemSpacing.x * 2.0F;
+    const ImU32 tint = ImGui::GetColorU32(ImVec4(0.35F, 0.45F, 0.65F, 0.28F));
+    const ImVec4 number_color = ImGui::GetStyle().Colors[ImGuiCol_TextDisabled];
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(source_.lines.size()), line_height);
+    while (clipper.Step())
+    {
+      for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+      {
+        const auto index = static_cast<std::size_t>(row);
+        const auto number = static_cast<std::uint32_t>(row + 1);
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        if (source_first_ > 0 && number >= source_first_ && number <= source_last_)
+        {
+          const float width = std::max(ImGui::GetContentRegionAvail().x, ImGui::GetWindowWidth())
+            + ImGui::GetScrollX();
+          ImGui::GetWindowDrawList()->AddRectFilled(
+            origin, ImVec2(origin.x + width, origin.y + line_height), tint
+          );
+        }
+        const std::string label = std::to_string(number);
+        ImGui::SetCursorScreenPos(ImVec2(
+          origin.x + gutter - ImGui::GetStyle().ItemSpacing.x
+            - ImGui::CalcTextSize(label.c_str()).x,
+          origin.y
+        ));
+        ImGui::TextColored(number_color, "%s", label.c_str());
+        const std::string &line = source_.lines[index];
+        if (line.empty())
+        {
+          continue;
+        }
+        ImGui::SetCursorScreenPos(ImVec2(origin.x + gutter, origin.y));
+        const std::vector<Token> &tokens = source_.tokens[index];
+        for (std::size_t i = 0; i < tokens.size(); ++i)
+        {
+          const Token &token = tokens[i];
+          ImGui::PushStyleColor(ImGuiCol_Text, token_color(token.kind));
+          ImGui::TextUnformatted(line.data() + token.begin, line.data() + token.end);
+          ImGui::PopStyleColor();
+          if (i + 1 < tokens.size())
+          {
+            ImGui::SameLine(0.0F, 0.0F);
+          }
+        }
+      }
+    }
+    ImGui::PopFont();
+    ImGui::EndChild();
     ImGui::End();
   }
 
