@@ -1,5 +1,5 @@
 /// \file
-/// \brief Tests for grouping charts by file and by namespace.
+/// \brief Tests for grouping charts by file, namespace, and cluster.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "Comprendo/Chart.hpp"
@@ -188,4 +189,98 @@ TEST_CASE("hierarchy does not depend on chart order", "[hierarchy]")
     CHECK(forward_keys == backward_keys);
     CHECK(std::ranges::is_sorted(forward_keys));
   }
+}
+
+namespace
+{
+  /// Label of the parent group of a node's group.
+  ///
+  /// \param chart Grouped chart.
+  /// \param hierarchy Hierarchy of \p chart.
+  /// \param id Node id.
+  /// \return The parent group's label.
+  std::string
+  parent_label(const Chart &chart, const Hierarchy &hierarchy, std::uint64_t id)
+  {
+    const auto node = std::ranges::find(chart.nodes, id, &Comprendo::Node::id);
+    const std::size_t group
+      = hierarchy.group_of_node.at(static_cast<std::size_t>(node - chart.nodes.begin()));
+    return hierarchy.groups.at(hierarchy.groups.at(group).parent).label;
+  }
+
+  /// Check that every group reaches the root through its parents.
+  ///
+  /// \param hierarchy Hierarchy to check.
+  /// \return True when no parent chain loops.
+  bool
+  is_tree(const Hierarchy &hierarchy)
+  {
+    for (std::size_t group = 0; group < hierarchy.groups.size(); ++group)
+    {
+      std::size_t current = group;
+      for (std::size_t steps = 0; current != 0; ++steps)
+      {
+        if (steps > hierarchy.groups.size())
+        {
+          return false;
+        }
+        current = hierarchy.groups.at(current).parent;
+      }
+    }
+    return true;
+  }
+} // namespace
+
+/// The cluster view shows the subsystems the model named, so nodes must move
+/// into their cluster with their contents while members of other clusters move
+/// out. Assigns file a.cpp to "Geometry" and class Shape (inside a.cpp) to the
+/// nested "Shapes", then checks where a.cpp, its namespace, Shape, the nested
+/// cluster, and the unclustered b.cpp end up.
+TEST_CASE("cluster grouping nests nodes under their clusters", "[hierarchy]")
+{
+  Chart chart = sample_chart();
+  chart.clusters.push_back({.id = 900, .label = "Geometry"});
+  chart.clusters.push_back({.id = 901, .label = "Shapes", .parent_id = 900});
+  chart.nodes.at(0).cluster_id = 900;
+  chart.nodes.at(6).cluster_id = 901;
+  chart.nodes.at(9).cluster_id = 12345;
+  const Hierarchy hierarchy = Comprendo::build_hierarchy(chart, Grouping::Cluster);
+
+  CHECK(parent_label(chart, hierarchy, kFileA) == "Geometry");
+  CHECK(parent_label(chart, hierarchy, kGeoA) == "a.cpp");
+  CHECK(parent_label(chart, hierarchy, kShape) == "Shapes");
+  CHECK(parent_label(chart, hierarchy, kMain) == "a.cpp");
+  CHECK(parent_label(chart, hierarchy, kFileB) == "(unclustered)");
+  const auto shapes
+    = std::ranges::find(hierarchy.groups, std::uint64_t {901}, &Comprendo::HierarchyGroup::cluster);
+  CHECK(shapes != hierarchy.groups.end());
+  if (shapes != hierarchy.groups.end())
+  {
+    CHECK(hierarchy.groups.at(shapes->parent).label == "Geometry");
+    CHECK(shapes->nodes.empty());
+  }
+  CHECK(is_tree(hierarchy));
+}
+
+/// Cluster parents come from the model and may loop or be missing, and charts
+/// without clusters must still show something sensible in the cluster view.
+/// Builds clusters that are each other's parent and checks the result is a tree;
+/// then checks a chart without clusters groups exactly like the file grouping.
+TEST_CASE("cluster grouping tolerates cycles and missing clusters", "[hierarchy]")
+{
+  Chart looping = sample_chart();
+  looping.clusters.push_back({.id = 902, .label = "P", .parent_id = 903});
+  looping.clusters.push_back({.id = 903, .label = "Q", .parent_id = 902});
+  looping.nodes.at(1).cluster_id = 902;
+  CHECK(is_tree(Comprendo::build_hierarchy(looping, Grouping::Cluster)));
+
+  const Chart plain = sample_chart();
+  const Hierarchy by_cluster = Comprendo::build_hierarchy(plain, Grouping::Cluster);
+  const Hierarchy by_file = Comprendo::build_hierarchy(plain, Grouping::File);
+  CHECK(by_cluster.groups.size() == by_file.groups.size());
+  CHECK(describe(plain, by_cluster) == describe(plain, by_file));
+  CHECK(Comprendo::next_grouping(Grouping::File) == Grouping::Namespace);
+  CHECK(Comprendo::next_grouping(Grouping::Namespace) == Grouping::Cluster);
+  CHECK(Comprendo::next_grouping(Grouping::Cluster) == Grouping::File);
+  CHECK(Comprendo::to_string(Grouping::Cluster) == "cluster");
 }

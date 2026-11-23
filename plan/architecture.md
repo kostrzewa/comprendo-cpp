@@ -311,13 +311,20 @@ Interaction: mouse wheel zooms about the cursor, left-drag or right/middle-drag
 pans, left-click selects, hovering shows a tooltip (label, kind, file:line).
 `Home` or View → Fit chart fits the chart; the view stays fitted (also across
 window resizes and dock changes) until the user zooms or pans. `G` or the View
-menu switches between file and namespace grouping, keeping the selection.
+menu cycles file, namespace, and cluster grouping, keeping the selection;
+`--group` picks the grouping at startup. The cluster grouping nests the
+model's clusters (`parent_id`); a node moves into its cluster together with
+its `Contains` subtree, except members of other clusters, and top-level
+nodes without a cluster gather in "(unclustered)". Cluster groups use the
+cluster's colour (or a palette colour when it is 0).
 Input is ignored while ImGui uses the mouse or keyboard.
 
 - resizable window (minimum 640x480); `F11` toggles borderless fullscreen at the
   monitor's native resolution and `Escape` leaves it; `Ctrl+F` is reserved for
   search;
-- convex-hull cluster fills, side panel with summary/detail/file:line/edges;
+- cluster grouping (convex-hull fills over the file layout were dropped:
+  clusters span files, so hulls would overlap everything); side panel with
+  summary/detail/file:line/edges;
 - search, kind filters, double-click drill-down, minimap;
 - Jolt particles for cosmetic interaction feedback only — never layout;
 - SFML DSP-generated hover/click/zoom tones, mutable;
@@ -343,7 +350,7 @@ graph:
   Explorer or Inspector set it and request a *focus* (the graph fits the group
   and keeps it fitted until the user zooms or pans); clicks in the graph set it
   and request a *reveal* (the Explorer opens the tree path and scrolls to it).
-- **Explorer**: Files/Namespaces toggle, filter (`Ctrl+F`) showing up to 500
+- **Explorer**: Files/Namespaces/Clusters toggle, filter (`Ctrl+F`) showing up to 500
   ranked matches (`ChartView::search`, cached per query), otherwise the tree in
   `ChartView::display_children` order; leaf lists above 256 rows go through
   `ImGuiListClipper`, which is told to include a revealed row.

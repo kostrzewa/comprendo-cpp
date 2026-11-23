@@ -101,7 +101,7 @@ namespace
   Color
   group_color(const ChartView &view, std::size_t group)
   {
-    const Comprendo::Rgb rgb = Comprendo::kind_color(view.group_kind(group));
+    const Comprendo::Rgb rgb = view.group_color(group);
     return {.r = rgb.r, .g = rgb.g, .b = rgb.b, .a = 255};
   }
 

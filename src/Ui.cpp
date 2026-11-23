@@ -138,9 +138,7 @@ namespace
     {
       ImGui::SetNextItemOpen(true);
     }
-    ImGui::PushStyleColor(
-      ImGuiCol_Text, imgui_color(Comprendo::kind_color(view.group_kind(group)))
-    );
+    ImGui::PushStyleColor(ImGuiCol_Text, imgui_color(view.group_color(group)));
     const std::string label = fmt::format("{}##g{}", view.display_label(group), group);
     const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
     ImGui::PopStyleColor();
@@ -252,9 +250,7 @@ namespace
       for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
       {
         const std::size_t group = results[static_cast<std::size_t>(i)];
-        ImGui::PushStyleColor(
-          ImGuiCol_Text, imgui_color(Comprendo::kind_color(view.group_kind(group)))
-        );
+        ImGui::PushStyleColor(ImGuiCol_Text, imgui_color(view.group_color(group)));
         const std::string label = fmt::format("{}##s{}", view.display_label(group), group);
         if (ImGui::Selectable(label.c_str(), state.selected == group))
         {
@@ -327,6 +323,30 @@ namespace
     }
   }
 
+  /// Draw the collapsible list of a group's children, each selectable.
+  ///
+  /// \param view Chart view.
+  /// \param state Viewer state receiving a new selection.
+  /// \param group Group whose children are listed.
+  void
+  draw_children(const Comprendo::ChartView &view, Comprendo::ViewerState &state, std::size_t group)
+  {
+    const std::vector<std::size_t> &children = view.display_children(group);
+    const std::string children_header = fmt::format("Contains ({})##children", children.size());
+    if (!children.empty() && ImGui::CollapsingHeader(children_header.c_str()))
+    {
+      for (std::size_t i = 0; i < std::min(children.size(), kInspectorListLimit); ++i)
+      {
+        const std::string label
+          = fmt::format("{}##c{}", view.display_label(children[i]), children[i]);
+        if (ImGui::Selectable(label.c_str()))
+        {
+          select_from_panel(state, children[i]);
+        }
+      }
+    }
+  }
+
   /// Draw the Inspector body for a selected group.
   ///
   /// \param view Chart view.
@@ -336,13 +356,26 @@ namespace
   draw_selection(const Comprendo::ChartView &view, Comprendo::ViewerState &state, std::size_t group)
   {
     const Comprendo::HierarchyGroup &entry = view.hierarchy().groups[group];
-    ImGui::PushStyleColor(
-      ImGuiCol_Text, imgui_color(Comprendo::kind_color(view.group_kind(group)))
-    );
+    ImGui::PushStyleColor(ImGuiCol_Text, imgui_color(view.group_color(group)));
     ImGui::TextUnformatted(view.display_label(group).c_str());
     ImGui::PopStyleColor();
+    if (const Comprendo::Cluster *cluster = view.group_cluster(group))
+    {
+      text_disabled("Cluster");
+      ImGui::PushTextWrapPos(0.0F);
+      if (cluster->summary.empty())
+      {
+        text_disabled("No summary.");
+      }
+      else
+      {
+        ImGui::TextUnformatted(cluster->summary.c_str());
+      }
+      ImGui::PopTextWrapPos();
+    }
     if (entry.nodes.empty())
     {
+      draw_children(view, state, group);
       return;
     }
     const Comprendo::Node &node = view.chart().nodes[entry.nodes.front()];
@@ -359,6 +392,10 @@ namespace
       if (node.complexity > 0)
       {
         field_row("Complexity", std::to_string(node.complexity));
+      }
+      if (const Comprendo::Cluster *cluster = view.node_cluster(group))
+      {
+        field_row("Cluster", cluster->label);
       }
       field_row("Source", provenance_name(node.provenance));
       ImGui::EndTable();
@@ -395,20 +432,7 @@ namespace
       }
     }
 
-    const std::vector<std::size_t> &children = view.display_children(group);
-    const std::string children_header = fmt::format("Contains ({})##children", children.size());
-    if (!children.empty() && ImGui::CollapsingHeader(children_header.c_str()))
-    {
-      for (std::size_t i = 0; i < std::min(children.size(), kInspectorListLimit); ++i)
-      {
-        const std::string label
-          = fmt::format("{}##c{}", view.display_label(children[i]), children[i]);
-        if (ImGui::Selectable(label.c_str()))
-        {
-          select_from_panel(state, children[i]);
-        }
-      }
-    }
+    draw_children(view, state, group);
 
     std::vector<std::size_t> outgoing;
     std::vector<std::size_t> incoming;
@@ -626,6 +650,10 @@ namespace Comprendo
       {
         state.grouping = Grouping::Namespace;
       }
+      if (ImGui::MenuItem("Group by cluster", "G", state.grouping == Grouping::Cluster))
+      {
+        state.grouping = Grouping::Cluster;
+      }
       if (ImGui::MenuItem("Fit chart", "Home"))
       {
         state.fit_requested = true;
@@ -665,11 +693,13 @@ namespace Comprendo
       }
       else
       {
-        int grouping = state.grouping == Grouping::File ? 0 : 1;
-        ImGui::RadioButton("Files", &grouping, 0);
+        int grouping = static_cast<int>(state.grouping);
+        ImGui::RadioButton("Files", &grouping, static_cast<int>(Grouping::File));
         ImGui::SameLine();
-        ImGui::RadioButton("Namespaces", &grouping, 1);
-        state.grouping = grouping == 0 ? Grouping::File : Grouping::Namespace;
+        ImGui::RadioButton("Namespaces", &grouping, static_cast<int>(Grouping::Namespace));
+        ImGui::SameLine();
+        ImGui::RadioButton("Clusters", &grouping, static_cast<int>(Grouping::Cluster));
+        state.grouping = static_cast<Grouping>(grouping);
 
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F))
         {
@@ -821,7 +851,7 @@ namespace Comprendo
             state.chart_path,
             view->chart().nodes.size(),
             view->chart().edges.size(),
-            view->grouping() == Grouping::File ? "file" : "namespace",
+            Comprendo::to_string(view->grouping()),
             state.zoom,
             fps
           );

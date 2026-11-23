@@ -109,6 +109,101 @@ namespace
   /// \param node Chart node.
   /// \param grouping Grouping in effect.
   /// \return True for named namespaces in Grouping::Namespace.
+  /// Cluster groups added for Grouping::Cluster.
+  struct ClusterGroups
+  {
+    /// Group of each existing cluster id.
+    std::unordered_map<std::uint64_t, std::size_t> group_of_cluster;
+    /// Parent group of each added group (cluster groups and the unclustered group).
+    std::unordered_map<std::size_t, std::size_t> parent_of_group;
+    /// Effective cluster of each node: its own, else its parent's; 0 for none.
+    std::vector<std::uint64_t> effective;
+    /// Group collecting top-level nodes outside every cluster; 0 (the root) when
+    /// every top-level node has a cluster.
+    std::size_t unclustered = 0;
+  };
+
+  /// Add one group per cluster, plus the unclustered group, and resolve each
+  /// node's effective cluster.
+  ///
+  /// \param chart Chart being grouped.
+  /// \param node_parent `Contains` parent of each node, cycles cut.
+  /// \param by_id Node indices in id order.
+  /// \param hierarchy Hierarchy receiving the groups.
+  /// \return The added groups; empty when the chart has no clusters.
+  ClusterGroups
+  add_cluster_groups(
+    const Chart &chart,
+    const std::vector<std::size_t> &node_parent,
+    const std::vector<std::size_t> &by_id,
+    Hierarchy &hierarchy
+  )
+  {
+    ClusterGroups result;
+    if (chart.clusters.empty())
+    {
+      return result;
+    }
+    std::vector<const Comprendo::Cluster *> clusters;
+    for (const Comprendo::Cluster &cluster : chart.clusters)
+    {
+      clusters.push_back(&cluster);
+    }
+    std::ranges::sort(clusters, {}, &Comprendo::Cluster::id);
+    for (const Comprendo::Cluster *cluster : clusters)
+    {
+      if (result.group_of_cluster.try_emplace(cluster->id, hierarchy.groups.size()).second)
+      {
+        hierarchy.groups.push_back(
+          {.key = cluster->id, .label = cluster->label, .cluster = cluster->id}
+        );
+      }
+    }
+    for (const Comprendo::Cluster *cluster : clusters)
+    {
+      const auto parent = result.group_of_cluster.find(cluster->parent_id);
+      result.parent_of_group[result.group_of_cluster.at(cluster->id)]
+        = parent == result.group_of_cluster.end() ? 0 : parent->second;
+    }
+    constexpr std::uint64_t kUnresolved = static_cast<std::uint64_t>(-1);
+    result.effective.assign(chart.nodes.size(), kUnresolved);
+    std::vector<std::size_t> chain;
+    for (const std::size_t start : by_id)
+    {
+      chain.clear();
+      std::size_t current = start;
+      while (current != kNone && result.effective[current] == kUnresolved)
+      {
+        const std::uint64_t own = chart.nodes[current].cluster_id;
+        if (own != 0 && result.group_of_cluster.contains(own))
+        {
+          result.effective[current] = own;
+          break;
+        }
+        chain.push_back(current);
+        current = node_parent[current];
+      }
+      const std::uint64_t inherited = current == kNone ? 0 : result.effective[current];
+      for (const std::size_t element : chain)
+      {
+        result.effective[element] = inherited;
+      }
+    }
+    const bool any_unclustered = std::ranges::any_of(
+      by_id,
+      [&](std::size_t index) { return node_parent[index] == kNone && result.effective[index] == 0; }
+    );
+    if (any_unclustered)
+    {
+      result.unclustered = hierarchy.groups.size();
+      hierarchy.groups.push_back(
+        {.key = Comprendo::fnv1a64("unclustered"), .label = "(unclustered)"}
+      );
+      result.parent_of_group[result.unclustered] = 0;
+    }
+    return result;
+  }
+
   bool
   merges(const Comprendo::Node &node, Comprendo::Grouping grouping)
   {
@@ -119,6 +214,30 @@ namespace
 
 namespace Comprendo
 {
+  std::string_view
+  to_string(Grouping grouping)
+  {
+    switch (grouping)
+    {
+    case Grouping::File: return "file";
+    case Grouping::Namespace: return "namespace";
+    case Grouping::Cluster: return "cluster";
+    }
+    return "file";
+  }
+
+  Grouping
+  next_grouping(Grouping grouping)
+  {
+    switch (grouping)
+    {
+    case Grouping::File: return Grouping::Namespace;
+    case Grouping::Namespace: return Grouping::Cluster;
+    case Grouping::Cluster: return Grouping::File;
+    }
+    return Grouping::File;
+  }
+
   bool
   is_anonymous_name(std::string_view name)
   {
@@ -170,9 +289,23 @@ namespace Comprendo
       hierarchy.groups.push_back({.key = node.id, .label = node.name, .nodes = {index}});
     }
 
+    const std::size_t node_groups = hierarchy.groups.size();
+    const ClusterGroups clusters = grouping == Grouping::Cluster
+      ? add_cluster_groups(chart, node_parent, by_id, hierarchy)
+      : ClusterGroups {};
+
     const auto parent_group_of_node = [&](std::size_t index) -> std::size_t
     {
       const std::size_t parent = node_parent[index];
+      if (grouping == Grouping::Cluster && !clusters.group_of_cluster.empty())
+      {
+        const std::uint64_t cluster = clusters.effective[index];
+        if (parent != kNone && clusters.effective[parent] == cluster)
+        {
+          return hierarchy.group_of_node[parent];
+        }
+        return cluster == 0 ? clusters.unclustered : clusters.group_of_cluster.at(cluster);
+      }
       if (
         parent == kNone
         || (grouping == Grouping::Namespace && chart.nodes[parent].kind == NodeKind::File)
@@ -188,7 +321,9 @@ namespace Comprendo
     group_order.reserve(hierarchy.groups.size());
     for (std::size_t group = 1; group < hierarchy.groups.size(); ++group)
     {
-      const std::size_t parent = parent_group_of_node(hierarchy.groups[group].nodes.front());
+      const std::size_t parent = group < node_groups
+        ? parent_group_of_node(hierarchy.groups[group].nodes.front())
+        : clusters.parent_of_group.at(group);
       group_parent[group] = parent == group || parent == 0 ? kNone : parent;
       group_order.push_back(group);
     }

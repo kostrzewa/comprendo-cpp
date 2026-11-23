@@ -90,7 +90,7 @@ namespace
   constexpr float kFocusMargin = 0.6F;
 
   /// Number of frames rendered by the smoke test.
-  constexpr int kSmokeTestFrames = 30;
+  constexpr int kSmokeTestFrames = 34;
 
   /// Frame on which the smoke test fits the chart and checks it is visible.
   constexpr int kSmokeChartFitFrame = 18;
@@ -118,6 +118,12 @@ namespace
 
   /// Frame on which the smoke test switches back to file grouping.
   constexpr int kSmokeChartFileFrame = 28;
+
+  /// Frame on which the smoke test switches to cluster grouping.
+  constexpr int kSmokeChartClusterFrame = 30;
+
+  /// Frame on which the smoke test checks the cluster grouping is shown.
+  constexpr int kSmokeChartClusterCheckFrame = 32;
 
   /// Window width used by the smoke test resize step.
   constexpr int kSmokeResizeWidth = 800;
@@ -166,6 +172,8 @@ namespace
     bool chart_given = false;
     /// Name of a symbol to select and focus at startup; empty for none.
     std::string select;
+    /// Grouping shown at startup.
+    Comprendo::Grouping grouping = Comprendo::Grouping::File;
   };
 
   /// Messages kept for the Log panel.
@@ -200,6 +208,10 @@ namespace
     app.add_option(
       "--select", options.select, "Select and focus the best match for NAME at startup"
     );
+    std::string grouping {Comprendo::to_string(Comprendo::Grouping::File)};
+    app.add_option("--group", grouping, "Grouping at startup: file, namespace, or cluster")
+      ->check(CLI::IsMember({"file", "namespace", "cluster"}))
+      ->capture_default_str();
     try
     {
       app.parse(argc, argv);
@@ -207,6 +219,10 @@ namespace
     catch (const CLI::ParseError &error)
     {
       return std::unexpected(app.exit(error) == 0 ? 0 : kExitUsage);
+    }
+    while (Comprendo::to_string(options.grouping) != grouping)
+    {
+      options.grouping = Comprendo::next_grouping(options.grouping);
     }
     options.chart_given = chart->count() > 0;
     return options;
@@ -311,9 +327,10 @@ namespace
   /// Load a chart and prepare it for viewing.
   ///
   /// \param path Chart file.
+  /// \param grouping Initial grouping.
   /// \return The session, or a message explaining why the chart is unavailable.
   std::expected<GraphSession, std::string>
-  load_session(const std::string &path)
+  load_session(const std::string &path, Comprendo::Grouping grouping)
   {
     const auto start = std::chrono::steady_clock::now();
     auto chart = Comprendo::read_chart(path);
@@ -323,9 +340,7 @@ namespace
     }
     const std::size_t nodes = chart->nodes.size();
     const std::size_t edges = chart->edges.size();
-    GraphSession session {
-      .view = Comprendo::ChartView {std::move(*chart), Comprendo::Grouping::File}
-    };
+    GraphSession session {.view = Comprendo::ChartView {std::move(*chart), grouping}};
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start
     );
@@ -621,9 +636,7 @@ namespace
       }
       if (IsKeyPressed(KEY_G))
       {
-        state.grouping = state.grouping == Comprendo::Grouping::File
-          ? Comprendo::Grouping::Namespace
-          : Comprendo::Grouping::File;
+        state.grouping = Comprendo::next_grouping(state.grouping);
       }
     }
     apply_requests(session, state);
@@ -829,6 +842,10 @@ namespace
       return session.view.grouping() == Comprendo::Grouping::Namespace
         && !session.view.visible(session.camera).empty();
     case kSmokeChartFileFrame: state.grouping = Comprendo::Grouping::File; return true;
+    case kSmokeChartClusterFrame: state.grouping = Comprendo::Grouping::Cluster; return true;
+    case kSmokeChartClusterCheckFrame:
+      return session.view.grouping() == Comprendo::Grouping::Cluster
+        && !session.view.visible(session.camera).empty();
     default: return true;
     }
   }
@@ -921,7 +938,8 @@ namespace
     state.log_sink = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(kLogPanelLines);
     state.log_sink->set_pattern("[%T] [%l] %v");
     spdlog::default_logger()->sinks().push_back(state.log_sink);
-    if (auto loaded = load_session(options.chart))
+    state.grouping = options.grouping;
+    if (auto loaded = load_session(options.chart, options.grouping))
     {
       session = std::move(*loaded);
       fit_chart(*session, state.graph_area);

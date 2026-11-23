@@ -82,3 +82,13 @@ commit. Newest last.
 - Checked under `xvfb-run` against the plugin's tools: an annotation reloads
   in place, a model-added node rebuilds the view (6 ms on the fixture).
 
+- Commit: `0f1e519`.
+
+## 2026-11-23 — M7b cluster grouping
+
+- Clusters from `/chart` became a third grouping rather than convex hulls:
+  a cluster usually spans files, so hulls over the file layout would cover
+  most of the chart, while a grouping lays each subsystem out as one disk.
+- Checked with a screenshot of this repository's chart clustered into four
+  subsystems through the plugin's tools (`--group cluster --select Viewer`).
+

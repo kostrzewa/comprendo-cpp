@@ -245,6 +245,32 @@ namespace Comprendo
     NodeKind
     group_kind(std::size_t group) const;
 
+    /// Colour of a group: its cluster's colour for cluster groups (a colour
+    /// derived from the cluster id when the chart leaves it to the viewer),
+    /// otherwise the colour of its kind.
+    ///
+    /// \param group Group index.
+    /// \return Colour.
+    [[nodiscard]]
+    Rgb
+    group_color(std::size_t group) const;
+
+    /// Cluster a group's first node belongs to.
+    ///
+    /// \param group Group index.
+    /// \return The cluster, or null when the group has no node or the node no cluster.
+    [[nodiscard]]
+    const Cluster *
+    node_cluster(std::size_t group) const;
+
+    /// Cluster a cluster group stands for.
+    ///
+    /// \param group Group index.
+    /// \return The cluster, or null for groups that are not cluster groups.
+    [[nodiscard]]
+    const Cluster *
+    group_cluster(std::size_t group) const;
+
     /// Label shown for a group: its hierarchy label, with ctags' invented names
     /// of anonymous namespaces replaced by "(anonymous)".
     ///

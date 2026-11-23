@@ -244,10 +244,14 @@ Done:
   (`ChartView::update_annotations`); structural changes rebuild the view and
   keep grouping, camera, and selection.
 
+- Cluster grouping (`Grouping::Cluster`, `G` cycles three groupings,
+  `--group`): the model's clusters as nested groups in their colours; the
+  Inspector shows a cluster's summary and a node's cluster. Replaces the
+  planned convex-hull fills.
+
 Open:
 
-- Cluster display (colors from the plugin's clusters), kind filters,
-  drill-down, minimap.
+- Kind filters, drill-down, minimap.
 - clangd `Uses` edges (`references`) and hover text for node details.
 - `clang-tidy-22` target; profiler scopes and Perfetto dump.
 - Documentation pass (`docs/main.md`) and screenshots.

@@ -312,6 +312,58 @@ namespace Comprendo
     return nodes.empty() ? NodeKind::Other : m_chart.nodes[nodes.front()].kind;
   }
 
+  Rgb
+  ChartView::group_color(std::size_t group) const
+  {
+    const Cluster *cluster = group_cluster(group);
+    if (cluster == nullptr)
+    {
+      return kind_color(group_kind(group));
+    }
+    if (cluster->color != 0)
+    {
+      return {
+        .r = static_cast<std::uint8_t>((cluster->color >> 16U) & 0xFFU),
+        .g = static_cast<std::uint8_t>((cluster->color >> 8U) & 0xFFU),
+        .b = static_cast<std::uint8_t>(cluster->color & 0xFFU),
+      };
+    }
+    constexpr std::array<Rgb, 6> kPalette = {{
+      {.r = 0x6C, .g = 0xA6, .b = 0xE0},
+      {.r = 0xE0, .g = 0x9F, .b = 0x5C},
+      {.r = 0x7B, .g = 0xC4, .b = 0x7F},
+      {.r = 0xC6, .g = 0x7D, .b = 0xD6},
+      {.r = 0xE0, .g = 0x6C, .b = 0x75},
+      {.r = 0xD8, .g = 0xC8, .b = 0x5A},
+    }};
+    return kPalette.at(cluster->id % kPalette.size());
+  }
+
+  const Cluster *
+  ChartView::node_cluster(std::size_t group) const
+  {
+    const std::vector<std::size_t> &nodes = m_hierarchy.groups[group].nodes;
+    if (nodes.empty() || m_chart.nodes[nodes.front()].cluster_id == 0)
+    {
+      return nullptr;
+    }
+    const std::uint64_t id = m_chart.nodes[nodes.front()].cluster_id;
+    const auto found = std::ranges::find(m_chart.clusters, id, &Cluster::id);
+    return found == m_chart.clusters.end() ? nullptr : &*found;
+  }
+
+  const Cluster *
+  ChartView::group_cluster(std::size_t group) const
+  {
+    const std::uint64_t id = m_hierarchy.groups[group].cluster;
+    if (id == 0)
+    {
+      return nullptr;
+    }
+    const auto found = std::ranges::find(m_chart.clusters, id, &Cluster::id);
+    return found == m_chart.clusters.end() ? nullptr : &*found;
+  }
+
   std::string
   ChartView::display_label(std::size_t group) const
   {
