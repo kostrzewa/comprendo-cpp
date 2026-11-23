@@ -151,6 +151,30 @@ namespace Comprendo
     rebuild();
   }
 
+  bool
+  ChartView::update_annotations(const Chart &chart)
+  {
+    const auto same_node = [](const Node &a, const Node &b)
+    {
+      return a.id == b.id && a.kind == b.kind && a.name == b.name
+        && a.qualified_name == b.qualified_name && a.file == b.file && a.line_start == b.line_start
+        && a.line_end == b.line_end && a.signature == b.signature;
+    };
+    const auto same_edge = [](const Edge &a, const Edge &b)
+    { return a.src == b.src && a.dst == b.dst && a.kind == b.kind && a.weight == b.weight; };
+    if (
+      !std::ranges::equal(m_chart.nodes, chart.nodes, same_node)
+      || !std::ranges::equal(m_chart.edges, chart.edges, same_edge)
+    )
+    {
+      return false;
+    }
+    std::vector<Position> layout = std::move(m_chart.layout);
+    m_chart = chart;
+    m_chart.layout = std::move(layout);
+    return true;
+  }
+
   std::optional<std::size_t>
   ChartView::node_index(std::uint64_t id) const
   {

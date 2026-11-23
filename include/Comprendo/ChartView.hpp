@@ -176,6 +176,21 @@ namespace Comprendo
     /// \param options Layout tuning parameters.
     ChartView(Chart chart, Grouping grouping, const LayoutOptions &options = {});
 
+    /// Take over a re-read chart's annotations when its structure is unchanged.
+    ///
+    /// The structure is everything the hierarchy and layout depend on: node
+    /// ids, kinds, names, files, lines, and signatures in the same order, and
+    /// the same edges with the same weights. When it matches, summaries,
+    /// details, clusters, provenance, edge evidence, and header fields are
+    /// copied in and the layout is kept, so annotating does not move anything.
+    ///
+    /// \param chart Chart read again from disk.
+    /// \return True when the annotations were taken over; false when the
+    ///         structure differs and a new view is needed.
+    [[nodiscard]]
+    bool
+    update_annotations(const Chart &chart);
+
     /// Switch grouping, rebuilding the hierarchy and the layout.
     ///
     /// \param grouping New grouping; nothing happens when it is unchanged.

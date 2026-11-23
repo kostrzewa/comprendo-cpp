@@ -72,3 +72,13 @@ commit. Newest last.
 - Verified with opencode 1.19.5 in a scratch project: `/chart` is registered
   and the build agent lists all seven tools. No live model session was run.
 
+- Commit: `b28ad93`.
+
+## 2026-11-23 — M7a live reload
+
+- The viewer follows the chart while `/chart` or `comprendo-cli extract`
+  writes it. `data_version` alone misses the CLI, which deletes and recreates
+  the file; the inode alone misses in-place commits. The watcher uses both.
+- Checked under `xvfb-run` against the plugin's tools: an annotation reloads
+  in place, a model-added node rebuilds the view (6 ms on the fixture).
+

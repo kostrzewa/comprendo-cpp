@@ -234,11 +234,22 @@ seven tools, a scripted session fills a CLI-extracted chart that
 prints the viewer command. A real `/chart` run needs a model and was left to
 the user.
 
-## M7 — Polish
+## M7 — Polish (in progress)
 
-- Convex-hull cluster fills, search, kind filters, drill-down, minimap.
-- SFML DSP tones; Jolt cosmetic particles.
-- Live reload on `PRAGMA data_version` change.
-- Profiler scopes and Perfetto dump; `clang-tidy-22` target.
+Done:
+
+- Live reload (`ChartWatcher`): `PRAGMA data_version` on a read-only
+  connection plus the file's inode, polled every 0.5 s with a 0.3 s settle
+  delay. Annotation-only changes are taken over without relayout
+  (`ChartView::update_annotations`); structural changes rebuild the view and
+  keep grouping, camera, and selection.
+
+Open:
+
+- Cluster display (colors from the plugin's clusters), kind filters,
+  drill-down, minimap.
 - clangd `Uses` edges (`references`) and hover text for node details.
-- Documentation pass and screenshots.
+- `clang-tidy-22` target; profiler scopes and Perfetto dump.
+- Documentation pass (`docs/main.md`) and screenshots.
+- SFML DSP tones; Jolt cosmetic particles.
+

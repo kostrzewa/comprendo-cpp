@@ -321,7 +321,13 @@ Input is ignored while ImGui uses the mouse or keyboard.
 - search, kind filters, double-click drill-down, minimap;
 - Jolt particles for cosmetic interaction feedback only — never layout;
 - SFML DSP-generated hover/click/zoom tones, mutable;
-- live reload when `PRAGMA data_version` changes while the plugin writes (M7).
+- live reload (`ChartWatcher`): every 0.5 s the viewer compares `PRAGMA
+  data_version` on a read-only connection (in-place commits by the plugin) and
+  the file's inode (the CLI deletes and rewrites the file); after 0.3 s
+  without further changes it rereads the chart. If only annotations changed,
+  the view takes them over and keeps its layout; otherwise it rebuilds in the
+  current grouping, keeping the camera and the selection. Unreadable
+  intermediate states keep the current view.
 
 Profiler scopes wrap update and render; a Perfetto trace is dumped on exit or a
 hotkey. `Logger::init` logs the project version and git commit at startup.

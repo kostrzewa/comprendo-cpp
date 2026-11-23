@@ -377,3 +377,42 @@ TEST_CASE("node edges and ids are indexed", "[view]")
   }
   CHECK(view.chart().edges.at(edges.incoming.front()).kind == EdgeKind::Contains);
 }
+
+/// Live reload must not move anything when the plugin only adds explanations,
+/// but must rebuild when the structure changes. Annotates a re-read copy of the
+/// sample chart and checks the view takes the text, cluster, and evidence while
+/// keeping its layout; then adds a node and changes an edge weight and checks
+/// both are refused so the viewer builds a new view.
+TEST_CASE("annotation-only reloads keep the layout", "[view]")
+{
+  ChartView view {sample_chart(), Grouping::File};
+  const Comprendo::Layout layout_before = view.layout();
+
+  Chart annotated = sample_chart();
+  annotated.nodes[6].summary = "First method";
+  annotated.nodes[6].detail = "Longer text";
+  annotated.nodes[6].provenance = Comprendo::Provenance::Model;
+  annotated.edges[8].evidence = "b.cpp:3";
+  annotated.clusters.push_back({.id = 77, .label = "Core"});
+  annotated.nodes[6].cluster_id = 77;
+  CHECK(view.update_annotations(annotated));
+  CHECK(view.chart().nodes[6].summary == "First method");
+  CHECK(view.chart().nodes[6].cluster_id == 77);
+  CHECK(view.chart().edges[8].evidence == "b.cpp:3");
+  CHECK(view.chart().clusters.size() == 1);
+  CHECK(view.layout() == layout_before);
+
+  Chart grown = sample_chart();
+  grown.nodes.push_back(
+    {.id = 10,
+     .kind = NodeKind::Method,
+     .name = "m3",
+     .qualified_name = "ns::A::m3",
+     .file = "a.cpp"}
+  );
+  CHECK_FALSE(view.update_annotations(grown));
+  Chart reweighted = sample_chart();
+  reweighted.edges[8].weight = 4.0F;
+  CHECK_FALSE(view.update_annotations(reweighted));
+  CHECK(view.chart().nodes[6].summary == "First method");
+}

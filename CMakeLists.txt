@@ -44,6 +44,7 @@ add_library(
   src/Chart.cpp
   src/ChartStore.cpp
   src/ChartView.cpp
+  src/ChartWatcher.cpp
   src/ClangdExtractor.cpp
   src/Cli.cpp
   src/CtagsExtractor.cpp
@@ -92,6 +93,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_chart.cpp
     tests/test_chart_store.cpp
     tests/test_chart_view.cpp
+    tests/test_chart_watcher.cpp
     tests/test_clangd_extractor.cpp
     tests/test_cli.cpp
     tests/test_ctags_extractor.cpp

@@ -25,6 +25,7 @@
 
 #include "Comprendo/ChartStore.hpp"
 #include "Comprendo/ChartView.hpp"
+#include "Comprendo/ChartWatcher.hpp"
 #include "Comprendo/Cli.hpp"
 #include "Comprendo/GraphRenderer.hpp"
 #include "Comprendo/Ui.hpp"
@@ -47,6 +48,13 @@ namespace
 
   /// Target frame rate.
   constexpr int kTargetFps = 60;
+
+  /// Seconds between two checks of the chart file for changes.
+  constexpr double kWatchInterval = 0.5;
+
+  /// Seconds a change must settle before the chart is reloaded, so a burst of
+  /// commits (an extraction, a busy annotation session) causes one reload.
+  constexpr double kReloadDelay = 0.3;
 
   /// Background color.
   constexpr Color kBackground {.r = 24, .g = 24, .b = 32, .a = 255};
@@ -345,6 +353,95 @@ namespace
         };
     session.camera.fit(
       session.view.group_centre(0), session.view.layout().groups.front().radius, kFitMargin, target
+    );
+  }
+
+  /// Id of the first node of the selected group, to find it again after a reload.
+  ///
+  /// \param session Current session.
+  /// \param state Viewer state holding the selection.
+  /// \return Node id, or nothing when nothing is selected.
+  std::optional<std::uint64_t>
+  selected_node_id(const GraphSession &session, const Comprendo::ViewerState &state)
+  {
+    if (!state.selected)
+    {
+      return std::nullopt;
+    }
+    const auto &nodes = session.view.hierarchy().groups[*state.selected].nodes;
+    return nodes.empty() ? std::nullopt
+                         : std::optional {session.view.chart().nodes[nodes.front()].id};
+  }
+
+  /// Reload the chart after another process changed it.
+  ///
+  /// Annotation-only changes are taken over in place. Structural changes build
+  /// a new view in the current grouping that keeps the camera, the auto-fit
+  /// state, and the selection when its node still exists. A chart that cannot
+  /// be read (for example mid-rewrite) leaves the current view untouched; the
+  /// next commit triggers another attempt.
+  ///
+  /// \param path Chart file.
+  /// \param session Current session, replaced or created on success.
+  /// \param state Viewer state.
+  /// \param note Placeholder note, updated while no chart is shown.
+  void
+  reload_session(
+    const std::string &path,
+    std::optional<GraphSession> &session,
+    Comprendo::ViewerState &state,
+    std::string &note
+  )
+  {
+    auto chart = Comprendo::read_chart(path);
+    if (!chart)
+    {
+      Comprendo::Logger::warn("Chart changed but cannot be read yet: {}", chart.error());
+      if (!session)
+      {
+        note = fmt::format("No chart: create one with 'comprendo-cli extract' ({})", chart.error());
+      }
+      return;
+    }
+    if (session && session->view.update_annotations(*chart))
+    {
+      Comprendo::Logger::info("Reloaded annotations from {}", path);
+      return;
+    }
+    const auto start = std::chrono::steady_clock::now();
+    const std::optional<std::uint64_t> selected
+      = session ? selected_node_id(*session, state) : std::nullopt;
+    GraphSession next {.view = Comprendo::ChartView {std::move(*chart), state.grouping}};
+    if (session)
+    {
+      next.camera = session->camera;
+      next.auto_fit = session->auto_fit;
+    }
+    state.selected.reset();
+    if (const auto node = selected ? next.view.node_index(*selected) : std::nullopt)
+    {
+      state.selected = next.view.hierarchy().group_of_node[*node];
+      state.reveal_requested = true;
+    }
+    const bool fit = !session;
+    session = std::move(next);
+    if (fit)
+    {
+      fit_chart(*session, state.graph_area);
+    }
+    else if (session->auto_fit)
+    {
+      state.fit_requested = true;
+    }
+    Comprendo::Logger::info(
+      "Reloaded {} ({} nodes, {} edges) in {} ms",
+      path,
+      session->view.chart().nodes.size(),
+      session->view.chart().edges.size(),
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start
+      )
+        .count()
     );
   }
 
@@ -845,8 +942,25 @@ namespace
     else
     {
       bool first_frame = true;
+      Comprendo::ChartWatcher watcher {options.chart};
+      static_cast<void>(watcher.changed());
+      double next_check = GetTime() + kWatchInterval;
+      std::optional<double> reload_at;
       while (!WindowShouldClose() && !state.quit_requested)
       {
+        if (const double now = GetTime(); now >= next_check)
+        {
+          next_check = now + kWatchInterval;
+          if (watcher.changed())
+          {
+            reload_at = now + kReloadDelay;
+          }
+          else if (reload_at && now >= *reload_at)
+          {
+            reload_at.reset();
+            reload_session(options.chart, session, state, note);
+          }
+        }
         BeginDrawing();
         ClearBackground(kBackground);
 
