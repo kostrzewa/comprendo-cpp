@@ -310,3 +310,4 @@ commit. Newest last.
   `i`), which now become `Inherits` edges; clangd skips edges ctags already
   recorded, since a chart may not hold duplicates.
 
+- Commit: `23a9450`.
