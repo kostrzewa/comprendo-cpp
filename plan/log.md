@@ -291,3 +291,4 @@ commit. Newest last.
   line is now at the selection's own depth, revising M9e's "same depth"
   choice, which fans out on real charts.
 
+- Commit: `7347d1d`.
