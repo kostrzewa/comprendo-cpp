@@ -607,4 +607,50 @@ namespace Comprendo
     operator=(ProfileScope &&) = delete;
   };
 
+  /// Records a profile for the lifetime of a scope when given an output file.
+  ///
+  /// With a non-empty path, the constructor starts the profiler; the
+  /// destructor logs the scope tree and writes a Perfetto trace to the path.
+  /// With an empty path, nothing is recorded.
+  class ProfileRecording
+  {
+  public:
+    /// Start recording.
+    ///
+    /// \param path Trace file to write at the end; empty to record nothing.
+    explicit ProfileRecording(std::string path) : m_path(std::move(path))
+    {
+      if (!m_path.empty())
+      {
+        Profiler::init();
+      }
+    }
+
+    /// Log the profile and write the trace.
+    // Writing the report throws only on allocation failure, and terminating then is acceptable.
+    // NOLINTNEXTLINE(bugprone-exception-escape)
+    ~ProfileRecording()
+    {
+      if (!m_path.empty())
+      {
+        Profiler::print_profile(kReportDepth);
+        Profiler::dump_perfetto(m_path);
+      }
+    }
+
+    ProfileRecording(const ProfileRecording &) = delete;
+    ProfileRecording &
+    operator=(const ProfileRecording &) = delete;
+    ProfileRecording(ProfileRecording &&) = delete;
+    ProfileRecording &
+    operator=(ProfileRecording &&) = delete;
+
+  private:
+    /// Levels of nested scopes shown in the logged report.
+    static constexpr int kReportDepth = 3;
+
+    /// Trace file, or empty when not recording.
+    std::string m_path;
+  };
+
 } // namespace Comprendo

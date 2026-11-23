@@ -25,6 +25,7 @@
 #include "Comprendo/ClangdExtractor.hpp"
 #include "Comprendo/CtagsExtractor.hpp"
 #include "Comprendo/ExtractConfig.hpp"
+#include "Profiler/Profiler.hpp"
 #include "Version.hpp"
 
 namespace
@@ -224,6 +225,10 @@ namespace Comprendo
       "--version", fmt::format("comprendo-cli {} (git {})", COMPRENDO_VERSION, COMPRENDO_GIT_COMMIT)
     );
     app.require_subcommand(1);
+    std::string profile;
+    app.add_option(
+      "--profile", profile, "Write a Perfetto trace to FILE and log a profile at exit"
+    );
     app.footer("Exit codes: 0 success, 1 failure, 2 malformed command line.");
 
     ExtractOptions extract_options;
@@ -274,6 +279,7 @@ namespace Comprendo
       return app.exit(error, out, err) == 0 ? kExitOk : kExitUsage;
     }
 
+    const Comprendo::ProfileRecording recording {profile};
     if (extract->parsed())
     {
       return run_extract(extract_options, out, err);

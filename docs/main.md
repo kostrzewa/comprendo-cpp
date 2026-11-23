@@ -62,6 +62,9 @@ compile_commands_dir = ""           # empty: search
 
 `COMPRENDO_CTAGS` and `COMPRENDO_CLANGD` override the executables.
 
+`comprendo-cli --profile FILE ...` and `comprendo --profile FILE` log a
+profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
+
 `comprendo-cli validate [FILE]` checks a chart (exit code 1 when invalid);
 `comprendo-cli info [FILE]` summarizes it.
 

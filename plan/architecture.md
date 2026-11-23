@@ -339,8 +339,10 @@ Input is ignored while ImGui uses the mouse or keyboard.
   current grouping, keeping the camera and the selection. Unreadable
   intermediate states keep the current view.
 
-Profiler scopes wrap update and render; a Perfetto trace is dumped on exit or a
-hotkey. `Logger::init` logs the project version and git commit at startup.
+With `--profile FILE`, profiler scopes wrap each frame's input and drawing
+(and the core's extraction and layout scopes); at exit the scope tree is
+logged and a Perfetto trace is written to FILE. `comprendo-cli` takes the same
+option. `Logger::init` logs the project version and git commit at startup.
 
 ## User interface
 

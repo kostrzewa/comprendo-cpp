@@ -155,6 +155,14 @@ if(COMPRENDO_BUILD_TESTS)
         --output
         ${CLI_TEST_CHART}
     )
+    add_test(
+      NAME cli_profile
+      COMMAND
+        comprendo-cli --profile ${CMAKE_BINARY_DIR}/cli-test/extract.trace.json extract --backend
+        ctags --root ${CMAKE_SOURCE_DIR}/tests/fixtures/extract_basic --output
+        ${CMAKE_BINARY_DIR}/cli-test/profiled.sqlite
+    )
+    set_tests_properties(cli_profile PROPERTIES PASS_REGULAR_EXPRESSION "Trace written to")
     add_test(NAME cli_validate COMMAND comprendo-cli validate ${CLI_TEST_CHART})
     add_test(NAME cli_info COMMAND comprendo-cli info ${CLI_TEST_CHART})
     set_tests_properties(cli_extract PROPERTIES FIXTURES_SETUP cli_chart)

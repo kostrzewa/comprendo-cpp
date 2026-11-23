@@ -30,6 +30,7 @@
 #include "Comprendo/GraphRenderer.hpp"
 #include "Comprendo/Ui.hpp"
 #include "Logger/Logger.hpp"
+#include "Profiler/Profiler.hpp"
 #include "Version.hpp"
 
 namespace
@@ -180,6 +181,8 @@ namespace
     std::string select;
     /// Grouping shown at startup.
     Comprendo::Grouping grouping = Comprendo::Grouping::File;
+    /// Perfetto trace written at exit; empty to not profile.
+    std::string profile;
   };
 
   /// Messages kept for the Log panel.
@@ -213,6 +216,9 @@ namespace
       = app.add_option("chart", options.chart, "Chart to open")->capture_default_str();
     app.add_option(
       "--select", options.select, "Select and focus the best match for NAME at startup"
+    );
+    app.add_option(
+      "--profile", options.profile, "Write a Perfetto trace to FILE and log a profile at exit"
     );
     std::string grouping {Comprendo::to_string(Comprendo::Grouping::File)};
     app.add_option("--group", grouping, "Grouping at startup: file, namespace, or cluster")
@@ -982,6 +988,7 @@ namespace
   run_viewer(const Options &options)
   {
     Comprendo::Logger::init();
+    const Comprendo::ProfileRecording recording {options.profile};
 
     unsigned int flags = FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIDDEN;
 
@@ -1010,6 +1017,7 @@ namespace
     state.chart_path = options.chart;
     state.log_sink = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(kLogPanelLines);
     state.log_sink->set_pattern("[%T] [%l] %v");
+    state.log_sink->set_level(spdlog::level::info);
     spdlog::default_logger()->sinks().push_back(state.log_sink);
     state.grouping = options.grouping;
     if (auto loaded = load_session(options.chart, options.grouping))
@@ -1039,6 +1047,7 @@ namespace
       std::optional<double> reload_at;
       while (!WindowShouldClose() && !state.quit_requested)
       {
+        const Comprendo::ProfileScope frame_scope {"frame"};
         if (const double now = GetTime(); now >= next_check)
         {
           next_check = now + kWatchInterval;
@@ -1067,9 +1076,13 @@ namespace
         }
         if (session)
         {
+          const Comprendo::ProfileScope input_scope {"input"};
           handle_graph_input(*session, state);
         }
-        draw_frame(session, build_info, note, ui_shell, state, *renderer);
+        {
+          const Comprendo::ProfileScope draw_scope {"draw"};
+          draw_frame(session, build_info, note, ui_shell, state, *renderer);
+        }
         Comprendo::Ui::end_frame();
 
         EndDrawing();

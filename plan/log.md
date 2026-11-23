@@ -120,3 +120,12 @@ commit. Newest last.
 - Pressing in the minimap now owns the press until release, so releasing it
   does not select what lies under the minimap in the graph.
 
+- Commit: `314e850`.
+
+## 2026-11-23 — M7f profiling switch
+
+- The core had profiler scopes since M3, but no binary started the profiler,
+  so they recorded nothing. `--profile FILE` on `comprendo-cli` and
+  `comprendo` now does; a clangd extraction of the fixture shows the clangd
+  phases next to the ctags ones in Perfetto.
+

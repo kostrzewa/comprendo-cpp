@@ -243,28 +243,27 @@ Done:
   delay. Annotation-only changes are taken over without relayout
   (`ChartView::update_annotations`); structural changes rebuild the view and
   keep grouping, camera, and selection.
-
 - Cluster grouping (`Grouping::Cluster`, `G` cycles three groupings,
   `--group`): the model's clusters as nested groups in their colours; the
   Inspector shows a cluster's summary and a node's cluster. Replaces the
   planned convex-hull fills.
-
 - `clang-tidy` target (`run-clang-tidy-22` over `src/` and `tests/` with the
   repository `.clang-tidy`); the code base is clean, with justified `NOLINT`s
   only for POSIX and SQLite API casts.
-
 - Documentation pass: `docs/main.md` is a user guide (extraction, viewer,
   plugin, chart format); Doxygen runs with `EXTRACT_ALL=NO` and
   `WARN_IF_UNDOCUMENTED`, and reports no warnings.
-
 - View → Show kind filters (`ViewFilter`: hidden node kinds disappear with
   their subtrees and cannot be picked; hidden edge kinds are not drawn),
   double-click drill-down, and a minimap (`Minimap`, click or drag to move).
 
+- `--profile FILE` on both binaries (`ProfileRecording`): logs the scope
+  tree and writes a Perfetto trace; the viewer records `frame`, `input`, and
+  `draw` scopes.
+
 Open:
 
 - clangd `Uses` edges (`references`) and hover text for node details.
-- Profiler scopes and Perfetto dump.
 - Screenshots for the documentation.
 - SFML DSP tones; Jolt cosmetic particles.
 
