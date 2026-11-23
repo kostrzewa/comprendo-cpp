@@ -416,4 +416,7 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   is a 0.4 s blend (`blend_layouts`) with the camera bringing the selection
   to the middle. The centring is kept by stable key across regrouping and
   reloads. Measured: 0.8–0.9 ms of layout work on this repository's chart.
+- k. (done) `C` acts on the object under the mouse first: a hovered graph
+  object, else a hovered Explorer or Inspector row, else the selection; `C`
+  on the centred object restores the normal layout.
 

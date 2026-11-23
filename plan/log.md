@@ -702,3 +702,13 @@ commit. Newest last.
   cluster, 0.9 ms for a function four levels deep.
 
 - Commit: `d556075`.
+
+## 2026-11-23 — M12k C re-centres on the hovered object
+
+- `C` targets the graph object under the mouse, else the Explorer or
+  Inspector row under it (`ViewerState::panel_hovered`, set by `IsItemHovered`
+  on tree rows and Selectables, reset each frame), else the selection.
+- Smoke test: a hovered row wins over the selection, and `C` over the centred
+  object restores the normal layout. Checked under xvfb with real input:
+  graph hover (Tests), Explorer row hover (Layout.cpp while `compute_layout`
+  was selected), then C again → normal layout.

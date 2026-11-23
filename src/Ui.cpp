@@ -288,6 +288,10 @@ namespace
     const std::string label = fmt::format("{}##g{}", view.display_label(group), group);
     const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
     ImGui::PopStyleColor();
+    if (ImGui::IsItemHovered())
+    {
+      state.panel_hovered = group;
+    }
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
     {
       select_from_panel(state, group);
@@ -611,6 +615,10 @@ namespace
     ImGui::PushStyleColor(ImGuiCol_Text, imgui_color(view.group_color(entry.group)));
     ImGui::TreeNodeEx(entry.label.c_str(), flags);
     ImGui::PopStyleColor();
+    if (ImGui::IsItemHovered())
+    {
+      state.panel_hovered = entry.group;
+    }
     if (ImGui::IsItemToggledOpen())
     {
       toggle_contents_row(state, entry.group);
@@ -673,9 +681,16 @@ namespace
         {
           draw_tree_row(view, entry, highlighted, state);
         }
-        else if (ImGui::Selectable(entry.label.c_str(), highlighted))
+        else
         {
-          select_from_panel(state, entry.group);
+          if (ImGui::Selectable(entry.label.c_str(), highlighted))
+          {
+            select_from_panel(state, entry.group);
+          }
+          if (ImGui::IsItemHovered())
+          {
+            state.panel_hovered = entry.group;
+          }
         }
         ImGui::PopID();
         if (highlighted && scroll_to_cursor)
@@ -1205,6 +1220,7 @@ namespace Comprendo
   {
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const ImGuiID dockspace_id = ImGui::GetID("ComprendoDockSpace");
+    state.panel_hovered.reset();
 
     if (!layout_initialized_)
     {

@@ -567,7 +567,9 @@ graph:
   sweeps; expansion scales about it; it seeds at the origin) and the group
   centred on it; then the usual top-down assembly. `ChartView` keeps the
   base layout and the shown one, remembers the centred group by key, and
-  re-applies it after `rebuild`. The viewer blends the old and new layouts
+  re-applies it after `rebuild`. `C` targets the hovered graph object, else
+  the hovered Explorer/Inspector row (`ViewerState::panel_hovered`, reset
+  each frame), else the selection. The viewer blends the old and new layouts
   over 0.4 s (`blend_layouts`, ease-out) while panning so the selection
   travels to the middle of the graph area.
 - **Panel visibility** (Explorer, Inspector, Log, minimap) is part of

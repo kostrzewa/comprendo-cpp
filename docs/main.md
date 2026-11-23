@@ -96,7 +96,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | Click or drag in the minimap | Move the view there (View → Minimap toggles it) |
 | Hover | Tooltip: name, kind, file:line |
 | `Home` | Fit the chart; it stays fitted until you zoom or pan |
-| `C` | Re-centre the layout on the selection: it moves to the middle of the chart with everything else arranged around it (only the groups enclosing it are laid out again, animated); `C` again, or with nothing selected, returns to the normal layout (also View → Centre layout on selection / Normal layout) |
+| `C` | Re-centre the layout on the object under the mouse (in the graph, Explorer, or Inspector), else on the selection: it moves to the middle of the chart with everything else arranged around it (only the groups enclosing it are laid out again, animated); `C` again on the centred object, or with nothing hovered or selected, returns to the normal layout (also View → Centre layout on selection / Normal layout) |
 | `G` | Cycle grouping: cluster, file, namespace |
 | Double click in the Explorer | Unfold or fold a directory, cluster, file, ... |
 | `Ctrl+F` | Filter the Explorer |

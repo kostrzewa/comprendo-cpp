@@ -62,9 +62,14 @@ namespace Comprendo
     /// Whether the About window is open.
     bool show_about = false;
 
-    /// Set by C or the View menu to re-centre the layout on the selection (or
-    /// return to the normal layout when already centred on it).
+    /// Set by C or the View menu to re-centre the layout on what is under the
+    /// mouse, else the selection (or return to the normal layout when already
+    /// centred on it).
     bool centre_requested = false;
+
+    /// Group whose Explorer or Inspector row is under the mouse, set while the
+    /// panels are drawn and cleared at the start of every frame's UI.
+    std::optional<std::size_t> panel_hovered;
 
     /// Set by the View menu to return to the normal layout.
     bool normal_layout_requested = false;

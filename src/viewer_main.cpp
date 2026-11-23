@@ -918,8 +918,9 @@ namespace
     session.fit_group.reset();
   }
 
-  /// Start re-centring the layout on the selection (C), or returning to the
-  /// normal layout when it is already centred on it or nothing is selected.
+  /// Start re-centring the layout (C) on what is under the mouse (in the graph,
+  /// else an Explorer or Inspector row), else on the selection; or return to the
+  /// normal layout when it is already centred on that or there is nothing.
   ///
   /// \param session Session whose view changes.
   /// \param state Viewer state holding the selection and the request.
@@ -930,13 +931,16 @@ namespace
     {
       return;
     }
-    const bool to_normal = state.normal_layout_requested || !state.selected
-      || session.view.centred_group() == state.selected;
+    const std::optional<std::size_t> target = session.hovered
+      ? session.hovered
+      : (state.panel_hovered ? state.panel_hovered : state.selected);
+    const bool to_normal
+      = state.normal_layout_requested || !target || session.view.centred_group() == target;
     state.centre_requested = false;
     state.normal_layout_requested = false;
     const Comprendo::Layout from = session.view.layout();
     const auto started = std::chrono::steady_clock::now();
-    session.view.centre_on_group(to_normal ? std::nullopt : state.selected);
+    session.view.centre_on_group(to_normal ? std::nullopt : target);
     const auto elapsed
       = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started);
     Comprendo::Layout to = session.view.layout();
@@ -945,21 +949,21 @@ namespace
     session.auto_fit = false;
     session.fit_group.reset();
     Comprendo::Vec2 from_screen;
-    if (state.selected)
+    if (target)
     {
-      from_screen = session.camera.world_to_screen(session.view.group_centre(*state.selected));
+      from_screen = session.camera.world_to_screen(session.view.group_centre(*target));
     }
     session.layout_change = LayoutChange {
       .from = from,
       .to = std::move(to),
       .start = GetTime(),
-      .follow = state.selected,
+      .follow = target,
       .from_screen = from_screen,
     };
     Comprendo::Logger::info(
       "{} ({:.1f} ms)",
-      to_normal ? std::string {"Normal layout"}
-                : fmt::format("Centred on {}", session.view.display_label(*state.selected)),
+      to_normal || !target ? std::string {"Normal layout"}
+                           : fmt::format("Centred on {}", session.view.display_label(*target)),
       elapsed.count()
     );
   }
@@ -1560,15 +1564,26 @@ namespace
       return session.view.grouping() == Comprendo::Grouping::Cluster
         && !session.view.visible(session.camera).empty();
     case kSmokeCentreFrame:
+      // A hovered row (here the symbol's parent) wins over the selection.
       state.selected = first_symbol_with_lines(session.view);
+      state.panel_hovered = state.selected
+        ? std::optional {session.view.hierarchy().groups[*state.selected].parent}
+        : std::nullopt;
       state.centre_requested = true;
       return state.selected.has_value();
     case kSmokeCentreCheckFrame:
-      return state.selected && session.view.centred_group() == state.selected
-        && session.layout_change
-        && session.layout_change->to.groups[*state.selected].centre
+    {
+      const auto hovered = state.selected
+        ? std::optional {session.view.hierarchy().groups[*state.selected].parent}
+        : std::nullopt;
+      return hovered && session.view.centred_group() == hovered && session.layout_change
+        && session.layout_change->to.groups[*hovered].centre
         == Comprendo::Position {.x = 0.0F, .y = 0.0F};
-    case kSmokeNormalFrame: state.centre_requested = true; return true;
+    }
+    case kSmokeNormalFrame:
+      state.panel_hovered = session.view.centred_group();
+      state.centre_requested = true;
+      return true;
     case kSmokeNormalCheckFrame: return !session.view.centred_group().has_value();
     case kSmokeChartJumpFrame:
     {
