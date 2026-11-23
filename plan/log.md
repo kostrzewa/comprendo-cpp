@@ -712,3 +712,5 @@ commit. Newest last.
   object restores the normal layout. Checked under xvfb with real input:
   graph hover (Tests), Explorer row hover (Layout.cpp while `compute_layout`
   was selected), then C again → normal layout.
+
+- Commit: `99700bc`.
