@@ -32,6 +32,12 @@ namespace Comprendo
     /// Whether the log panel is visible.
     bool show_log = true;
 
+    /// Inspector row under the keyboard cursor, counted over all its lists.
+    std::optional<std::size_t> inspector_cursor;
+
+    /// Group the Inspector cursor belongs to; a new selection resets the cursor.
+    std::optional<std::size_t> inspector_group;
+
     /// Whether the minimap is drawn in the graph area.
     bool show_minimap = true;
 

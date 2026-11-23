@@ -70,6 +70,7 @@ add_library(
   src/Includes.cpp
   src/Json.cpp
   src/Lsp.cpp
+  src/Navigation.cpp
   src/Layout.cpp
   src/Process.cpp
   src/QuadTree.cpp
@@ -121,6 +122,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_json.cpp
     tests/test_layout.cpp
     tests/test_lsp.cpp
+    tests/test_navigation.cpp
     tests/test_process.cpp
     tests/test_quadtree.cpp
     tests/test_radix_sort.cpp

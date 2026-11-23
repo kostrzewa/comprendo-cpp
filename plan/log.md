@@ -202,3 +202,4 @@ commit. Newest last.
 - Keeping the selection's own edges unaggregated preserves the "what does
   this touch" question that member lines used to answer.
 
+- Commit: `9b7a05b`.

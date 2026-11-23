@@ -402,7 +402,12 @@ graph:
   ranked matches (`ChartView::search`, cached per query), otherwise the tree in
   `ChartView::display_children` order; leaf lists above 256 rows go through
   `ImGuiListClipper`, which is told to include a revealed row.
-- **Inspector**: fields of the selection's first node, summary and detail
+- **Inspector** (lists reworked in M8e): Detail, Contains, Outgoing, and
+  Incoming are always shown, each under a heading in its own scrolling child
+  (8 rows, Detail 6 lines). With the Inspector focused, Up/Down move one
+  cursor through all list rows (`move_list_cursor`) and Enter selects the
+  row; the window has `NoNavInputs` so ImGui's own navigation does not also
+  react. Before M8: fields of the selection's first node, summary and detail
   (written by the model), declaring files of merged namespaces, children, and
   incoming/outgoing non-`Contains` edges from `ChartView::node_edges`.
 - **Log**: the last 2000 messages from an spdlog ring-buffer sink attached at

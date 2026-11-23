@@ -18,6 +18,7 @@
 
 #include "Comprendo/Chart.hpp"
 #include "Comprendo/ChartView.hpp"
+#include "Comprendo/Navigation.hpp"
 #include "Logger/Logger.hpp"
 #include "Version.hpp"
 
@@ -49,8 +50,11 @@ namespace
   /// Child count above which Explorer leaf rows are clipped to the visible ones.
   constexpr std::size_t kClipThreshold = 256;
 
-  /// Most children or edges listed per Inspector section.
-  constexpr std::size_t kInspectorListLimit = 300;
+  /// Rows of an Inspector list shown before it scrolls.
+  constexpr std::size_t kInspectorListRows = 8;
+
+  /// Text lines of the Detail section shown before it scrolls.
+  constexpr std::size_t kInspectorDetailRows = 6;
 
   /// ImGui colour of a chart colour.
   ///
@@ -282,68 +286,197 @@ namespace
     ImGui::TextUnformatted(value.c_str());
   }
 
-  /// Draw one Inspector edge list: chart edges of the selection, excluding
-  /// containment, each selecting its other endpoint when clicked.
+  /// One row of an Inspector list.
+  struct ListEntry
+  {
+    /// Text shown.
+    std::string label;
+    /// Group selected when the row is chosen.
+    std::size_t group = 0;
+  };
+
+  /// One headed, scrollable list of the Inspector.
+  struct ListSection
+  {
+    /// Heading, without the count.
+    const char *title = "";
+    /// Rows.
+    std::vector<ListEntry> entries;
+  };
+
+  /// Rows for a group's children.
   ///
   /// \param view Chart view.
-  /// \param state Viewer state.
-  /// \param title Section title.
-  /// \param edges Edge indices.
-  /// \param outgoing True to show destinations, false to show sources.
-  void
-  draw_edge_list(
-    const Comprendo::ChartView &view,
-    Comprendo::ViewerState &state,
-    const char *title,
-    const std::vector<std::size_t> &edges,
-    bool outgoing
-  )
+  /// \param group Group whose children are listed.
+  /// \return One row per child, in Explorer order.
+  std::vector<ListEntry>
+  child_entries(const Comprendo::ChartView &view, std::size_t group)
   {
-    const std::string header = fmt::format("{} ({})##{}", title, edges.size(), title);
-    if (edges.empty() || !ImGui::CollapsingHeader(header.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    std::vector<ListEntry> entries;
+    for (const std::size_t child : view.display_children(group))
     {
-      return;
+      entries.push_back({.label = view.display_label(child), .group = child});
     }
-    for (std::size_t i = 0; i < std::min(edges.size(), kInspectorListLimit); ++i)
-    {
-      const Comprendo::Edge &edge = view.chart().edges[edges[i]];
-      const auto other = view.node_index(outgoing ? edge.dst : edge.src);
-      if (!other)
-      {
-        continue;
-      }
-      const Comprendo::Node &node = view.chart().nodes[*other];
-      const std::string label = fmt::format(
-        "{}  {}##e{}{}", Comprendo::to_string(edge.kind), node.qualified_name, title, edges[i]
-      );
-      if (ImGui::Selectable(label.c_str()))
-      {
-        select_from_panel(state, view.hierarchy().group_of_node[*other]);
-      }
-    }
+    return entries;
   }
 
-  /// Draw the collapsible list of a group's children, each selectable.
+  /// Rows for a selection's edges, each naming the other endpoint.
   ///
   /// \param view Chart view.
-  /// \param state Viewer state receiving a new selection.
-  /// \param group Group whose children are listed.
-  void
-  draw_children(const Comprendo::ChartView &view, Comprendo::ViewerState &state, std::size_t group)
+  /// \param edges Edge indices.
+  /// \param outgoing True to list destinations, false to list sources.
+  /// \return One row per edge whose other endpoint is in the chart.
+  std::vector<ListEntry>
+  edge_entries(
+    const Comprendo::ChartView &view, const std::vector<std::size_t> &edges, bool outgoing
+  )
   {
-    const std::vector<std::size_t> &children = view.display_children(group);
-    const std::string children_header = fmt::format("Contains ({})##children", children.size());
-    if (!children.empty() && ImGui::CollapsingHeader(children_header.c_str()))
+    std::vector<ListEntry> entries;
+    for (const std::size_t index : edges)
     {
-      for (std::size_t i = 0; i < std::min(children.size(), kInspectorListLimit); ++i)
+      const Comprendo::Edge &edge = view.chart().edges[index];
+      if (const auto other = view.node_index(outgoing ? edge.dst : edge.src))
       {
-        const std::string label
-          = fmt::format("{}##c{}", view.display_label(children[i]), children[i]);
-        if (ImGui::Selectable(label.c_str()))
+        entries.push_back({
+          .label = fmt::format(
+            "{}  {}", Comprendo::to_string(edge.kind), view.chart().nodes[*other].qualified_name
+          ),
+          .group = view.hierarchy().group_of_node[*other],
+        });
+      }
+    }
+    return entries;
+  }
+
+  /// Draw a heading with an optional count.
+  ///
+  /// \param title Heading.
+  /// \param count Number of entries, shown in parentheses.
+  void
+  section_heading(const char *title, std::optional<std::size_t> count)
+  {
+    const std::string text = count ? fmt::format("{} ({})", title, *count) : std::string {title};
+    ImGui::SeparatorText(text.c_str());
+  }
+
+  /// Height of a bordered child showing a number of text rows.
+  ///
+  /// \param rows Rows to show without scrolling.
+  /// \return Height in pixels.
+  float
+  rows_height(std::size_t rows)
+  {
+    return (static_cast<float>(rows) * ImGui::GetTextLineHeightWithSpacing())
+      + (2.0F * ImGui::GetStyle().WindowPadding.y);
+  }
+
+  /// Draw a headed list with its own scrollbar.
+  ///
+  /// \param section Heading and rows.
+  /// \param first Cursor index of the section's first row.
+  /// \param cursor Keyboard cursor over all Inspector rows, if any.
+  /// \param scroll_to_cursor True to scroll the cursor's row into view.
+  /// \param state Viewer state receiving a click selection.
+  void
+  draw_list_section(
+    const ListSection &section,
+    std::size_t first,
+    std::optional<std::size_t> cursor,
+    bool scroll_to_cursor,
+    Comprendo::ViewerState &state
+  )
+  {
+    section_heading(section.title, section.entries.size());
+    if (section.entries.empty())
+    {
+      text_disabled("None");
+      return;
+    }
+    const std::size_t rows = std::min(section.entries.size(), kInspectorListRows);
+    ImGui::BeginChild(section.title, ImVec2(0.0F, rows_height(rows)), ImGuiChildFlags_Borders);
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(section.entries.size()));
+    const bool cursor_here = cursor && *cursor >= first && *cursor < first + section.entries.size();
+    if (cursor_here)
+    {
+      clipper.IncludeItemByIndex(static_cast<int>(*cursor - first));
+    }
+    while (clipper.Step())
+    {
+      for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+      {
+        const ListEntry &entry = section.entries[static_cast<std::size_t>(row)];
+        const bool highlighted = cursor_here && *cursor == first + static_cast<std::size_t>(row);
+        ImGui::PushID(row);
+        if (ImGui::Selectable(entry.label.c_str(), highlighted))
         {
-          select_from_panel(state, children[i]);
+          select_from_panel(state, entry.group);
+        }
+        ImGui::PopID();
+        if (highlighted && scroll_to_cursor)
+        {
+          ImGui::SetScrollHereY();
         }
       }
+    }
+    ImGui::EndChild();
+  }
+
+  /// Move the Inspector's keyboard cursor and act on Enter.
+  ///
+  /// Up and Down move through the rows of all lists in order; Enter selects the
+  /// row's group as a click would.
+  ///
+  /// \param sections Lists in drawing order.
+  /// \param state Viewer state holding the cursor.
+  /// \return True when the cursor moved and its row should scroll into view.
+  bool
+  handle_inspector_keys(const std::vector<ListSection> &sections, Comprendo::ViewerState &state)
+  {
+    std::vector<const ListEntry *> rows;
+    for (const ListSection &section : sections)
+    {
+      for (const ListEntry &entry : section.entries)
+      {
+        rows.push_back(&entry);
+      }
+    }
+    if (rows.empty())
+    {
+      state.inspector_cursor.reset();
+      return false;
+    }
+    std::optional<std::size_t> &cursor = state.inspector_cursor;
+    const int delta = (ImGui::IsKeyPressed(ImGuiKey_DownArrow) ? 1 : 0)
+      - (ImGui::IsKeyPressed(ImGuiKey_UpArrow) ? 1 : 0);
+    const bool moved = delta != 0 || (cursor && *cursor >= rows.size());
+    if (moved)
+    {
+      cursor = Comprendo::move_list_cursor(cursor, rows.size(), delta);
+    }
+    if (cursor && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)))
+    {
+      select_from_panel(state, rows[*cursor]->group);
+    }
+    return moved;
+  }
+
+  /// Draw the Inspector's lists: children, outgoing and incoming edges.
+  ///
+  /// \param sections Lists in drawing order.
+  /// \param state Viewer state.
+  /// \param keyboard True when the Inspector has keyboard focus.
+  void
+  draw_list_sections(
+    const std::vector<ListSection> &sections, Comprendo::ViewerState &state, bool keyboard
+  )
+  {
+    const bool scroll = keyboard && handle_inspector_keys(sections, state);
+    std::size_t first = 0;
+    for (const ListSection &section : sections)
+    {
+      draw_list_section(section, first, state.inspector_cursor, scroll, state);
+      first += section.entries.size();
     }
   }
 
@@ -405,9 +538,20 @@ namespace
   /// \param view Chart view.
   /// \param state Viewer state.
   /// \param group Selected group.
+  /// \param keyboard True when the Inspector has keyboard focus.
   void
-  draw_selection(const Comprendo::ChartView &view, Comprendo::ViewerState &state, std::size_t group)
+  draw_selection(
+    const Comprendo::ChartView &view,
+    Comprendo::ViewerState &state,
+    std::size_t group,
+    bool keyboard
+  )
   {
+    if (state.inspector_group != group)
+    {
+      state.inspector_group = group;
+      state.inspector_cursor.reset();
+    }
     const Comprendo::HierarchyGroup &entry = view.hierarchy().groups[group];
     ImGui::PushStyleColor(ImGuiCol_Text, imgui_color(view.group_color(group)));
     ImGui::TextUnformatted(view.display_label(group).c_str());
@@ -432,7 +576,9 @@ namespace
     }
     if (entry.nodes.empty())
     {
-      draw_children(view, state, group);
+      draw_list_sections(
+        {ListSection {.title = "Contains", .entries = child_entries(view, group)}}, state, keyboard
+      );
       return;
     }
     const Comprendo::Node &node = view.chart().nodes[entry.nodes.front()];
@@ -474,11 +620,20 @@ namespace
       ImGui::TextUnformatted(node.summary.c_str());
     }
     ImGui::PopTextWrapPos();
-    if (!node.detail.empty() && ImGui::CollapsingHeader("Detail", ImGuiTreeNodeFlags_DefaultOpen))
+    section_heading("Detail", std::nullopt);
+    if (node.detail.empty())
     {
+      text_disabled("None");
+    }
+    else
+    {
+      ImGui::BeginChild(
+        "Detail", ImVec2(0.0F, rows_height(kInspectorDetailRows)), ImGuiChildFlags_Borders
+      );
       ImGui::PushTextWrapPos(0.0F);
       ImGui::TextUnformatted(node.detail.c_str());
       ImGui::PopTextWrapPos();
+      ImGui::EndChild();
     }
 
     if (entry.nodes.size() > 1)
@@ -493,8 +648,6 @@ namespace
         }
       }
     }
-
-    draw_children(view, state, group);
 
     std::vector<std::size_t> outgoing;
     std::vector<std::size_t> incoming;
@@ -515,8 +668,15 @@ namespace
         }
       }
     }
-    draw_edge_list(view, state, "Outgoing", outgoing, true);
-    draw_edge_list(view, state, "Incoming", incoming, false);
+    draw_list_sections(
+      {
+        ListSection {.title = "Contains", .entries = child_entries(view, group)},
+        ListSection {.title = "Outgoing", .entries = edge_entries(view, outgoing, true)},
+        ListSection {.title = "Incoming", .entries = edge_entries(view, incoming, false)},
+      },
+      state,
+      keyboard
+    );
   }
 } // namespace
 
@@ -817,7 +977,9 @@ namespace Comprendo
     {
       return;
     }
-    if (ImGui::Begin("Inspector", &state.show_inspector))
+    // The Inspector moves its own cursor with Up/Down; ImGui's navigation would
+    // move focus between widgets on the same keys.
+    if (ImGui::Begin("Inspector", &state.show_inspector, ImGuiWindowFlags_NoNavInputs))
     {
       if (view == nullptr || !state.selected)
       {
@@ -825,7 +987,8 @@ namespace Comprendo
       }
       else
       {
-        draw_selection(*view, state, *state.selected);
+        const bool keyboard = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+        draw_selection(*view, state, *state.selected, keyboard);
       }
     }
     ImGui::End();

@@ -91,6 +91,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | `Home` | Fit the chart; it stays fitted until you zoom or pan |
 | `G` | Cycle grouping: cluster, file, namespace |
 | `Ctrl+F` | Filter the Explorer |
+| `Up` / `Down`, `Enter` (Inspector focused) | Move through the Inspector's lists; jump to the highlighted entry |
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |
 

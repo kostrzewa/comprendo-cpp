@@ -283,11 +283,11 @@ Open (waiting for a decision, see [log](log.md)):
 - d. (done) Edges are aggregated by default into lines between sibling
   groups (clusters, subclusters, files, ...), weighted by count; the
   selection keeps its own edges; View → Member connections shows all.
-- e. Inspector: Detail, Contains, Outgoing, Incoming always shown as headed
+- e. (done) Inspector: Detail, Contains, Outgoing, Incoming always shown as headed
   lists, each with its own scrollbar.
 - f. Double-click centres the object with a short, smooth animation (zoom
   unchanged); Backspace returns to the previous view and selection.
-- g. Inspector keyboard navigation: Up/Down move through the lists, Enter
+- g. (done) Inspector keyboard navigation: Up/Down move through the lists, Enter
   jumps to the highlighted entry.
 - h. Graph keyboard navigation: WASD pans, E zooms in, Q zooms out.
 
