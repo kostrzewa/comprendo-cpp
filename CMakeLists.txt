@@ -191,6 +191,11 @@ if(COMPRENDO_BUILD_TESTS)
       COMMAND ${COMPRENDO_BUN_COMMAND} test
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/plugin
     )
+    add_test(
+      NAME plugin_v2_tests
+      COMMAND ${COMPRENDO_BUN_COMMAND} test
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/plugin_v2
+    )
     if(UNIVERSAL_CTAGS)
       set(PLUGIN_TEST_DIR ${CMAKE_BINARY_DIR}/plugin-test)
       set(PLUGIN_TEST_CHART ${PLUGIN_TEST_DIR}/.comprendo/chart.sqlite)

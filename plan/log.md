@@ -335,3 +335,16 @@ commit. Newest last.
   the mouse on the cluster would bring them all back.
 
 - Commit: `5abac12`.
+
+## 2026-11-23 — M10 opencode 2.x plugin
+
+- The installed opencode (1.19.5) runs v2 plugins only inside its v2 runtime
+  (`opencode debug v2`), whose preview context has no tool registry; the
+  2.x docs (opencode.ai/docs/build/plugins/migrate-v1,
+  opencode.ai/v2/docs/build/plugins) add `ctx.tool.transform`.
+- `plugin_v2/` is an adapter over `plugin/src`, exporting a plain
+  `{ id, setup }` so it needs no `@opencode/plugin` dependency. Command
+  registration supports the documented `add` and the preview's `update`;
+  tool errors are returned as content because 2.x does not document them.
+- Not yet run on opencode 2.x: installing it was left to the user.
+

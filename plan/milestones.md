@@ -316,3 +316,10 @@ Open (waiting for a decision, see [log](log.md)):
   trunk per destination) and hover emphasis of a group's lines.
 - k. (done) Lines between the selection's children appear only on hover.
 
+## M10 — opencode 2.x plugin (in progress)
+
+- `plugin_v2/`: the chart tools and `/chart` through the v2 plugin API
+  (`{ id, setup }`, `ctx.tool.transform`, `ctx.command.transform`), sharing
+  the 1.x plugin's code. Unit tests with a fake context; loads in opencode
+  1.19.5's v2 runtime. Open: a run on an opencode 2.x install.
+

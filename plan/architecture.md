@@ -274,6 +274,28 @@ requires the default export `{ id, server }`. It does not invoke
 Without the CLI, the model builds the chart from scratch through
 `chart_add_node`. The viewer shows rows from either writer.
 
+### opencode 2.x plugin (`plugin_v2/`)
+
+opencode 2.x replaced the plugin API: a module default-exports
+`{ id, setup }` (`Plugin.define` from `@opencode/plugin`), and `setup(ctx)`
+registers capabilities through editors. `plugin_v2/index.ts` is a thin
+adapter over the 1.x plugin's code (`../plugin/src`: chart store, tools,
+prompt, embedded schema):
+
+- tools via `ctx.tool.transform(editor => editor.add({ name, description,
+  input: <JSON Schema>, execute }))`, `execute` returning `{ content }`;
+  `ChartError`s come back as `error: ...` content (2.x does not document tool
+  errors);
+- `/chart` via `ctx.command.transform`, using `add` (2.x) or `update` (the
+  1.19 preview of the v2 runtime);
+- project directory from `ctx.location.directory`, else the process cwd;
+- no `@opencode/plugin` import, so no dependencies; loaded by directory path
+  under the `plugins` config key.
+
+Verified with unit tests against a fake context and by loading it in the v2
+runtime of opencode 1.19.5 (`/chart` registers; that preview has no tool
+registry). Not yet run on opencode 2.x.
+
 ## Layout
 
 `build_hierarchy(chart, grouping)` nests nodes into groups: by file (the stored

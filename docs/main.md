@@ -141,6 +141,11 @@ keeping the grouping, camera, and selection.
 
 # opencode plugin {#plugin}
 
+There are two variants with the same tools and `/chart` prompt: `plugin/` for
+opencode 1.x (config key `plugin`, path to `src/index.ts`) and `plugin_v2/`
+for opencode 2.x (config key `plugins`, path to the `plugin_v2` directory).
+
+
 The plugin lives in `plugin/`, needs nothing besides opencode, and carries its
 own copy of the chart schema, so `plugin/src` can also be copied elsewhere. Add it to the
 project's `opencode.json` (or `~/.config/opencode/opencode.json`):

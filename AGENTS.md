@@ -137,7 +137,8 @@ and tests before committing.
 - `include/` — public headers (`Comprendo/`, `Logger/`, `Profiler/`)
 - `src/` — viewer and CLI entry points and implementations
 - `tests/` — Catch2 tests
-- `plugin/` — TypeScript opencode plugin
+- `plugin/` — TypeScript opencode plugin (opencode 1.x)
+- `plugin_v2/` — opencode 2.x plugin, an adapter over `plugin/src`
 - `schema/` — `chart.sql`, the SQLite DDL shared by C++ and the plugin; after
   editing it, run `BUN_BE_BUN=1 opencode scripts/embed-schema.ts` in `plugin/`
   to refresh the plugin's embedded copy (`plugin/src/schema.ts`)
