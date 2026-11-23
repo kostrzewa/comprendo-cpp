@@ -348,3 +348,4 @@ commit. Newest last.
   tool errors are returned as content because 2.x does not document them.
 - Not yet run on opencode 2.x: installing it was left to the user.
 
+- Commit: `386073f`.
