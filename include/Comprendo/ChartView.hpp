@@ -4,6 +4,7 @@
 /// \brief Viewer logic without rendering: camera, level of detail, edges, and picking.
 
 #include <bitset>
+#include <map>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -95,6 +96,42 @@ namespace Comprendo
     {
       return !hidden_edges.test(static_cast<std::size_t>(kind));
     }
+  };
+
+  /// What a hierarchy group stands for, as far as connections are concerned.
+  enum class GroupType : std::uint8_t
+  {
+    /// The root.
+    Root,
+    /// A cluster named by the model.
+    Cluster,
+    /// A directory of the file grouping.
+    Directory,
+    /// A file node.
+    File,
+    /// A namespace (one file's, or merged across files).
+    Namespace,
+    /// Any other symbol: class, function, field, ...
+    Symbol,
+    /// A synthetic group without nodes, such as "(unclustered)".
+    Other,
+  };
+
+  /// Aggregated connection between a group and a group of the same type.
+  struct GroupConnection
+  {
+    /// The other group.
+    std::size_t group = 0;
+    /// Edge kind.
+    EdgeKind kind = EdgeKind::Other;
+    /// Number of chart edges between the two groups' contents.
+    std::size_t edges = 0;
+
+    /// Memberwise equality.
+    ///
+    /// \return True when all members are equal.
+    bool
+    operator==(const GroupConnection &) const = default;
   };
 
   /// A 2D view onto chart coordinates.
@@ -433,6 +470,31 @@ namespace Comprendo
       std::optional<std::size_t> focus = std::nullopt
     ) const;
 
+    /// What a group stands for.
+    ///
+    /// \param group Group index.
+    /// \return The group's type.
+    [[nodiscard]]
+    GroupType
+    group_type(std::size_t group) const;
+
+    /// Connections between a group's contents and the rest of the chart,
+    /// aggregated by counterpart.
+    ///
+    /// Every non-`Contains` edge with exactly one endpoint inside \p group is
+    /// counted against the other endpoint's nearest ancestor-or-self of the
+    /// same type as \p group (another cluster for a cluster, another file for
+    /// a file, ...); when there is none, the other endpoint's file, else its
+    /// top-level group. Results are cached until the hierarchy changes.
+    ///
+    /// \param group Group whose connections are wanted.
+    /// \param outgoing True for edges leaving the group, false for edges entering it.
+    /// \return Connections by (counterpart, kind), most edges first, then by
+    ///         counterpart label.
+    [[nodiscard]]
+    const std::vector<GroupConnection> &
+    connections(std::size_t group, bool outgoing) const;
+
     /// Check whether a group is another group or lies inside it.
     ///
     /// \param ancestor Possible ancestor.
@@ -493,6 +555,8 @@ namespace Comprendo
 
     /// Depth of each group below the root (the root has depth 0).
     std::vector<std::uint32_t> m_depth;
+    /// Results of connections(), keyed by (group, outgoing); cleared by rebuild().
+    mutable std::map<std::pair<std::size_t, bool>, std::vector<GroupConnection>> m_connections;
 
     /// Rebuild hierarchy, layout, and group edges for the current grouping.
     void

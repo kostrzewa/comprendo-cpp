@@ -348,6 +348,43 @@ namespace
     return entries;
   }
 
+  /// Rows for a group's aggregated connections with groups of its type.
+  ///
+  /// \param view Chart view.
+  /// \param group Group whose connections are listed.
+  /// \param outgoing True for edges leaving the group, false for edges entering it.
+  /// \return One row per (other group, kind), most edges first.
+  std::vector<ListEntry>
+  connection_entries(const Comprendo::ChartView &view, std::size_t group, bool outgoing)
+  {
+    std::vector<ListEntry> entries;
+    for (const Comprendo::GroupConnection &connection : view.connections(group, outgoing))
+    {
+      entries.push_back({
+        .label = fmt::format(
+          "{}  {}  ({})",
+          Comprendo::to_string(connection.kind),
+          view.display_label(connection.group),
+          connection.edges
+        ),
+        .group = connection.group,
+      });
+    }
+    return entries;
+  }
+
+  /// Check whether a group's Inspector lists aggregated connections rather
+  /// than its own node's edges.
+  ///
+  /// \param view Chart view.
+  /// \param group Group index.
+  /// \return True for clusters, directories, files, namespaces, and synthetic groups.
+  bool
+  lists_connections(const Comprendo::ChartView &view, std::size_t group)
+  {
+    return view.group_type(group) != Comprendo::GroupType::Symbol;
+  }
+
   /// Draw a heading with an optional count.
   ///
   /// \param title Heading.
@@ -577,7 +614,13 @@ namespace
     if (entry.nodes.empty())
     {
       draw_list_sections(
-        {ListSection {.title = "Contains", .entries = child_entries(view, group)}}, state, keyboard
+        {
+          ListSection {.title = "Contains", .entries = child_entries(view, group)},
+          ListSection {.title = "Outgoing", .entries = connection_entries(view, group, true)},
+          ListSection {.title = "Incoming", .entries = connection_entries(view, group, false)},
+        },
+        state,
+        keyboard
       );
       return;
     }
@@ -671,8 +714,16 @@ namespace
     draw_list_sections(
       {
         ListSection {.title = "Contains", .entries = child_entries(view, group)},
-        ListSection {.title = "Outgoing", .entries = edge_entries(view, outgoing, true)},
-        ListSection {.title = "Incoming", .entries = edge_entries(view, incoming, false)},
+        ListSection {
+          .title = "Outgoing",
+          .entries = lists_connections(view, group) ? connection_entries(view, group, true)
+                                                    : edge_entries(view, outgoing, true),
+        },
+        ListSection {
+          .title = "Incoming",
+          .entries = lists_connections(view, group) ? connection_entries(view, group, false)
+                                                    : edge_entries(view, incoming, false),
+        },
       },
       state,
       keyboard

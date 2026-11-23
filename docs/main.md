@@ -105,6 +105,10 @@ appear once you zoom into it. The selected object always shows its own
 connections individually. View → Member connections draws every relationship
 between its endpoints instead.
 
+For a cluster, directory, file, or namespace the Inspector lists its
+connections with other groups of the same kind (other clusters, other files)
+and how many relationships each stands for.
+
 View → Show hides symbol kinds (with their contents) and relationship kinds,
 for example everything but calls.
 

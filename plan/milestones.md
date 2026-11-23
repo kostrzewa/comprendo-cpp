@@ -295,7 +295,7 @@ Open (waiting for a decision, see [log](log.md)):
 
 - a. (done) Aggregated edges keep pointing at groups that left the screen
   instead of vanishing when zooming in.
-- b. The Inspector lists aggregated connections for clusters, directories,
+- b. (done) The Inspector lists aggregated connections for clusters, directories,
   files, and namespaces (other cluster, other file, ... with counts).
 - c. The Inspector's lists share the window's full height.
 

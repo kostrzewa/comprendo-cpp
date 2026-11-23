@@ -288,6 +288,7 @@ namespace Comprendo
       );
     }
 
+    m_connections.clear();
     m_depth.assign(m_hierarchy.groups.size(), 0);
     for (std::size_t group = 1; group < m_hierarchy.groups.size(); ++group)
     {
@@ -568,6 +569,99 @@ namespace Comprendo
       }
     }
     return current == 0 ? std::nullopt : std::optional<std::size_t> {current};
+  }
+
+  GroupType
+  ChartView::group_type(std::size_t group) const
+  {
+    const HierarchyGroup &entry = m_hierarchy.groups[group];
+    if (group == 0)
+    {
+      return GroupType::Root;
+    }
+    if (entry.cluster != 0)
+    {
+      return GroupType::Cluster;
+    }
+    if (!entry.directory.empty())
+    {
+      return GroupType::Directory;
+    }
+    if (entry.nodes.empty())
+    {
+      return GroupType::Other;
+    }
+    switch (m_chart.nodes[entry.nodes.front()].kind)
+    {
+    case NodeKind::File: return GroupType::File;
+    case NodeKind::Namespace: return GroupType::Namespace;
+    default: return GroupType::Symbol;
+    }
+  }
+
+  const std::vector<GroupConnection> &
+  ChartView::connections(std::size_t group, bool outgoing) const
+  {
+    const auto cached = m_connections.find({group, outgoing});
+    if (cached != m_connections.end())
+    {
+      return cached->second;
+    }
+    const GroupType type
+      = group_type(group) == GroupType::Other ? GroupType::Cluster : group_type(group);
+    const auto counterpart = [&](std::size_t other)
+    {
+      std::optional<std::size_t> file;
+      std::size_t top = other;
+      for (std::size_t current = other; current != 0; current = m_hierarchy.groups[current].parent)
+      {
+        const GroupType current_type = group_type(current);
+        if (current_type == type)
+        {
+          return current;
+        }
+        if (current_type == GroupType::File && !file)
+        {
+          file = current;
+        }
+        top = current;
+      }
+      return file.value_or(top);
+    };
+
+    std::map<std::pair<std::size_t, EdgeKind>, std::size_t> counts;
+    for (const GroupEdge &edge : m_edges)
+    {
+      const bool from_inside = contains(group, edge.from);
+      const bool to_inside = contains(group, edge.to);
+      if (from_inside == to_inside || from_inside != outgoing)
+      {
+        continue;
+      }
+      const std::size_t other = counterpart(outgoing ? edge.to : edge.from);
+      if (other != 0 && other != group)
+      {
+        ++counts[{other, edge.kind}];
+      }
+    }
+    std::vector<GroupConnection> result;
+    for (const auto &[key, edges] : counts)
+    {
+      result.push_back({.group = key.first, .kind = key.second, .edges = edges});
+    }
+    std::ranges::sort(
+      result,
+      [this](const GroupConnection &a, const GroupConnection &b)
+      {
+        if (a.edges != b.edges)
+        {
+          return a.edges > b.edges;
+        }
+        return std::tuple {display_label(a.group), a.kind}
+        < std::tuple {display_label(b.group), b.kind};
+      }
+    );
+    return m_connections.emplace(std::pair {group, outgoing}, std::move(result)).first->second;
   }
 
   bool

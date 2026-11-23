@@ -554,3 +554,48 @@ TEST_CASE("edges to off-screen groups stay visible", "[view]")
   CHECK(between(EdgeKind::Calls));
   CHECK(between(EdgeKind::Includes));
 }
+
+/// The Inspector of a cluster or file lists what it connects to at its own
+/// level (other clusters, other files) with counts, since member-level lists
+/// of a large group are unreadable. Builds the sample chart with clusters for
+/// each file, then checks the cluster and the file connections: b's two calls
+/// and its include into a, nothing outgoing from a, the counterpart's type,
+/// and that the types of groups are recognized.
+TEST_CASE("connections aggregate by groups of the same type", "[view]")
+{
+  Chart chart = sample_chart();
+  chart.clusters.push_back({.id = 100, .label = "Alpha"});
+  chart.clusters.push_back({.id = 200, .label = "Beta"});
+  chart.nodes.at(0).cluster_id = 100;
+  chart.nodes.at(1).cluster_id = 200;
+  const ChartView clustered {chart, Grouping::Cluster};
+  const auto cluster_group = [&](std::uint64_t id)
+  {
+    const auto &groups = clustered.hierarchy().groups;
+    return static_cast<std::size_t>(
+      std::ranges::find(groups, id, &Comprendo::HierarchyGroup::cluster) - groups.begin()
+    );
+  };
+  const std::size_t alpha = cluster_group(100);
+  const std::size_t beta = cluster_group(200);
+  CHECK(clustered.group_type(alpha) == Comprendo::GroupType::Cluster);
+  CHECK(
+    clustered.connections(beta, true)
+    == std::vector<Comprendo::GroupConnection> {
+      {.group = alpha, .kind = EdgeKind::Calls, .edges = 2},
+      {.group = alpha, .kind = EdgeKind::Includes, .edges = 1},
+    }
+  );
+  CHECK(clustered.connections(alpha, true).empty());
+  CHECK(clustered.connections(alpha, false).size() == 2);
+
+  const ChartView files {sample_chart(), Grouping::File};
+  const std::size_t a_file = group_of(files, 1);
+  const std::size_t b_file = group_of(files, 2);
+  CHECK(files.group_type(b_file) == Comprendo::GroupType::File);
+  CHECK(files.group_type(group_of(files, 5)) == Comprendo::GroupType::Symbol);
+  CHECK(files.group_type(0) == Comprendo::GroupType::Root);
+  const auto &incoming = files.connections(a_file, false);
+  CHECK(incoming.size() == 2);
+  CHECK(std::ranges::all_of(incoming, [&](const auto &c) { return c.group == b_file; }));
+}
