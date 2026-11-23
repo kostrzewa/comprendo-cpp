@@ -8,8 +8,10 @@
 #include <filesystem>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -57,6 +59,41 @@ namespace
   /// How often the Source panel checks its file for changes, in seconds.
   constexpr double kSourceCheckSeconds = 1.0;
 
+  /// Draw text turned by a quarter turn inside a strip, as on the side bars
+  /// of IDEs: reading bottom to top on the left edge, top to bottom on the right.
+  ///
+  /// \param list Draw list.
+  /// \param min Top-left corner of the strip.
+  /// \param size Strip size; its height is the text's length plus padding.
+  /// \param text Text.
+  /// \param color Text colour.
+  /// \param clockwise True to read top to bottom.
+  void
+  draw_rotated_text(
+    ImDrawList &list, ImVec2 min, ImVec2 size, const char *text, ImU32 color, bool clockwise
+  )
+  {
+    const ImVec2 extent = ImGui::CalcTextSize(text);
+    const float padding = (size.y - extent.x) / 2.0F;
+    const float centre_x = min.x + (size.x / 2.0F);
+    // ImGui skips glyphs outside the clip rectangle, so lay the text out
+    // unclipped at the viewport's corner, then turn it into the strip.
+    const ImVec2 origin = ImGui::GetMainViewport()->Pos;
+    list.PushClipRectFullScreen();
+    const int first = list.VtxBuffer.Size;
+    list.AddText(origin, color, text);
+    list.PopClipRect();
+    for (int i = first; i < list.VtxBuffer.Size; ++i)
+    {
+      ImVec2 &pos = list.VtxBuffer[i].pos;
+      const float along = pos.x - origin.x;
+      const float across = pos.y - origin.y;
+      pos = clockwise
+        ? ImVec2(centre_x + (extent.y / 2.0F) - across, min.y + padding + along)
+        : ImVec2(centre_x - (extent.y / 2.0F) + across, min.y + size.y - padding - along);
+    }
+  }
+
   /// Read a whole file.
   ///
   /// \param path File.
@@ -97,6 +134,56 @@ namespace
     case Comprendo::TokenKind::Text:
     default: return rgb(220, 223, 228);
     }
+  }
+
+  /// Top-left corner of a dock node in the layout's nominal arrangement: each
+  /// split divided by its children's reference sizes, as if every panel were
+  /// shown. Unlike the node's current position this does not change when
+  /// neighbouring panels are folded, so it tells which panels shared a column.
+  ///
+  /// \param node Dock node.
+  /// \return Position in pixels of the dock space.
+  Comprendo::Vec2
+  nominal_position(const ImGuiDockNode &node)
+  {
+    std::vector<const ImGuiDockNode *> path;
+    for (const ImGuiDockNode *at = &node; at != nullptr; at = at->ParentNode)
+    {
+      path.push_back(at);
+    }
+    const ImGuiDockNode &root = *path.back();
+    float x = root.Pos.x;
+    float y = root.Pos.y;
+    float width = root.Size.x;
+    float height = root.Size.y;
+    // Walk from the dock space down to the node, narrowing the rectangle.
+    for (std::size_t i = path.size() - 1; i > 0; --i)
+    {
+      const ImGuiDockNode &parent = *path[i];
+      const ImGuiDockNode &child = *path[i - 1];
+      const ImGuiAxis axis = parent.SplitAxis;
+      const float first = parent.ChildNodes[0]->SizeRef[axis];
+      const float second = parent.ChildNodes[1]->SizeRef[axis];
+      const float share = first + second > 0.0F ? first / (first + second) : 0.5F;
+      const bool is_second = parent.ChildNodes[1] == &child;
+      float &start = axis == ImGuiAxis_X ? x : y;
+      float &length = axis == ImGuiAxis_X ? width : height;
+      start += is_second ? length * share : 0.0F;
+      length *= is_second ? 1.0F - share : share;
+    }
+    return {.x = x, .y = y};
+  }
+
+  /// Whether a panel is folded into a strip on a screen edge.
+  ///
+  /// \param state Viewer state holding the strips.
+  /// \param window Panel name.
+  /// \return True when the panel is in folded_left or folded_right.
+  bool
+  side_folded(const Comprendo::ViewerState &state, std::string_view window)
+  {
+    return std::ranges::find(state.folded_left, window) != state.folded_left.end()
+      || std::ranges::find(state.folded_right, window) != state.folded_right.end();
   }
 
   /// Most search results listed by the Explorer.
@@ -1125,7 +1212,8 @@ namespace Comprendo
       layout_initialized_ = true;
     }
 
-    apply_fold_request();
+    dockspace_id_ = dockspace_id;
+    apply_fold_request(state);
 
     // A Source panel unknown to the saved layout (layouts from before it
     // existed) gets its own area below the graph instead of floating.
@@ -1158,6 +1246,7 @@ namespace Comprendo
     draw_log(state);
     update_source(state, view);
     draw_source(state);
+    draw_folded_strips(state);
     draw_fonts(state);
     draw_about(state);
 
@@ -1191,8 +1280,15 @@ namespace Comprendo
   }
 
   void
-  Ui::toggle_fold(const char *window)
+  Ui::toggle_fold(ViewerState &state, const char *window)
   {
+    // A panel folded into a strip is no longer part of its dock node's window
+    // list, so it unfolds directly.
+    const std::string name {window};
+    if (std::erase(state.folded_left, name) + std::erase(state.folded_right, name) > 0)
+    {
+      return;
+    }
     if (const ImGuiWindow *found = ImGui::FindWindowByName(window); found != nullptr)
     {
       fold_request_ = found->DockId;
@@ -1200,8 +1296,12 @@ namespace Comprendo
   }
 
   bool
-  Ui::panel_folded(const char *window)
+  Ui::panel_folded(const ViewerState &state, const char *window)
   {
+    if (side_folded(state, window))
+    {
+      return true;
+    }
     const ImGuiWindow *found = ImGui::FindWindowByName(window);
     const ImGuiDockNode *node = found == nullptr ? nullptr : found->DockNode;
     if (node == nullptr || node->ParentNode == nullptr)
@@ -1213,13 +1313,43 @@ namespace Comprendo
   }
 
   void
-  Ui::apply_fold_request()
+  Ui::apply_fold_request(ViewerState &state)
   {
     const ImGuiID id = std::exchange(fold_request_, 0U);
     ImGuiDockNode *node = id == 0 ? nullptr : ImGui::DockBuilderGetNode(id);
     if (node == nullptr || node->ParentNode == nullptr)
     {
       return;
+    }
+    // Panels already folded into strips unfold.
+    bool unfolded = false;
+    for (const ImGuiWindow *window : node->Windows)
+    {
+      for (std::vector<std::string> *strips : {&state.folded_left, &state.folded_right})
+      {
+        unfolded = std::erase(*strips, std::string {window->Name}) > 0 || unfolded;
+      }
+    }
+    if (unfolded)
+    {
+      return;
+    }
+    // A node beside the graph folds into strips on its screen edge.
+    const ImGuiDockNode *graph = ImGui::DockBuilderGetCentralNode(dockspace_id_);
+    if (graph != nullptr)
+    {
+      constexpr float kTouch = 1.0F;
+      const bool left = node->Pos.x + node->Size.x <= graph->Pos.x + kTouch;
+      const bool right = node->Pos.x >= graph->Pos.x + graph->Size.x - kTouch;
+      if (left || right)
+      {
+        std::vector<std::string> &strips = left ? state.folded_left : state.folded_right;
+        for (const ImGuiWindow *window : node->Windows)
+        {
+          strips.emplace_back(window->Name);
+        }
+        return;
+      }
     }
     const ImGuiDockNode *parent = node->ParentNode;
     const ImGuiAxis axis = parent->SplitAxis;
@@ -1242,6 +1372,112 @@ namespace Comprendo
       {
         child->WantLockSizeOnce = false;
       }
+    }
+  }
+
+  void
+  Ui::draw_folded_strips(ViewerState &state) const
+  {
+    const ImGuiDockNode *graph = ImGui::DockBuilderGetCentralNode(dockspace_id_);
+    if (graph == nullptr)
+    {
+      return;
+    }
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float width = ImGui::GetFrameHeight();
+    const float gap = style.ItemSpacing.y;
+    for (const bool right : {false, true})
+    {
+      std::vector<std::string> &strips = right ? state.folded_right : state.folded_left;
+      if (strips.empty())
+      {
+        continue;
+      }
+      // Where each panel sits in the dock tree, whatever is folded: its dock
+      // node remains (inactive) while the panel is folded.
+      std::vector<Vec2> positions;
+      for (std::size_t i = 0; i < strips.size(); ++i)
+      {
+        const ImGuiWindowSettings *settings
+          = ImGui::FindWindowSettingsByID(ImHashStr(strips[i].c_str()));
+        const ImGuiDockNode *node
+          = settings == nullptr ? nullptr : ImGui::DockBuilderGetNode(settings->DockId);
+        positions.push_back(
+          node == nullptr ? Vec2 {.x = 0.0F, .y = static_cast<float>(i)} : nominal_position(*node)
+        );
+      }
+      const std::vector<StripSlot> slots = arrange_strips(positions, right);
+      std::vector<float> lengths;
+      std::size_t columns = 0;
+      for (std::size_t i = 0; i < strips.size(); ++i)
+      {
+        lengths.push_back(ImGui::CalcTextSize(strips[i].c_str()).x + (2.0F * style.FramePadding.x));
+        columns = std::max(columns, slots[i].column + 1);
+      }
+      // Top of each strip: the strips above it in its column, plus gaps.
+      std::vector<float> tops(strips.size(), 0.0F);
+      float height = 0.0F;
+      for (std::size_t i = 0; i < strips.size(); ++i)
+      {
+        for (std::size_t j = 0; j < strips.size(); ++j)
+        {
+          if (slots[j].column == slots[i].column && slots[j].row < slots[i].row)
+          {
+            tops[i] += lengths[j] + gap;
+          }
+        }
+        height = std::max(height, tops[i] + lengths[i]);
+      }
+      const float total = (static_cast<float>(columns) * (width + gap)) - gap;
+      const float x = right ? graph->Pos.x + graph->Size.x - total : graph->Pos.x;
+      ImGui::SetNextWindowPos(ImVec2(x, graph->Pos.y));
+      ImGui::SetNextWindowSize(ImVec2(total, height));
+      constexpr ImGuiWindowFlags kFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoDocking
+        | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
+      if (ImGui::Begin(right ? "##StripsRight" : "##StripsLeft", nullptr, kFlags))
+      {
+        ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+        std::optional<std::size_t> unfold;
+        for (std::size_t i = 0; i < strips.size(); ++i)
+        {
+          const float column_x = right
+            ? x + total - (static_cast<float>(slots[i].column + 1) * (width + gap)) + gap
+            : x + (static_cast<float>(slots[i].column) * (width + gap));
+          const ImVec2 min(column_x, graph->Pos.y + tops[i]);
+          const ImVec2 size(width, lengths[i]);
+          ImGui::SetCursorScreenPos(min);
+          ImGui::PushID(strips[i].c_str());
+          if (ImGui::InvisibleButton("##strip", size))
+          {
+            unfold = i;
+          }
+          const bool hovered = ImGui::IsItemHovered();
+          ImGui::PopID();
+          if (hovered)
+          {
+            ImGui::SetTooltip("Unfold %s", strips[i].c_str());
+          }
+          ImDrawList &list = *ImGui::GetWindowDrawList();
+          list.AddRectFilled(
+            min,
+            ImVec2(min.x + size.x, min.y + size.y),
+            ImGui::GetColorU32(hovered ? ImGuiCol_TabHovered : ImGuiCol_Tab),
+            style.TabRounding
+          );
+          draw_rotated_text(
+            list, min, size, strips[i].c_str(), ImGui::GetColorU32(ImGuiCol_Text), right
+          );
+        }
+        if (unfold)
+        {
+          strips.erase(strips.begin() + static_cast<std::ptrdiff_t>(*unfold));
+        }
+      }
+      ImGui::End();
+      ImGui::PopStyleVar(2);
     }
   }
 
@@ -1368,7 +1604,7 @@ namespace Comprendo
   void
   Ui::draw_explorer(ViewerState &state, const ChartView *view)
   {
-    if (!state.show_explorer)
+    if (!state.show_explorer || side_folded(state, "Explorer"))
     {
       return;
     }
@@ -1429,7 +1665,7 @@ namespace Comprendo
   void
   Ui::draw_inspector(ViewerState &state, const ChartView *view)
   {
-    if (!state.show_inspector)
+    if (!state.show_inspector || side_folded(state, "Inspector"))
     {
       return;
     }
@@ -1453,7 +1689,7 @@ namespace Comprendo
   void
   Ui::draw_log(ViewerState &state)
   {
-    if (!state.show_log)
+    if (!state.show_log || side_folded(state, "Log"))
     {
       return;
     }
@@ -1556,7 +1792,7 @@ namespace Comprendo
   {
     // Wait until the panel's place in the layout is settled (next frame's
     // start) so it is not created floating first.
-    if (!state.show_source || !source_docked_)
+    if (!state.show_source || !source_docked_ || side_folded(state, "Source"))
     {
       return;
     }

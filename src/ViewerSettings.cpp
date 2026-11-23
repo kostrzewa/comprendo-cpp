@@ -15,6 +15,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include <fmt/format.h>
 #include <libenvpp/env.hpp>
@@ -38,6 +39,21 @@ namespace
      .file = "JetBrainsMono-Variable.ttf",
      .size = 14.0F},
   }};
+
+  /// Format names as the items of a TOML array of strings.
+  ///
+  /// \param names Names (panel names contain no quotes or backslashes).
+  /// \return Comma-separated quoted names.
+  std::string
+  quoted_list(const std::vector<std::string> &names)
+  {
+    std::string items;
+    for (const std::string &name : names)
+    {
+      items += fmt::format("{}\"{}\"", items.empty() ? "" : ", ", name);
+    }
+    return items;
+  }
 
   /// Name of the settings file inside the configuration directory.
   constexpr std::string_view kSettingsFile = "comprendo/viewer.toml";
@@ -122,6 +138,31 @@ namespace Comprendo
       }
       *flag = value.as_boolean();
     }
+    const std::array<std::pair<std::string_view, std::vector<std::string> *>, 2> lists = {{
+      {"folded_left", &settings.folded_left},
+      {"folded_right", &settings.folded_right},
+    }};
+    for (const auto &[key, list] : lists)
+    {
+      const std::string name {key};
+      if (!document.contains(name))
+      {
+        continue;
+      }
+      const toml::value &value = document.at(name);
+      if (!value.is_array())
+      {
+        return std::unexpected(fmt::format("{}: {} must be a list of names", source_name, key));
+      }
+      for (const toml::value &item : value.as_array())
+      {
+        if (!item.is_string())
+        {
+          return std::unexpected(fmt::format("{}: {} must be a list of names", source_name, key));
+        }
+        list->push_back(item.as_string());
+      }
+    }
     return settings;
   }
 
@@ -132,14 +173,16 @@ namespace Comprendo
       "# Comprendo viewer settings, written by the viewer.\n"
       "font = \"{}\"\ntext_level = {}\n"
       "show_explorer = {}\nshow_inspector = {}\nshow_log = {}\nshow_minimap = {}\n"
-      "show_source = {}\n",
+      "show_source = {}\nfolded_left = [{}]\nfolded_right = [{}]\n",
       settings.font,
       settings.text_level,
       settings.show_explorer,
       settings.show_inspector,
       settings.show_log,
       settings.show_minimap,
-      settings.show_source
+      settings.show_source,
+      quoted_list(settings.folded_left),
+      quoted_list(settings.folded_right)
     );
   }
 

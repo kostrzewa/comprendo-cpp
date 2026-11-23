@@ -109,6 +109,34 @@ namespace Comprendo
   bool
   is_folded(float size, float folded);
 
+  /// Where a folded side panel's strip goes: its column counted from the
+  /// screen edge and its row counted from the top.
+  struct StripSlot
+  {
+    /// Column, 0 at the screen edge.
+    std::size_t column = 0;
+    /// Row within the column, 0 at the top.
+    std::size_t row = 0;
+
+    /// Memberwise equality.
+    ///
+    /// \return True when all members are equal.
+    bool
+    operator==(const StripSlot &) const = default;
+  };
+
+  /// Arrange the strips of folded side panels like the panels were arranged:
+  /// panels that shared a column (one above the other) become strips one above
+  /// the other, panels in different columns become strips side by side, the
+  /// column that was nearest the screen edge nearest the edge.
+  ///
+  /// \param positions Top-left corner of each folded panel when it was docked.
+  /// \param right_edge True for panels on the right screen edge.
+  /// \return One slot per panel, in input order.
+  [[nodiscard]]
+  std::vector<StripSlot>
+  arrange_strips(std::span<const Vec2> positions, bool right_edge);
+
   /// Share a height between stacked panels so they fill it without wasting space.
   ///
   /// Panels that need less than an equal share get exactly what they need;

@@ -71,6 +71,44 @@ namespace Comprendo
     return std::clamp(target, folded, std::max(folded, available - folded));
   }
 
+  std::vector<StripSlot>
+  arrange_strips(std::span<const Vec2> positions, bool right_edge)
+  {
+    // Panels whose left edges are this close share a column.
+    constexpr float kSameColumn = 4.0F;
+    std::vector<float> columns;
+    for (const Vec2 &position : positions)
+    {
+      if (
+        std::ranges::none_of(
+          columns, [&](float x) { return std::abs(x - position.x) <= kSameColumn; }
+        )
+      )
+      {
+        columns.push_back(position.x);
+      }
+    }
+    std::ranges::sort(columns);
+    if (right_edge)
+    {
+      std::ranges::reverse(columns);
+    }
+    std::vector<StripSlot> slots(positions.size());
+    for (std::size_t i = 0; i < positions.size(); ++i)
+    {
+      const auto column = std::ranges::find_if(
+        columns, [&](float x) { return std::abs(x - positions[i].x) <= kSameColumn; }
+      );
+      slots[i].column = static_cast<std::size_t>(column - columns.begin());
+      slots[i].row = static_cast<std::size_t>(std::ranges::count_if(
+        positions,
+        [&](const Vec2 &other)
+        { return std::abs(other.x - positions[i].x) <= kSameColumn && other.y < positions[i].y; }
+      ));
+    }
+    return slots;
+  }
+
   std::vector<float>
   share_heights(std::span<const float> needs, float available, float minimum)
   {

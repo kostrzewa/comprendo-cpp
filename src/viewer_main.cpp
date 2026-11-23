@@ -432,6 +432,8 @@ namespace
     state.show_log = settings.show_log;
     state.show_minimap = settings.show_minimap;
     state.show_source = settings.show_source;
+    state.folded_left = settings.folded_left;
+    state.folded_right = settings.folded_right;
     return settings;
   }
 
@@ -455,6 +457,8 @@ namespace
       .show_log = state.show_log,
       .show_minimap = state.show_minimap,
       .show_source = state.show_source,
+      .folded_left = state.folded_left,
+      .folded_right = state.folded_right,
     };
     if (current == saved)
     {
@@ -1487,11 +1491,11 @@ namespace
       }
       if (frame == kSmokeFoldFrame)
       {
-        ui_shell.toggle_fold("Explorer");
+        ui_shell.toggle_fold(state, "Explorer");
       }
       if (frame == kSmokeFoldCheckFrame || frame == kSmokeUnfoldCheckFrame)
       {
-        const bool folded = Comprendo::Ui::panel_folded("Explorer");
+        const bool folded = Comprendo::Ui::panel_folded(state, "Explorer");
         if (folded != (frame == kSmokeFoldCheckFrame))
         {
           Comprendo::Logger::warn("Smoke: Explorer folded={} at frame {}", folded, frame);
@@ -1499,7 +1503,7 @@ namespace
         }
         if (frame == kSmokeFoldCheckFrame)
         {
-          ui_shell.toggle_fold("Explorer");
+          ui_shell.toggle_fold(state, "Explorer");
         }
       }
       if (frame == kSmokeFontFrame)

@@ -400,4 +400,11 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   handler: ▼ folds the panel's dock node to its tab bar (a narrow strip for
   side-by-side nodes) and unfolds it to its previous size (or 35% when
   unknown); folded sizes persist with the layout.
+- h. (done) Side panels fold into strips: a dock node left or right of the
+  graph stops being drawn (its column gives way to the graph) and each of
+  its panels becomes a thin strip with a vertical label at the graph's top
+  corner on that edge; `arrange_strips` keeps the dock arrangement (shared
+  column → stacked strips, separate columns → strips side by side), using
+  each node's nominal position in the dock tree. Clicking a strip unfolds the
+  panel in its old place; strips persist per user (`folded_left/right`).
 

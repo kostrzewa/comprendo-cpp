@@ -31,6 +31,8 @@ TEST_CASE("viewer settings parse, format, and validate", "[settings]")
     .show_log = true,
     .show_minimap = false,
     .show_source = true,
+    .folded_left = {"Explorer", "Inspector"},
+    .folded_right = {"Log"},
   };
   CHECK(parse_viewer_settings(Comprendo::format_viewer_settings(custom), "t") == custom);
   CHECK(parse_viewer_settings("", "t") == ViewerSettings {});
@@ -38,6 +40,8 @@ TEST_CASE("viewer settings parse, format, and validate", "[settings]")
   CHECK_FALSE(ViewerSettings {}.show_source);
   CHECK(parse_viewer_settings("show_log = true\n", "t") == ViewerSettings {.show_log = true});
   CHECK_FALSE(parse_viewer_settings("show_log = 1\n", "t").has_value());
+  CHECK_FALSE(parse_viewer_settings("folded_left = \"Explorer\"\n", "t").has_value());
+  CHECK_FALSE(parse_viewer_settings("folded_left = [1]\n", "t").has_value());
   CHECK(
     parse_viewer_settings("text_level = 99\n", "t")
     == ViewerSettings {.text_level = Comprendo::kMaxTextLevel}

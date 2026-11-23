@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Comprendo
 {
@@ -68,6 +69,10 @@ namespace Comprendo
     bool show_minimap = true;
     /// Whether the Source panel is shown.
     bool show_source = false;
+    /// Panels folded into strips on the left screen edge, by window name.
+    std::vector<std::string> folded_left;
+    /// Panels folded into strips on the right screen edge, by window name.
+    std::vector<std::string> folded_right;
 
     /// Memberwise equality.
     ///

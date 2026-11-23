@@ -165,3 +165,22 @@ TEST_CASE("panels fold to their tab bar and unfold", "[navigation]")
   CHECK(fold_toggle_size(kTab, kTab, 0.0F, 800.0F) == 800.0F * Comprendo::kUnfoldShare);
   CHECK(fold_toggle_size(kTab, kTab, 900.0F, 800.0F) == 800.0F - kTab);
 }
+
+/// Folded side panels become strips that keep the panels' arrangement, so
+/// the user recognises which strip is which panel. Arranges two panels that
+/// were one above the other and two that were side by side, on the left and
+/// on the right edge, and checks columns count from the screen edge and rows
+/// from the top.
+TEST_CASE("strips of folded side panels keep the panels' arrangement", "[navigation]")
+{
+  using Comprendo::arrange_strips;
+  using Comprendo::StripSlot;
+  using Comprendo::Vec2;
+  const std::vector<Vec2> stacked = {{.x = 0.0F, .y = 400.0F}, {.x = 0.0F, .y = 20.0F}};
+  CHECK(arrange_strips(stacked, false) == std::vector<StripSlot> {{0, 1}, {0, 0}});
+  const std::vector<Vec2> side_by_side = {{.x = 300.0F, .y = 20.0F}, {.x = 0.0F, .y = 20.0F}};
+  CHECK(arrange_strips(side_by_side, false) == std::vector<StripSlot> {{1, 0}, {0, 0}});
+  const std::vector<Vec2> right = {{.x = 900.0F, .y = 20.0F}, {.x = 1100.0F, .y = 20.0F}};
+  CHECK(arrange_strips(right, true) == std::vector<StripSlot> {{1, 0}, {0, 0}});
+  CHECK(arrange_strips(std::vector<Vec2> {}, false).empty());
+}

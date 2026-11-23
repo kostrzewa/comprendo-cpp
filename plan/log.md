@@ -635,3 +635,24 @@ commit. Newest last.
   copy of the user's layout: fold, unfold, fold across a restart.
 
 - Commit: `622db4c`.
+
+## 2026-11-23 — M12h side panels fold into strips
+
+- Request: panels on the left or right screen edge should fold into thin
+  strips at the top corner, arranged like the panels (stacked → stacked,
+  side by side → side by side). Implemented IDE-style: folded side panels
+  are not drawn (ImGui keeps their dock nodes and hands the space to the
+  graph; drawing them again restores place and size), and a strip with a
+  vertical label stands in for each.
+- Arrangement from the dock tree: positions at fold time were wrong once a
+  neighbour had folded (the remaining node moves over), so each node's
+  nominal rectangle is replayed from the splits' `SizeRef` ratios.
+- Strip labels: `AddText` at the strip position was clipped away before the
+  rotation; the text is laid out under a full-screen clip rectangle at the
+  viewport corner and then rotated into the strip.
+- A panel folded into a strip is no longer in its node's window list, so
+  `toggle_fold` (and strip clicks) unfold it directly by name.
+- Checked under xvfb with hand-written layouts: stacked left pair → two
+  stacked strips top-left; side-by-side left pair → two strips side by side
+  top-left; right Inspector → strip top-right reading downward, unfolded by a
+  click to its former width. The user's own layout file was not touched.

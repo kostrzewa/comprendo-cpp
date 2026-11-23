@@ -551,6 +551,15 @@ graph:
   bar (`fold_toggle_size`, `is_folded` in `Navigation.hpp`) and sets
   `WantLockSizeOnce` so the split applies it unclamped. `style.WindowMinSize.y`
   is the tab bar height so nothing of the content remains.
+- **Side strips** (M12h): a node left or right of the central (graph) node
+  folds by adding its windows to `ViewerState::folded_left/right`; folded
+  panels are not submitted, so ImGui keeps their (inactive) dock nodes and
+  gives the space to the graph, and re-submitting them restores place and
+  size. `Ui::draw_folded_strips` draws one overlay per edge at the graph's
+  top corner: strips with text rotated a quarter turn (vertices of `AddText`
+  laid out unclipped, then rotated), placed by `arrange_strips` from
+  `nominal_position` (the node's rectangle replayed from split `SizeRef`
+  ratios, so folding neighbours does not change it).
 - **Panel visibility** (Explorer, Inspector, Log, minimap) is part of
   `ViewerSettings` and so persists per user with the font and text size.
 

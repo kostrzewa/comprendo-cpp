@@ -69,6 +69,12 @@ namespace Comprendo
     /// selection either way.
     bool show_source = false;
 
+    /// Panels folded into strips on the left screen edge (window names).
+    std::vector<std::string> folded_left;
+
+    /// Panels folded into strips on the right screen edge (window names).
+    std::vector<std::string> folded_right;
+
     /// Font of the panels and graph labels (see font_choices()).
     std::string font {kBuiltinFontId};
 
@@ -154,19 +160,22 @@ namespace Comprendo
       return source_.lines.size();
     }
 
-    /// Fold or unfold a docked panel as its ▼ button would, from the next frame.
+    /// Fold or unfold a docked panel as its ▼ button (or its strip) would,
+    /// from the next frame.
     ///
+    /// \param state Viewer state holding the strips.
     /// \param window Panel name, e.g. "Explorer".
     void
-    toggle_fold(const char *window);
+    toggle_fold(ViewerState &state, const char *window);
 
-    /// Whether a docked panel is folded to its tab bar.
+    /// Whether a panel is folded: into a strip on a screen edge, or to its tab bar.
     ///
+    /// \param state Viewer state holding the strips.
     /// \param window Panel name.
     /// \return False for unknown, floating, or unfolded panels.
     [[nodiscard]]
     static bool
-    panel_folded(const char *window);
+    panel_folded(const ViewerState &state, const char *window);
 
     /// Whether a font can be used: the built-in font, or a loaded file.
     ///
@@ -269,11 +278,23 @@ namespace Comprendo
     static float
     folded_size(const ImGuiDockNode &node);
 
-    /// Fold or unfold the dock node whose ▼ button was clicked: folded, it
-    /// keeps only its tab bar and its neighbour takes the space. Must run
-    /// before the dock space is submitted.
+    /// Fold or unfold the dock node whose ▼ button was clicked. A node beside
+    /// the graph (left or right) folds into strips on that screen edge: its
+    /// panels are no longer drawn, so their column gives its space to the
+    /// graph. Other nodes fold to their tab bar and their neighbour takes the
+    /// space. Must run before the dock space is submitted.
+    ///
+    /// \param state Viewer state holding the strips.
     void
-    apply_fold_request();
+    apply_fold_request(ViewerState &state);
+
+    /// Draw the strips of panels folded on the left and right screen edges at
+    /// the graph's top corners, arranged like the panels were; clicking a
+    /// strip unfolds its panel.
+    ///
+    /// \param state Viewer state holding the strips.
+    void
+    draw_folded_strips(ViewerState &state) const;
 
     /// Dock a window in a new area split off the bottom of the graph.
     ///
@@ -414,6 +435,9 @@ namespace Comprendo
 
     /// Dock node whose ▼ button was clicked, waiting to be folded or unfolded.
     unsigned int fold_request_ = 0;
+
+    /// Dock space of the viewer, for finding the graph's node.
+    unsigned int dockspace_id_ = 0;
 
     /// Size of folded dock nodes before folding, by node id, to unfold to.
     std::map<unsigned int, float> fold_sizes_;
