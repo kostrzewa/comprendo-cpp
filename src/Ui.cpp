@@ -1856,7 +1856,7 @@ namespace Comprendo
       = ImGui::CalcTextSize(widest.c_str()).x + ImGui::GetStyle().ItemSpacing.x * 2.0F;
     // A faint background keeps the selected lines readable; a bar in the
     // gutter marks their extent clearly.
-    const ImU32 tint = ImGui::GetColorU32(ImVec4(0.40F, 0.50F, 0.70F, 0.12F));
+    const ImU32 tint = ImGui::GetColorU32(ImVec4(0.40F, 0.50F, 0.70F, 0.08F));
     const ImU32 marker = ImGui::GetColorU32(ImVec4(0.45F, 0.60F, 0.90F, 0.85F));
     constexpr float kMarkerWidth = 3.0F;
     const ImVec4 number_color = ImGui::GetStyle().Colors[ImGuiCol_TextDisabled];

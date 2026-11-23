@@ -676,6 +676,7 @@ commit. Newest last.
 ## 2026-11-23 — Source panel: lighter selection tint
 
 - The tint behind the selected symbol's lines (28% blue-grey) made the code
-  hard to read; it is now 12%, and a 3 px bar in the gutter marks the range.
+  hard to read; it is now 8% (12% was still too strong), and a 3 px bar in
+  the gutter marks the range.
 
 - Commit: `7251068`.
