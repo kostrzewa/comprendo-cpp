@@ -14,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
 #include <fmt/format.h>
 #include <libenvpp/env.hpp>
@@ -100,6 +101,26 @@ namespace Comprendo
       settings.text_level
         = step_text_level(0, static_cast<int>(std::clamp(level.as_integer(), -kLimit, kLimit)));
     }
+    const std::array<std::pair<std::string_view, bool *>, 4> flags = {{
+      {"show_explorer", &settings.show_explorer},
+      {"show_inspector", &settings.show_inspector},
+      {"show_log", &settings.show_log},
+      {"show_minimap", &settings.show_minimap},
+    }};
+    for (const auto &[key, flag] : flags)
+    {
+      const std::string name {key};
+      if (!document.contains(name))
+      {
+        continue;
+      }
+      const toml::value &value = document.at(name);
+      if (!value.is_boolean())
+      {
+        return std::unexpected(fmt::format("{}: {} must be true or false", source_name, key));
+      }
+      *flag = value.as_boolean();
+    }
     return settings;
   }
 
@@ -107,9 +128,15 @@ namespace Comprendo
   format_viewer_settings(const ViewerSettings &settings)
   {
     return fmt::format(
-      "# Comprendo viewer settings, written by the viewer.\nfont = \"{}\"\ntext_level = {}\n",
+      "# Comprendo viewer settings, written by the viewer.\n"
+      "font = \"{}\"\ntext_level = {}\n"
+      "show_explorer = {}\nshow_inspector = {}\nshow_log = {}\nshow_minimap = {}\n",
       settings.font,
-      settings.text_level
+      settings.text_level,
+      settings.show_explorer,
+      settings.show_inspector,
+      settings.show_log,
+      settings.show_minimap
     );
   }
 

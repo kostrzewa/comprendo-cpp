@@ -30,7 +30,7 @@ namespace Comprendo
     Cluster,
   };
 
-  /// Lower-case name of a grouping, as shown in the status bar.
+  /// Lower-case name of a grouping, as shown in the status.
   ///
   /// \param grouping Grouping.
   /// \return "file", "namespace", or "cluster".

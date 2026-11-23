@@ -479,7 +479,7 @@ option. `Logger::init` logs the project version and git commit at startup.
 ## User interface
 
 The viewer uses Dear ImGui (docking branch) through rlImGui for its chrome: menu
-bar, dockable Explorer/Inspector/Log panels, and a status bar. `Ui::draw` gets
+bar with the status at its right end, and dockable Explorer/Inspector/Log panels. `Ui::draw` gets
 the `ChartView` (or null without a chart) and shares one `ViewerState` with the
 graph:
 
@@ -524,8 +524,14 @@ graph:
   (written by the model), declaring files of merged namespaces, children, and
   incoming/outgoing non-`Contains` edges from `ChartView::node_edges`.
 - **Log**: the last 2000 messages from an spdlog ring-buffer sink attached at
-  startup.
-- **Status bar**: chart path, counts, grouping, zoom, FPS.
+  startup; hidden by default.
+- **Status** (`Ui::draw_status`, M12d): right-aligned in the main menu bar,
+  which docked panels cannot cover (the former bottom overlay was hidden by
+  docked panels and covered the minimap): chart file, counts, grouping,
+  zoom, FPS, dropping items from the left when space is short; the tooltip
+  has the full path and version.
+- **Panel visibility** (Explorer, Inspector, Log, minimap) is part of
+  `ViewerSettings` and so persists per user with the font and text size.
 
 The Explorer and the graph offer two groupings of the same chart, built in the
 viewer without changing the stored model:

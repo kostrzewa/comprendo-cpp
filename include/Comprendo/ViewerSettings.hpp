@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file
-/// \brief Per-user viewer preferences (font and text size) and the fonts to choose from.
+/// \brief Per-user viewer preferences (font, text size, panels) and the fonts to choose from.
 
 #include <expected>
 #include <filesystem>
@@ -58,6 +58,14 @@ namespace Comprendo
     std::string font {kBuiltinFontId};
     /// Text size level (see text_scale()); 0 is the default size.
     int text_level = 0;
+    /// Whether the Explorer panel is shown.
+    bool show_explorer = true;
+    /// Whether the Inspector panel is shown.
+    bool show_inspector = true;
+    /// Whether the Log panel is shown; hidden by default, it is mostly for diagnostics.
+    bool show_log = false;
+    /// Whether the minimap is drawn in the graph's corner.
+    bool show_minimap = true;
 
     /// Memberwise equality.
     ///
@@ -68,8 +76,9 @@ namespace Comprendo
 
   /// Parse a settings file.
   ///
-  /// Unknown keys are ignored so newer settings files stay readable; the text
-  /// level is clamped to the supported range.
+  /// Unknown keys are ignored so newer settings files stay readable, missing
+  /// keys keep their defaults, and the text level is clamped to the supported
+  /// range.
   ///
   /// \param toml_text File contents (TOML).
   /// \param source_name File name for messages.

@@ -347,8 +347,8 @@ namespace
     }
   }
 
-  /// Read the viewer settings into the state; an invalid file is reported and
-  /// the defaults are used.
+  /// Read the viewer settings (font, text size, panels) into the state; an
+  /// invalid file is reported and the defaults are used.
   ///
   /// \param path Settings file; empty to use the defaults.
   /// \param state Viewer state receiving the font and text size.
@@ -370,10 +370,14 @@ namespace
     }
     state.font = settings.font;
     state.text_level = settings.text_level;
+    state.show_explorer = settings.show_explorer;
+    state.show_inspector = settings.show_inspector;
+    state.show_log = settings.show_log;
+    state.show_minimap = settings.show_minimap;
     return settings;
   }
 
-  /// Write the viewer settings when the font or text size changed.
+  /// Write the viewer settings when the font, text size, or panel visibility changed.
   ///
   /// \param path Settings file; empty to keep changes for this session only.
   /// \param state Viewer state holding the font and text size.
@@ -385,7 +389,14 @@ namespace
     Comprendo::ViewerSettings &saved
   )
   {
-    const Comprendo::ViewerSettings current {.font = state.font, .text_level = state.text_level};
+    const Comprendo::ViewerSettings current {
+      .font = state.font,
+      .text_level = state.text_level,
+      .show_explorer = state.show_explorer,
+      .show_inspector = state.show_inspector,
+      .show_log = state.show_log,
+      .show_minimap = state.show_minimap,
+    };
     if (current == saved)
     {
       return;
@@ -799,7 +810,7 @@ namespace
 
   /// Apply what the menu, panels, and input requested this frame: grouping
   /// switch, fitting (kept while the view is auto-fitted), and focusing on the
-  /// selection; then record the zoom for the status bar.
+  /// selection; then record the zoom for the status.
   ///
   /// \param session Session to update.
   /// \param state Viewer state holding the requests.

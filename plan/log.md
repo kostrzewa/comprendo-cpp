@@ -546,3 +546,19 @@ commit. Newest last.
   to Inter (panels, dialog, labels), saved file, restored after restart.
 
 - Commit: `a10a2d0`.
+
+## 2026-11-23 — M12d remembered panels, status in the menu bar
+
+- User report: the Log came back on every start, and the bottom status bar
+  was covered by docked panels while itself covering the minimap.
+- `ViewerSettings` gained `show_explorer`, `show_inspector`, `show_log`
+  (default false), `show_minimap`; the viewer loads them at startup and saves
+  on change (the panels' × buttons and the View menu share the flags).
+- `Ui::draw_status` draws the status right-aligned inside the main menu bar,
+  choosing the most detailed of several variants that fits (file, counts,
+  grouping, zoom, FPS → down to FPS), with a tooltip holding the full path
+  and version. The `##StatusBar` overlay is gone; `panels_created` (smoke
+  test) checks Explorer and Inspector only.
+- Checked under xvfb with an isolated XDG_CONFIG_HOME: default start without
+  Log, status in the menu bar, minimap uncovered; Log toggled on and off via
+  the View menu survives restarts both ways.

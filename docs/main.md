@@ -123,7 +123,12 @@ appear only while you hover over one of them. Hovering over anything with
 connections highlights them (and the trunks they feed) and dims the rest. View → Member connections draws every relationship
 between its endpoints instead.
 
-The font and text size are remembered per user in
+The status (chart file, counts, grouping, zoom, frame rate) sits at the right
+end of the menu bar; hover over it for the full chart path. The Log panel is
+hidden by default (View → Log).
+
+The font, the text size, and which panels and the minimap are shown are
+remembered per user in
 `$XDG_CONFIG_HOME/comprendo/viewer.toml` (usually
 `~/.config/comprendo/viewer.toml`). The fonts are fetched at build time and
 copied to `fonts/` next to the viewer; a font whose file is missing is shown

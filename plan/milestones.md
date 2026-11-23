@@ -379,4 +379,8 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
 - c. (done) Font and text size persist per user in
   `$XDG_CONFIG_HOME/comprendo/viewer.toml` (`ViewerSettings`), saved on
   change; the smoke test neither reads nor writes it.
+- d. (done) Panel visibility (Explorer, Inspector, Log, minimap) persists in
+  the same settings; the Log is hidden by default. The status moved from a
+  bottom overlay, which docked panels covered and which covered the minimap,
+  to the right end of the menu bar.
 

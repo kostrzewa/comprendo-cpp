@@ -1022,9 +1022,7 @@ namespace Comprendo
   Ui::panels_created()
   {
     return ImGui::FindWindowByName("Explorer") != nullptr
-      && ImGui::FindWindowByName("Inspector") != nullptr
-      && ImGui::FindWindowByName("Log") != nullptr
-      && ImGui::FindWindowByName("##StatusBar") != nullptr;
+      && ImGui::FindWindowByName("Inspector") != nullptr;
   }
 
   void
@@ -1080,13 +1078,12 @@ namespace Comprendo
         .height = central->Size.y,
       };
     }
-    draw_menu_bar(state);
+    draw_menu_bar(state, view);
     draw_explorer(state, view);
     draw_inspector(state, view);
     draw_log(state);
     draw_fonts(state);
     draw_about(state);
-    draw_status_bar(state, view);
 
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Q))
     {
@@ -1118,7 +1115,7 @@ namespace Comprendo
   }
 
   void
-  Ui::draw_menu_bar(ViewerState &state)
+  Ui::draw_menu_bar(ViewerState &state, const ChartView *view)
   {
     if (!ImGui::BeginMainMenuBar())
     {
@@ -1190,6 +1187,7 @@ namespace Comprendo
       ImGui::EndMenu();
     }
 
+    draw_status(state, view);
     ImGui::EndMainMenuBar();
   }
 
@@ -1426,44 +1424,58 @@ namespace Comprendo
   }
 
   void
-  Ui::draw_status_bar(const ViewerState &state, const ChartView *view)
+  Ui::draw_status(const ViewerState &state, const ChartView *view)
   {
-    // Fixed overlay at the bottom of the main viewport.
-    const ImGuiViewport *viewport = ImGui::GetMainViewport();
-    const float height = ImGui::GetFrameHeight();
-
-    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - height));
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, height));
-    ImGui::SetNextWindowViewport(viewport->ID);
-
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
-      | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking
-      | ImGuiWindowFlags_NoBringToFrontOnFocus;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
-    if (ImGui::Begin("##StatusBar", nullptr, flags))
+    const float fps = ImGui::GetIO().Framerate;
+    const std::string rate = fmt::format("{:.0f} FPS", fps);
+    std::vector<std::string> variants;
+    std::string details;
+    if (view == nullptr)
     {
-      const float fps = ImGui::GetIO().Framerate;
-      const std::string status = view == nullptr
-        ? fmt::format(
-            "Comprendo {}  |  no chart  |  {:.0f} FPS  |  F11 fullscreen", COMPRENDO_VERSION, fps
-          )
-        : fmt::format(
-            "Comprendo {}  |  {}  |  {} nodes, {} edges  |  by {}  |  zoom {:.3g}  |  {:.0f} FPS  "
-            "|  "
-            "F11 fullscreen",
-            COMPRENDO_VERSION,
-            state.chart_path,
-            view->chart().nodes.size(),
-            view->chart().edges.size(),
-            Comprendo::to_string(view->grouping()),
-            state.zoom,
-            fps
-          );
-      ImGui::TextUnformatted(status.c_str());
+      variants = {fmt::format("no chart  |  {}", rate), rate};
+      details = fmt::format("Comprendo {}\nNo chart loaded\nF11 fullscreen", COMPRENDO_VERSION);
     }
-    ImGui::End();
-    ImGui::PopStyleVar(2);
+    else
+    {
+      const std::string file = std::filesystem::path {state.chart_path}.filename().string();
+      const std::string counts
+        = fmt::format("{} nodes, {} edges", view->chart().nodes.size(), view->chart().edges.size());
+      const std::string grouping = fmt::format("by {}", Comprendo::to_string(view->grouping()));
+      const std::string zoom = fmt::format("zoom {:.3g}", state.zoom);
+      variants = {
+        fmt::format("{}  |  {}  |  {}  |  {}  |  {}", file, counts, grouping, zoom, rate),
+        fmt::format("{}  |  {}  |  {}  |  {}", file, counts, zoom, rate),
+        fmt::format("{}  |  {}  |  {}", counts, zoom, rate),
+        fmt::format("{}  |  {}", zoom, rate),
+        rate,
+      };
+      details = fmt::format(
+        "Comprendo {}\n{}\n{}, {}, {}\nF11 fullscreen",
+        COMPRENDO_VERSION,
+        state.chart_path,
+        counts,
+        grouping,
+        zoom
+      );
+    }
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float available = ImGui::GetContentRegionAvail().x - style.ItemSpacing.x;
+    const auto fits = std::ranges::find_if(
+      variants,
+      [&](const std::string &text) { return ImGui::CalcTextSize(text.c_str()).x <= available; }
+    );
+    if (fits == variants.end())
+    {
+      return;
+    }
+    const float width = ImGui::CalcTextSize(fits->c_str()).x;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - width);
+    ImGui::PushStyleColor(ImGuiCol_Text, style.Colors[ImGuiCol_TextDisabled]);
+    ImGui::TextUnformatted(fits->c_str());
+    ImGui::PopStyleColor();
+    if (ImGui::IsItemHovered())
+    {
+      ImGui::SetTooltip("%s", details.c_str());
+    }
   }
 } // namespace Comprendo

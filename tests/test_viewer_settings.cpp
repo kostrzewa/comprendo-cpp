@@ -16,15 +16,26 @@ using Comprendo::ViewerSettings;
 
 /// The settings file is written by the viewer and may be edited by hand, so
 /// what the viewer writes must read back unchanged and hand edits must be
-/// checked. Round-trips a non-default setting, reads an empty file as the
-/// defaults, clamps an out-of-range level, ignores unknown keys, and rejects
-/// an unknown font, a wrongly typed level, and malformed TOML.
+/// checked. Round-trips non-default font, size, and panel settings, reads an
+/// empty file as the defaults (Log hidden), clamps an out-of-range level,
+/// ignores unknown keys, and rejects an unknown font, wrongly typed values,
+/// and malformed TOML.
 TEST_CASE("viewer settings parse, format, and validate", "[settings]")
 {
   using Comprendo::parse_viewer_settings;
-  const ViewerSettings custom {.font = "inter", .text_level = 3};
+  const ViewerSettings custom {
+    .font = "inter",
+    .text_level = 3,
+    .show_explorer = false,
+    .show_inspector = true,
+    .show_log = true,
+    .show_minimap = false,
+  };
   CHECK(parse_viewer_settings(Comprendo::format_viewer_settings(custom), "t") == custom);
   CHECK(parse_viewer_settings("", "t") == ViewerSettings {});
+  CHECK_FALSE(ViewerSettings {}.show_log);
+  CHECK(parse_viewer_settings("show_log = true\n", "t") == ViewerSettings {.show_log = true});
+  CHECK_FALSE(parse_viewer_settings("show_log = 1\n", "t").has_value());
   CHECK(
     parse_viewer_settings("text_level = 99\n", "t")
     == ViewerSettings {.text_level = Comprendo::kMaxTextLevel}

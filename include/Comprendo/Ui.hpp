@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file
-/// \brief Dear ImGui docking shell of the viewer: menu, Explorer, Inspector, Log, status bar.
+/// \brief Dear ImGui docking shell of the viewer: menu with status, Explorer, Inspector, Log.
 
 #include <array>
 #include <cstddef>
@@ -35,8 +35,8 @@ namespace Comprendo
     /// Whether the inspector panel is visible.
     bool show_inspector = true;
 
-    /// Whether the log panel is visible.
-    bool show_log = true;
+    /// Whether the log panel is visible; hidden by default.
+    bool show_log = false;
 
     /// Inspector row under the keyboard cursor, counted over all its lists.
     std::optional<std::size_t> inspector_cursor;
@@ -78,10 +78,10 @@ namespace Comprendo
     /// Set when the graph selects a group: the Explorer opens and scrolls to it.
     bool reveal_requested = false;
 
-    /// Path of the loaded chart, for the status bar.
+    /// Path of the loaded chart, for the status.
     std::string chart_path;
 
-    /// Current zoom in screen pixels per chart unit, for the status bar.
+    /// Current zoom in screen pixels per chart unit, for the status.
     float zoom = 1.0F;
 
     /// Recent log messages shown by the Log panel; null shows a hint instead.
@@ -193,7 +193,8 @@ namespace Comprendo
     static bool
     wants_text_input();
 
-    /// Check whether the dockable panels exist in the current ImGui context.
+    /// Check whether the Explorer and Inspector exist in the current ImGui context
+    /// (the Log is hidden by default, so it may not).
     ///
     /// \return True when the panels exist.
     static bool
@@ -218,11 +219,12 @@ namespace Comprendo
     static void
     build_default_layout(unsigned int dockspace_id);
 
-    /// Draw the main menu bar.
+    /// Draw the main menu bar, with the status at its right end.
     ///
     /// \param state Viewer state.
+    /// \param view Loaded chart, or null.
     void
-    draw_menu_bar(ViewerState &state);
+    draw_menu_bar(ViewerState &state, const ChartView *view);
 
     /// Draw the Explorer: grouping toggle, filter (Ctrl+F), and the tree or the
     /// search results.
@@ -268,12 +270,15 @@ namespace Comprendo
     static void
     draw_about(ViewerState &state);
 
-    /// Draw the status bar.
+    /// Draw the status (chart, counts, grouping, zoom, frame rate) right-aligned
+    /// in the menu bar, where docked panels cannot cover it. The most detailed
+    /// variant that fits is shown; hovering shows everything, including the
+    /// full chart path.
     ///
     /// \param state Viewer state.
     /// \param view Loaded chart, or null.
     static void
-    draw_status_bar(const ViewerState &state, const ChartView *view);
+    draw_status(const ViewerState &state, const ChartView *view);
 
     /// True once the default layout has been built or loaded.
     bool layout_initialized_ = false;
