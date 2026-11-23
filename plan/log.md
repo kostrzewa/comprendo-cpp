@@ -656,3 +656,5 @@ commit. Newest last.
   stacked strips top-left; side-by-side left pair → two strips side by side
   top-left; right Inspector → strip top-right reading downward, unfolded by a
   click to its former width. The user's own layout file was not touched.
+
+- Commit: `57ed108`.
