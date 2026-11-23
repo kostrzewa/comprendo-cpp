@@ -421,3 +421,5 @@ commit. Newest last.
   first jump's end pose exactly), and Backspace inside the filter (edits the
   text, no navigation). A harness artefact on the way: a release and a press
   in the same frame are seen as one held press by raylib.
+
+- Commit: `21243a3`.
