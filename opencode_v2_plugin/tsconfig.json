@@ -1,0 +1,4 @@
+{
+  "extends": "../opencode_plugin/tsconfig.json",
+  "include": ["index.ts", "test"]
+}

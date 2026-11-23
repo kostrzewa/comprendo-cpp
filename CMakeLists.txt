@@ -229,14 +229,14 @@ if(COMPRENDO_BUILD_TESTS)
   endif()
   if(COMPRENDO_BUN_COMMAND)
     add_test(
-      NAME plugin_tests
+      NAME opencode_plugin_tests
       COMMAND ${COMPRENDO_BUN_COMMAND} test
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/plugin
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/opencode_plugin
     )
     add_test(
-      NAME plugin_v2_tests
+      NAME opencode_v2_plugin_tests
       COMMAND ${COMPRENDO_BUN_COMMAND} test
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/plugin_v2
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/opencode_v2_plugin
     )
   endif()
 

@@ -214,7 +214,7 @@ Acceptance: `extract` → `validate` → `info` runs headlessly.
 
 ## M6 — opencode plugin (complete; tools moved to C++ in M11)
 
-- `plugin/` with `/chart` (registered through the `config` hook) and seven
+- `opencode_plugin/` with `/chart` (registered through the `config` hook) and seven
   chart tools ([architecture](architecture.md#plugin)); loaded by path, no
   npm dependencies.
 - Writes `.comprendo/chart.sqlite` itself via `bun:sqlite`; no code
@@ -329,7 +329,7 @@ Open (waiting for a decision, see [log](log.md)):
 
 ## M10 — opencode 2.x plugin (complete)
 
-- `plugin_v2/`: the chart tools and `/chart` through the v2 plugin API
+- `opencode_v2_plugin/`: the chart tools and `/chart` through the v2 plugin API
   (`{ id, setup }`, `ctx.tool.transform`, `ctx.command.transform`), sharing
   the 1.x plugin's code; `/chart` is a code command prompting the session.
   Verified on opencode 2.2.7 (standalone): plugin loads, tools write the

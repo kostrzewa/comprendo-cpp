@@ -159,8 +159,8 @@ example `export COMPRENDO_CLI=/path/to/build/comprendo-cli`.
 | Assistant | Install | Command |
 | --- | --- | --- |
 | Claude Code | `claude plugin marketplace add /path/to/comprendo-cpp`, then `claude plugin install comprendo@comprendo` (or `claude --plugin-dir /path/to/comprendo-cpp/claude_plugin` for one session) | `/comprendo:chart [instructions]` |
-| opencode 1.x | `{ "plugin": ["/path/to/comprendo-cpp/plugin/src/index.ts"] }` in `opencode.json` or `~/.config/opencode/opencode.json` | `/chart [instructions]` |
-| opencode 2.x | `{ "plugins": ["/path/to/comprendo-cpp/plugin_v2"] }` (the directory) | `/chart [instructions]` |
+| opencode 1.x | `{ "plugin": ["/path/to/comprendo-cpp/opencode_plugin/src/index.ts"] }` in `opencode.json` or `~/.config/opencode/opencode.json` | `/chart [instructions]` |
+| opencode 2.x | `{ "plugins": ["/path/to/comprendo-cpp/opencode_v2_plugin"] }` (the directory) | `/chart [instructions]` |
 
 The plugins run on other repositories: they only need `comprendo-cli`, which
 carries the chart schema. A user-defined `/chart` command or `comprendo` MCP

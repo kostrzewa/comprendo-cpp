@@ -491,3 +491,12 @@ commit. Newest last.
   `claude plugin validate --strict` passes.
 
 - Commit: `4dce511`.
+
+## 2026-11-23 — Plugin directories renamed
+
+- `plugin/` → `opencode_plugin/`, `plugin_v2/` → `opencode_v2_plugin/`
+  (`git mv`); references updated everywhere except this log's history.
+  CTests are now `opencode_plugin_tests` and `opencode_v2_plugin_tests`.
+- opencode 1.19.5 loads the plugin from the new path (scratch project,
+  `mcp list`: connected). Configs pointing at the old paths must be updated
+  by their owners; `~/.config/opencode/opencode.jsonc` was not touched.

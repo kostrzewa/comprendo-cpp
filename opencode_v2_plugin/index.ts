@@ -3,13 +3,13 @@
  *
  * The chart tools are served by `comprendo-cli mcp` (shared with the opencode
  * 1.x plugin and Claude Code); the `/chart` prompt comes from
- * `../plugin/src/prompt.ts`. The module default-exports a plain `{ id, setup }`
+ * `../opencode_plugin/src/prompt.ts`. The module default-exports a plain `{ id, setup }`
  * definition (what `Plugin.define` from `@opencode/plugin` returns), so it has
  * no dependencies besides Bun's built-ins.
  */
 
-import { CHART_COMMAND } from "../plugin/src/prompt.ts";
-import { MCP_SERVER_NAME, mcpServer, type LocalMcpServer } from "../plugin/src/server.ts";
+import { CHART_COMMAND } from "../opencode_plugin/src/prompt.ts";
+import { MCP_SERVER_NAME, mcpServer, type LocalMcpServer } from "../opencode_plugin/src/server.ts";
 
 /** Plugin id: scopes the plugin's storage and names it in diagnostics. */
 export const PLUGIN_ID = "comprendo";

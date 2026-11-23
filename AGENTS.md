@@ -88,9 +88,9 @@ Keep `docs/main.md` and the `plan/` documents current.
 
 - Use Catch2 and CTest. Prefer deterministic tests; use golden files for layout
   and serialization.
-- The opencode plugins use `bun test` (`plugin/test/`, `plugin_v2/test/`). Bun
+- The opencode plugins use `bun test` (`opencode_plugin/test/`, `opencode_v2_plugin/test/`). Bun
   is not required: opencode is a Bun executable, so `BUN_BE_BUN=1 opencode
-  test` in `plugin/` or `plugin_v2/` runs them. The chart tools themselves are
+  test` in `opencode_plugin/` or `opencode_v2_plugin/` runs them. The chart tools themselves are
   C++ and tested with Catch2 (`test_chart_tools.cpp`, `test_mcp.cpp`).
 - Add tests with every feature and run `ctest --preset clang-22` before
   finishing.
@@ -145,8 +145,8 @@ and tests before committing.
 - `tests/` — Catch2 tests
 - `claude_plugin/` — Claude Code plugin (`/comprendo:chart` skill, MCP entry);
   the repository root's `.claude-plugin/marketplace.json` lists it
-- `plugin/` — opencode 1.x plugin (`/chart`, registers `comprendo-cli mcp`)
-- `plugin_v2/` — opencode 2.x plugin, an adapter over `plugin/src`
+- `opencode_plugin/` — opencode 1.x plugin (`/chart`, registers `comprendo-cli mcp`)
+- `opencode_v2_plugin/` — opencode 2.x plugin, an adapter over `opencode_plugin/src`
 - `prompts/` — `chart.md`, the `/chart` prompt of all assistants; after
   editing it, run `cmake -DMODE=write -DPROMPT=prompts/chart.md
   -DSKILL=claude_plugin/skills/chart/SKILL.md -P cmake/sync_prompt.cmake` to

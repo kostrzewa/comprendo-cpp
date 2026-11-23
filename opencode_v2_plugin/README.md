@@ -4,7 +4,7 @@ Plugin for opencode 2.x (the v2 plugin API): adds `/chart`, which has the
 model explore the project and build a Comprendo chart
 (`.comprendo/chart.sqlite`), and registers the MCP server `comprendo`
 (`comprendo-cli mcp`) that provides the seven `chart_*` tools. For opencode
-1.x use `../plugin` instead; Claude Code uses `../claude_plugin` and the same
+1.x use `../opencode_plugin` instead; Claude Code uses `../claude_plugin` and the same
 server.
 
 ## Install
@@ -15,12 +15,12 @@ paths must be directories):
 
 ```json
 {
-  "plugins": ["/path/to/comprendo-cpp/plugin_v2"]
+  "plugins": ["/path/to/comprendo-cpp/opencode_v2_plugin"]
 }
 ```
 
 The plugin imports the `/chart` command and the server entry from
-`../plugin/src` (which reads `../prompts/chart.md`), so keep the repository
+`../opencode_plugin/src` (which reads `../prompts/chart.md`), so keep the repository
 together. It has no dependencies besides Bun's built-ins.
 
 ## How it maps onto the v2 API

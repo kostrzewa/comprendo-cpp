@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { comprendoCli } from "../../plugin/src/server.ts";
+import { comprendoCli } from "../../opencode_plugin/src/server.ts";
 import plugin, { type CommandDefinition, type CommandEditor } from "../index.ts";
 
 /**

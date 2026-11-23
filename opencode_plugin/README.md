@@ -6,7 +6,7 @@ opens.
 
 The chart tools are not part of the plugin: they are served by
 `comprendo-cli mcp`, which the plugin registers as the MCP server `comprendo`
-(Claude Code and the opencode 2.x plugin in `../plugin_v2` use the same
+(Claude Code and the opencode 2.x plugin in `../opencode_v2_plugin` use the same
 server). The plugin itself only adds the command and the server to opencode's
 configuration, leaving a user-defined `/chart` or `comprendo` server alone.
 
@@ -18,7 +18,7 @@ the plugin by path in the project's `opencode.json` (or
 
 ```json
 {
-  "plugin": ["/path/to/comprendo-cpp/plugin/src/index.ts"]
+  "plugin": ["/path/to/comprendo-cpp/opencode_plugin/src/index.ts"]
 }
 ```
 

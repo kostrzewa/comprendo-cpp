@@ -18,8 +18,8 @@ viewer renders it for navigation.
 | `comprendo` | C++ / raylib | Interactive 2D viewer |
 | `comprendo-cli` | C++ | `extract`, `validate`, `info`, `mcp` (the chart tools as an MCP server) |
 | `claude_plugin/` | Markdown, JSON | Claude Code plugin: `/comprendo:chart` skill, MCP server entry |
-| `plugin/` | TypeScript | opencode 1.x plugin: `/chart`, MCP server registration |
-| `plugin_v2/` | TypeScript | opencode 2.x plugin: the same through the v2 API |
+| `opencode_plugin/` | TypeScript | opencode 1.x plugin: `/chart`, MCP server registration |
+| `opencode_v2_plugin/` | TypeScript | opencode 2.x plugin: the same through the v2 API |
 | `prompts/chart.md` | Markdown | The `/chart` prompt shared by all three assistants |
 
 The chart is a single SQLite database, `.comprendo/chart.sqlite`, described in
@@ -292,9 +292,9 @@ the Claude skill carries a copy, kept equal by `cmake/sync_prompt.cmake`
   `claude plugin install comprendo@comprendo` install it; `--plugin-dir`
   loads it for one session.
 
-### opencode plugins (`plugin/`, `plugin_v2/`)
+### opencode plugins (`opencode_plugin/`, `opencode_v2_plugin/`)
 
-Both add `/chart` and the `comprendo` MCP server (`plugin/src/server.ts`:
+Both add `/chart` and the `comprendo` MCP server (`opencode_plugin/src/server.ts`:
 `[$COMPRENDO_CLI or comprendo-cli, "mcp", "--root", <project>]`) without
 overriding user entries of the same name, and need nothing besides Bun's
 built-ins.
