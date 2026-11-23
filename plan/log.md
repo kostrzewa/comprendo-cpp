@@ -217,3 +217,4 @@ commit. Newest last.
   tested; the smoke test drives a jump and a Backspace in the real viewer.
   Key handling itself is untested: no input automation tool is installed.
 
+- Commit: `b4f6e87`.
