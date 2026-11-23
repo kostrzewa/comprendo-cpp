@@ -521,3 +521,5 @@ commit. Newest last.
   to whole pixels). Checked with XTest Ctrl+= / Ctrl+- under xvfb.
 - Designed for the planned font choice (M12b): the text level is
   independent of which font is selected.
+
+- Commit: `f9a7351`.
