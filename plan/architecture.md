@@ -5,9 +5,10 @@ Cross-references: [requirements](comprendo-cpp.md) · [chart schema](chart-schem
 ## Purpose
 
 Comprendo is a code explorer and visualizer. A deterministic extractor builds the
-structural graph of a codebase; the opencode model explores the codebase and
-writes nodes, explanations, and semantic edges; both write the same SQLite
-chart, and a raylib viewer renders it for navigation.
+structural graph of a codebase; an assistant's model (Claude Code or
+opencode) explores the codebase and writes nodes, explanations, and semantic
+edges through the chart tools; both write the same SQLite chart, and a raylib
+viewer renders it for navigation.
 
 ## Components
 
@@ -15,14 +16,17 @@ chart, and a raylib viewer renders it for navigation.
 | --- | --- | --- |
 | `comprendo_core` | C++ | Chart model, SQLite store, extractors, layout |
 | `comprendo` | C++ / raylib | Interactive 2D viewer |
-| `comprendo-cli` | C++ | `extract`, `validate`, `info` |
-| `plugin/` | TypeScript | opencode `/chart` command and chart-building tools |
+| `comprendo-cli` | C++ | `extract`, `validate`, `info`, `mcp` (the chart tools as an MCP server) |
+| `claude_plugin/` | Markdown, JSON | Claude Code plugin: `/comprendo:chart` skill, MCP server entry |
+| `plugin/` | TypeScript | opencode 1.x plugin: `/chart`, MCP server registration |
+| `plugin_v2/` | TypeScript | opencode 2.x plugin: the same through the v2 API |
+| `prompts/chart.md` | Markdown | The `/chart` prompt shared by all three assistants |
 
 The chart is a single SQLite database, `.comprendo/chart.sqlite`, described in
-[chart-schema.md](chart-schema.md). There is no bridge between the plugin and
-the CLI: each writes the database directly. Schema logic stays in one place
-because both apply the same DDL file, `schema/chart.sql`, and both check
-`application_id` and `user_version` before writing.
+[chart-schema.md](chart-schema.md). Every writer is C++: the extractor and the
+chart tools (`ChartTools`) both apply `schema/chart.sql` (embedded through
+`cmake/ChartSchema.hpp.in`) and check `application_id` and `user_version`
+before writing. The assistants only reach the chart through the tools.
 
 ## Toolchain convention
 
@@ -47,8 +51,8 @@ never used.
                      source tree
                     /           \
                    v             v
-  comprendo-cli extract       opencode plugin (/chart)
-  (ctags + clangd-22)         (model exploration, bun:sqlite)
+  comprendo-cli extract       /chart in Claude Code or opencode
+  (ctags + clangd-22)         (model exploration) -> comprendo-cli mcp
   provenance = Extractor      provenance = Model
                    \             /
                     v           v
@@ -219,86 +223,97 @@ malformed command lines, before creating a window.
 | `extract [--root DIR] [--output FILE]` | Load `DIR/.comprendo/config.toml`, run the ctags extractor, write FILE (default `DIR/.comprendo/chart.sqlite`). |
 | `validate [FILE]` | `check_chart_file`: `integrity_check`, `foreign_key_check`, identity/version, `validate()`; lists every problem on stderr. |
 | `info [FILE]` | Header fields, node and edge counts per kind, clusters, layout. |
+| `mcp [--root DIR]` | Serve the chart tools of `DIR/.comprendo/chart.sqlite` over MCP's stdio transport until stdin closes. |
 
-`FILE` defaults to `.comprendo/chart.sqlite` in the working directory. The
-plugin does not call the CLI; `/chart` may instruct the model to run
-`comprendo-cli extract` through its shell tool so annotations start from the
-extracted nodes, which the plugin looks up by qualified name and file rather
-than recomputing ids.
+`FILE` defaults to `.comprendo/chart.sqlite` in the working directory.
+`/chart` has the model run `comprendo-cli extract` through its shell tool so
+annotations start from the extracted nodes, which the tools look up by
+qualified name and file rather than recomputing ids.
 
-## Plugin
+## Chart tools and assistants
 
-`plugin/` is an opencode plugin with no dependencies besides Bun's built-ins.
-opencode loads it by path (`"plugin": ["<repo>/plugin/src/index.ts"]`), which
-requires the default export `{ id, server }`. It does not invoke
-`comprendo-cli` itself.
+The chart tools are C++ (`ChartTools`, `include/Comprendo/ChartTools.hpp`)
+and reach assistants as an MCP server, `comprendo-cli mcp --root DIR`
+(`serve_mcp`, `include/Comprendo/Mcp.hpp`). Claude Code, opencode 1.x, and
+opencode 2.x start that server through their plugins, so all three share one
+implementation; until M11 the tools were TypeScript on `bun:sqlite` inside the
+opencode plugin.
 
-- **Command**: the `config` hook adds `/chart` unless the user defined one.
-  The prompt tells the model to treat Doxygen summaries (shown as `[doc]`)
-  and other comments as the authors' intent: keep accurate ones, rewrite only
-  to correct or add the why, and keep explanations to one sentence and two to
-  four sentences of detail regardless of comment length. `chart_overview` and
-  `chart_finish` count code-documented and model-annotated symbols apart.
-  The prompt has the model run `comprendo-cli extract` through its shell tool
-  when the CLI is on `PATH` (this rewrites `.comprendo/chart.sqlite`), then
-  explore, annotate, cluster, and call `chart_finish`.
 - **Tools**: `chart_overview`, `chart_find_node`, `chart_add_node`,
   `chart_annotate_node`, `chart_annotate_cluster`, `chart_add_edge`,
-  `chart_finish`. Arguments are plain JSON Schema: opencode accepts these
-  next to zod schemas (marking every argument required and skipping
-  validation), so handlers validate their own arguments and report mistakes
-  as tool errors the model can fix. Ids appear as `0x` plus 16 hex digits.
-- **Storage**: each call opens `.comprendo/chart.sqlite` with `bun:sqlite`
-  (`safeIntegers`, ids as `BigInt`), refuses non-charts and newer schema
-  versions, enables WAL and foreign keys, applies the schema, runs
-  one immediate transaction, and closes. Holding no connection between calls
-  lets `comprendo-cli extract` replace the file during a session.
+  `chart_finish`, with JSON Schema arguments none of which is required:
+  handlers check their own arguments and report mistakes as text the model
+  can act on. Ids appear as `0x` plus 16 hex digits (`format_id`,
+  `parse_id`).
+- **Storage**: each call opens the chart (creating it and `.comprendo/`),
+  refuses non-charts and newer schema versions, enables WAL and foreign keys,
+  applies the schema, runs one `BEGIN IMMEDIATE` transaction, and closes.
+  Holding no connection between calls lets `comprendo-cli extract` replace
+  the file during a session. SQL failures stick to the call's store (later
+  statements are skipped) and roll the transaction back, as does any
+  argument error, so a failed call writes nothing.
 - **Identity**: existing nodes are found by name and file
   (`chart_find_node`), never by recomputing ids, because extractor signatures
-  use ctags' exact text. Ids of nodes the model adds use the FNV-1a recipe in
-  [chart-schema.md](chart-schema.md#ids); new nodes hang under their file
-  (created when missing) by a `Contains` edge, and stale layout rows are
-  dropped. Clusters are addressed by label.
+  use ctags' exact text. Nodes the model adds get `make_node_id` ids and hang
+  under their file (created when missing) by a `Contains` edge; stale layout
+  rows are dropped. Clusters are addressed by label (`make_cluster_id`);
+  colours default to an HSL hue derived from the label.
+- **Documentation**: summaries with provenance other than `Model` are shown
+  as `[doc]`; `chart_overview` and `chart_finish` count code-documented and
+  model-annotated symbols apart, and annotating a node makes it `Model`.
 - **Finish**: `chart_finish` runs `integrity_check` and
-  `foreign_key_check`, stamps `meta`, and prints `comprendo <chart>`. It does
-  not launch the viewer.
-- **Self-contained**: the plugin runs on other repositories and may be copied
-  away from this one, so it reads nothing outside `plugin/src`. The schema is
-  embedded in `plugin/src/schema.ts`, generated from `schema/chart.sql` by
-  `plugin/scripts/embed-schema.ts`; a test fails when the copy is stale, and
-  another runs the tools from a copy of `plugin/src` alone.
-- **Testing**: `bun test` in `plugin/`. Without a Bun install,
-  `BUN_BE_BUN=1 opencode` is Bun (opencode is a Bun executable); CMake uses
-  either.
+  `foreign_key_check`, stamps `meta` (`annotator`, `annotated_at`, and
+  `generator`/`project` when empty), and prints `comprendo <chart>`.
+- **MCP**: newline-delimited JSON-RPC 2.0 on stdin/stdout (logs on stderr):
+  `initialize` (echoes a known protocol revision, else the newest),
+  `ping`, `tools/list`, `tools/call`; tool failures are results with
+  `isError`, protocol mistakes are JSON-RPC errors, notifications get no
+  reply.
 
-Without the CLI, the model builds the chart from scratch through
-`chart_add_node`. The viewer shows rows from either writer.
+### Prompt
 
-### opencode 2.x plugin (`plugin_v2/`)
+`prompts/chart.md` is the `/chart` prompt (`$ARGUMENTS` placeholder). It has
+the model run `comprendo-cli extract` (or `$COMPRENDO_CLI`), read the code,
+annotate, cluster, and call `chart_finish`; it treats Doxygen summaries
+(`[doc]`) and comments as the authors' intent and caps explanations at one
+sentence plus two to four of detail. The opencode plugins import it as text;
+the Claude skill carries a copy, kept equal by `cmake/sync_prompt.cmake`
+(CTest `chart_prompt_in_sync`).
 
-opencode 2.x replaced the plugin API: a module default-exports
-`{ id, setup }` (`Plugin.define` from `@opencode/plugin`), and `setup(ctx)`
-registers capabilities through editors. `plugin_v2/index.ts` is a thin
-adapter over the 1.x plugin's code (`../plugin/src`: chart store, tools,
-prompt, embedded schema):
+### Claude Code plugin (`claude_plugin/`)
 
-- tools via `ctx.tool.transform(editor => editor.add({ name, description,
-  input: <JSON Schema>, execute }))`, `execute` returning `{ content }`;
-  `ChartError`s come back as `error: ...` content (2.x does not document tool
-  errors);
-- `/chart` via `ctx.command.transform`: in 2.x the editor only has `add`,
-  and plugin commands must be code (a template-only command fails with
-  "execute is not a function"), so `execute({ sessionID, prompt, delivery })`
+- `.claude-plugin/plugin.json` (`comprendo`) and `.mcp.json` (server `chart`:
+  `${COMPRENDO_CLI:-comprendo-cli} mcp --root ${CLAUDE_PROJECT_DIR}`);
+- `skills/chart/SKILL.md`: `/comprendo:chart` (plugin skills are namespaced),
+  `disable-model-invocation` (charting is expensive), pre-allowed tools
+  `mcp__plugin_comprendo_chart__*` and `Bash(comprendo-cli extract:*)`;
+- the repository root's `.claude-plugin/marketplace.json` lists it, so
+  `claude plugin marketplace add <repo>` and
+  `claude plugin install comprendo@comprendo` install it; `--plugin-dir`
+  loads it for one session.
+
+### opencode plugins (`plugin/`, `plugin_v2/`)
+
+Both add `/chart` and the `comprendo` MCP server (`plugin/src/server.ts`:
+`[$COMPRENDO_CLI or comprendo-cli, "mcp", "--root", <project>]`) without
+overriding user entries of the same name, and need nothing besides Bun's
+built-ins.
+
+- 1.x: default export `{ id, server }`; the `config` hook sets
+  `command.chart` and `mcp.comprendo`. opencode names the tools
+  `comprendo_chart_overview`, ....
+- 2.x: default export `{ id, setup }`; `ctx.mcp.transform(editor =>
+  editor.set(...))` (replayed lazily when opencode builds its MCP registry)
+  and `ctx.command.transform`. Plugin commands must be code (a template-only
+  command fails with "execute is not a function"), so `/chart`'s `execute`
   sends the filled-in template with `ctx.session.prompt`; the 1.19 preview's
-  `update` takes the template;
-- project directory from `ctx.location.directory`, else the process cwd;
-- no `@opencode/plugin` import, so no dependencies; loaded by directory path
-  under the `plugins` config key.
+  `update` takes the template. Tools run through Code Mode
+  (`tools.comprendo.chart_overview(...)`).
 
-Verified on opencode 2.2.7 with `--standalone` in a scratch project: the
-plugin loads, a model call to `chart_overview` (through Code Mode) writes
-the chart, and `/chart` executes through the session command API. Also
-loads in opencode 1.19.5's v2 preview (template `/chart`, no tools).
+Verified: opencode 1.19.5 `mcp list` shows the server connected; opencode
+2.2.7 (`--standalone`) ran a session whose Code Mode call to
+`chart_overview` wrote the chart; Claude Code's `mcp list --plugin-dir`
+shows `plugin:comprendo:chart` connected.
 
 ## Layout
 
@@ -449,7 +464,7 @@ Input is ignored while ImGui uses the mouse or keyboard.
 - Jolt particles for cosmetic interaction feedback only — never layout;
 - SFML DSP-generated hover/click/zoom tones, mutable;
 - live reload (`ChartWatcher`): every 0.5 s the viewer compares `PRAGMA
-  data_version` on a read-only connection (in-place commits by the plugin) and
+  data_version` on a read-only connection (in-place commits by the chart tools) and
   the file's inode (the CLI deletes and rewrites the file); after 0.3 s
   without further changes it rereads the chart. If only annotations changed,
   the view takes them over and keeps its layout; otherwise it rebuilds in the
@@ -528,7 +543,11 @@ centering it.
 Catch2 covers the chart model, id test vectors, SQLite round-trip, schema
 version and identity checks, validation, ctags JSON fixtures, clangd-22 merge
 fixtures (skipped when the binary is absent), layout determinism, and a CTest
-integration test for `comprendo-cli validate`. The plugin is tested with
-`bun test` against temporary databases; CTests gated on Bun (or opencode)
-annotate a CLI-extracted chart through the plugin's tools and check it with
-`comprendo-cli validate`, `comprendo-cli info`, and the viewer smoke test.
+integration test for `comprendo-cli validate`. The chart tools and the MCP
+server have Catch2 tests (`test_chart_tools.cpp`, `test_mcp.cpp`); the
+`mcp_annotate` CTest replays a recorded session
+(`tests/fixtures/mcp/annotate.jsonl`) on a CLI-extracted chart and checks it
+with `comprendo-cli validate`, `comprendo-cli info`, and the viewer smoke
+test. The opencode plugins' registration is tested with `bun test` (or
+`BUN_BE_BUN=1 opencode test`); `chart_prompt_in_sync` keeps the Claude skill
+equal to the shared prompt.

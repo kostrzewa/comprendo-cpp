@@ -1,13 +1,13 @@
 /**
- * @file opencode plugin entry point: registers `/chart` and the chart tools.
+ * @file opencode 1.x plugin entry point: registers `/chart` and the Comprendo MCP server.
  *
- * Has no runtime dependencies besides Bun: tool arguments are plain JSON
- * Schema (opencode accepts these alongside zod schemas), so the plugin can be
- * loaded straight from this repository by path.
+ * The chart tools come from `comprendo-cli mcp`; this plugin only adds the
+ * command and the server to opencode's configuration, without overriding
+ * entries the user defined.
  */
 
 import { CHART_COMMAND, type CommandDefinition } from "./prompt.ts";
-import { createTools, runTool, type JsonSchema, type ToolArgs } from "./tools.ts";
+import { MCP_SERVER_NAME, mcpServer, type LocalMcpServer } from "./server.ts";
 
 /** The parts of opencode's plugin input this plugin uses. */
 export interface PluginInput {
@@ -15,66 +15,38 @@ export interface PluginInput {
   directory: string;
 }
 
-/** The parts of opencode's tool context this plugin uses. */
-export interface ToolContext {
-  /** Project directory of the session. */
-  directory?: string;
+/** The parts of opencode's configuration this plugin edits. */
+export interface PluginConfig {
+  /** Slash commands by name. */
+  command?: Record<string, CommandDefinition>;
+  /** MCP servers by name. */
+  mcp?: Record<string, LocalMcpServer | Record<string, unknown>>;
 }
 
-/** A tool as opencode expects it from a plugin. */
-export interface PluginTool {
-  /** Description shown to the model. */
-  description: string;
-  /** Argument schemas by name. */
-  args: Record<string, JsonSchema>;
-  /**
-   * Run the tool.
-   *
-   * @param args Arguments from the model.
-   * @param context Session context.
-   * @returns Text shown to the model.
-   */
-  execute(args: ToolArgs, context: ToolContext): Promise<string>;
-}
-
-/** The opencode hooks this plugin implements. */
+/** Hooks returned to opencode. */
 export interface PluginHooks {
   /**
-   * Add `/chart` to the configuration unless the user defined their own.
+   * Add `/chart` and the `comprendo` MCP server unless the user defined their own.
    *
    * @param config opencode configuration, modified in place.
    */
-  config(config: { command?: Record<string, CommandDefinition> }): Promise<void>;
-  /** Chart tools by name. */
-  tool: Record<string, PluginTool>;
+  config(config: PluginConfig): Promise<void>;
 }
 
 /**
- * Create the plugin's hooks for an opencode instance.
+ * Create the plugin's hooks.
  *
  * @param input Plugin input from opencode.
- * @returns Hooks registering `/chart` and the chart tools.
+ * @returns Hooks.
  */
 export async function ComprendoPlugin(input: PluginInput): Promise<PluginHooks> {
-  const tools = createTools(input.directory);
   return {
     async config(config) {
       config.command ??= {};
       config.command.chart ??= CHART_COMMAND;
+      config.mcp ??= {};
+      config.mcp[MCP_SERVER_NAME] ??= mcpServer(input.directory);
     },
-    tool: Object.fromEntries(
-      Object.entries(tools).map(([name, spec]) => [
-        name,
-        {
-          description: spec.description,
-          args: spec.args,
-          async execute(args, context) {
-            const directory = context.directory ?? input.directory;
-            return runTool(createTools(directory), name, args, directory);
-          },
-        } satisfies PluginTool,
-      ]),
-    ),
   };
 }
 

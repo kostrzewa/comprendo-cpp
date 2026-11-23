@@ -1,0 +1,5 @@
+{
+  "name": "comprendo",
+  "description": "/comprendo:chart has Claude explore the codebase and build a Comprendo chart (.comprendo/chart.sqlite) for the Comprendo viewer, using the chart tools of comprendo-cli.",
+  "version": "0.1.0"
+}

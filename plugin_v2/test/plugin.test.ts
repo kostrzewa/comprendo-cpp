@@ -1,39 +1,29 @@
 /**
- * @file Tests for the opencode 2.x plugin entry: registration and tool execution.
+ * @file Tests for the opencode 2.x plugin entry: MCP server and `/chart` registration.
  */
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 
-import plugin, { type CommandDefinition, type CommandEditor, type ToolDefinition } from "../index.ts";
-
-/** Scratch project directory of the current test. */
-let project = "";
-
-beforeEach(() => {
-  project = mkdtempSync(join(tmpdir(), "comprendo-plugin-v2-"));
-});
-
-afterEach(() => {
-  rmSync(project, { recursive: true, force: true });
-});
+import { comprendoCli } from "../../plugin/src/server.ts";
+import plugin, { type CommandDefinition, type CommandEditor } from "../index.ts";
 
 /**
- * Run the plugin's setup against a fake v2 context and collect what it registers.
+ * Run the plugin's setup against a fake v2 context.
  *
  * @param command Command editor to hand the plugin.
- * @returns Registered tools.
+ * @param servers MCP servers the user already configured; the plugin's are added.
+ * @param prompts Collects prompts sent to sessions.
  */
 async function register(
   command: CommandEditor,
+  servers: Map<string, unknown> = new Map(),
   prompts: { sessionID: string; text: string; delivery?: unknown }[] = [],
-): Promise<ToolDefinition[]> {
-  const tools: ToolDefinition[] = [];
+): Promise<void> {
   await plugin.setup({
-    location: { directory: project },
-    tool: { transform: (edit) => edit({ add: (tool) => tools.push(tool) }) },
+    location: { directory: "/projects/geo" },
+    mcp: {
+      transform: (edit) => edit({ get: (name) => servers.get(name), set: (name, config) => servers.set(name, config) }),
+    },
     command: { transform: (edit) => edit(command) },
     session: {
       prompt: async (input) => {
@@ -41,31 +31,24 @@ async function register(
       },
     },
   });
-  return tools;
 }
 
 describe("opencode 2.x plugin", () => {
-  // opencode 2.x loads `{ id, setup }` definitions and takes tools through
-  // ctx.tool.transform; the 2.x plugin must offer the same seven tools as the
-  // 1.x plugin, with JSON Schema inputs. Runs setup against a fake context and
-  // checks the id, tool names, and that every input is an object schema whose
-  // properties match the 1.x argument schemas.
-  test("registers the chart tools", async () => {
+  // opencode 2.x loads `{ id, setup }` definitions; the chart tools come from
+  // comprendo-cli's MCP server, which the plugin registers through
+  // ctx.mcp.transform unless the user configured a server of that name. Runs
+  // setup with an empty and a pre-filled registry and checks the entries.
+  test("registers the comprendo MCP server", async () => {
     expect(plugin.id).toBe("comprendo");
-    const tools = await register({});
-    expect(tools.map((tool) => tool.name).sort()).toEqual([
-      "chart_add_edge",
-      "chart_add_node",
-      "chart_annotate_cluster",
-      "chart_annotate_node",
-      "chart_find_node",
-      "chart_finish",
-      "chart_overview",
-    ]);
-    for (const tool of tools) {
-      expect(tool.input.type).toBe("object");
-      expect(tool.description.length).toBeGreaterThan(20);
-    }
+    const servers = new Map<string, unknown>();
+    await register({}, servers);
+    expect(servers.get("comprendo")).toEqual({
+      type: "local",
+      command: [comprendoCli(), "mcp", "--root", "/projects/geo"],
+    });
+    const mine = new Map<string, unknown>([["comprendo", { type: "remote", url: "http://localhost:1234" }]]);
+    await register({}, mine);
+    expect(mine.get("comprendo")).toEqual({ type: "remote", url: "http://localhost:1234" });
   });
 
   // opencode 2.x plugin commands are code (invoking a template-only command
@@ -76,7 +59,7 @@ describe("opencode 2.x plugin", () => {
   test("registers /chart with either command editor", async () => {
     const added: CommandDefinition[] = [];
     const prompts: { sessionID: string; text: string; delivery?: unknown }[] = [];
-    await register({ add: (command) => added.push(command) }, prompts);
+    await register({ add: (command) => added.push(command) }, new Map(), prompts);
     expect(added.map((command) => command.name)).toEqual(["chart"]);
     await added[0]!.execute({ sessionID: "ses_1", prompt: { text: "focus on src/net" }, delivery: "queue" });
     expect(prompts).toHaveLength(1);
@@ -97,26 +80,10 @@ describe("opencode 2.x plugin", () => {
     expect(updated.chart?.description).toContain("Comprendo");
   });
 
-  // The tools must write the project's chart and report argument mistakes as
-  // text the model can read, since 2.x does not document tool errors. Adds a
-  // node through execute(), finds it, then calls chart_add_node with an
-  // unknown kind and checks the error comes back as content, not an exception.
-  test("tools write the chart and report mistakes as text", async () => {
-    const tools = Object.fromEntries((await register({})).map((tool) => [tool.name, tool]));
-    const added = await tools.chart_add_node!.execute({ kind: "function", qualified_name: "geo::area", file: "src/geo.cpp" });
-    expect(added.content).toStartWith("added");
-    const found = await tools.chart_find_node!.execute({ query: "area" });
-    expect(found.content).toContain("geo::area");
-    const finished = await tools.chart_finish!.execute({});
-    expect(finished.content).toContain(join(project, ".comprendo/chart.sqlite"));
-    const mistake = await tools.chart_add_node!.execute({ kind: "lambda", qualified_name: "f", file: "a.cpp" });
-    expect(mistake.content).toStartWith("error: unknown kind");
-  });
-
-  // Hosts without a tool or command registry (such as the 1.19 preview of the
-  // v2 runtime, which has no tool domain) must not make setup fail. Runs setup
-  // with an empty context and checks it resolves.
+  // Hosts without an MCP or command registry (such as the 1.19 preview of the
+  // v2 runtime) must not make setup fail. Runs setup with an empty context
+  // and checks it resolves.
   test("tolerates a context without registries", async () => {
-    await expect(plugin.setup({ location: { directory: project } })).resolves.toBeUndefined();
+    await expect(plugin.setup({ location: { directory: "/projects/geo" } })).resolves.toBeUndefined();
   });
 });

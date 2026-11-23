@@ -1,0 +1,11 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ctest","version":"0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"chart_overview","arguments":{}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"chart_annotate_node","arguments":{"id":"0x39092ea5429ed583","summary":"Entry point: scales a circle's area"}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"chart_annotate_node","arguments":{"id":"0xbb48b108e9345b54","summary":"A disk with a radius","detail":"Implements geo::Shape."}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"chart_add_node","arguments":{"kind":"macro","qualified_name":"GEO_EXPORT","file":"include/geo/shape.hpp","line_start":1,"line_end":1,"summary":"Visibility macro (added by the model)"}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"chart_add_edge","arguments":{"src":"0x39092ea5429ed583","dst":"0xbb48b108e9345b54","kind":"uses","weight":1,"evidence":"src/main.cpp:33"}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"chart_annotate_cluster","arguments":{"label":"Geometry","summary":"Shapes","members":["0xbb48b108e9345b54"]}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"chart_annotate_cluster","arguments":{"label":"Program","summary":"Entry","color":"#aa5500","parent_label":"Geometry","members":["0x39092ea5429ed583"]}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"chart_finish","arguments":{}}}

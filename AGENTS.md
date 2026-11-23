@@ -4,8 +4,9 @@ Operating notes for agents working in this repository.
 
 ## Project
 
-Comprendo is a code explorer and visualizer: a C++ core/viewer/CLI plus a
-TypeScript opencode plugin. Read these before changing anything:
+Comprendo is a code explorer and visualizer: a C++ core/viewer/CLI (which also
+serves the `/chart` tools over MCP) plus thin plugins for Claude Code and
+opencode. Read these before changing anything:
 
 - `plan/comprendo-cpp.md` — requirements (source of truth)
 - `plan/architecture.md` — components, targets, extractor design
@@ -84,8 +85,10 @@ Keep `docs/main.md` and the `plan/` documents current.
 
 - Use Catch2 and CTest. Prefer deterministic tests; use golden files for layout
   and serialization.
-- The plugin uses `bun test` (`plugin/test/`). Bun is not required: opencode is
-  a Bun executable, so `BUN_BE_BUN=1 opencode test` in `plugin/` runs them.
+- The opencode plugins use `bun test` (`plugin/test/`, `plugin_v2/test/`). Bun
+  is not required: opencode is a Bun executable, so `BUN_BE_BUN=1 opencode
+  test` in `plugin/` or `plugin_v2/` runs them. The chart tools themselves are
+  C++ and tested with Catch2 (`test_chart_tools.cpp`, `test_mcp.cpp`).
 - Add tests with every feature and run `ctest --preset clang-22` before
   finishing.
 - Gate tests that need external tools (for example `clangd-22`) on their
@@ -137,11 +140,15 @@ and tests before committing.
 - `include/` — public headers (`Comprendo/`, `Logger/`, `Profiler/`)
 - `src/` — viewer and CLI entry points and implementations
 - `tests/` — Catch2 tests
-- `plugin/` — TypeScript opencode plugin (opencode 1.x)
+- `claude_plugin/` — Claude Code plugin (`/comprendo:chart` skill, MCP entry);
+  the repository root's `.claude-plugin/marketplace.json` lists it
+- `plugin/` — opencode 1.x plugin (`/chart`, registers `comprendo-cli mcp`)
 - `plugin_v2/` — opencode 2.x plugin, an adapter over `plugin/src`
-- `schema/` — `chart.sql`, the SQLite DDL shared by C++ and the plugin; after
-  editing it, run `BUN_BE_BUN=1 opencode scripts/embed-schema.ts` in `plugin/`
-  to refresh the plugin's embedded copy (`plugin/src/schema.ts`)
+- `prompts/` — `chart.md`, the `/chart` prompt of all assistants; after
+  editing it, run `cmake -DMODE=write -DPROMPT=prompts/chart.md
+  -DSKILL=claude_plugin/skills/chart/SKILL.md -P cmake/sync_prompt.cmake` to
+  refresh the Claude skill's copy (CTest `chart_prompt_in_sync` checks it)
+- `schema/` — `chart.sql`, the SQLite DDL embedded into the C++ tools
 - `cmake/` — dependency, doxygen, and git-hash setup
 - `docs/` — Doxygen assets and main page
 - `plan/` — requirements and implementation plans

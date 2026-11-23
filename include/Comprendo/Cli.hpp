@@ -1,8 +1,9 @@
 #pragma once
 
 /// \file
-/// \brief The `comprendo-cli` command dispatcher: `extract`, `validate`, `info`.
+/// \brief The `comprendo-cli` command dispatcher: `extract`, `validate`, `info`, `mcp`.
 
+#include <istream>
 #include <ostream>
 #include <span>
 #include <string_view>
@@ -27,10 +28,13 @@ namespace Comprendo
   /// Comprendo::Logger, which the caller initializes.
   ///
   /// \param args Arguments after the program name.
-  /// \param out Stream for command results (summaries, help, version).
+  /// \param in Stream `mcp` reads requests from.
+  /// \param out Stream for command results (summaries, help, version, `mcp` replies).
   /// \param err Stream for usage errors and failure details.
   /// \return kExitOk, kExitFailure, or kExitUsage.
   [[nodiscard]]
   int
-  run_cli(std::span<const std::string_view> args, std::ostream &out, std::ostream &err);
+  run_cli(
+    std::span<const std::string_view> args, std::istream &in, std::ostream &out, std::ostream &err
+  );
 } // namespace Comprendo

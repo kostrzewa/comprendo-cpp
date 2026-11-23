@@ -212,7 +212,7 @@ Acceptance: graph screenshots show smooth circle and line edges.
 
 Acceptance: `extract` → `validate` → `info` runs headlessly.
 
-## M6 — opencode plugin (complete)
+## M6 — opencode plugin (complete; tools moved to C++ in M11)
 
 - `plugin/` with `/chart` (registered through the `config` hook) and seven
   chart tools ([architecture](architecture.md#plugin)); loaded by path, no
@@ -335,3 +335,27 @@ Open (waiting for a decision, see [log](log.md)):
   Verified on opencode 2.2.7 (standalone): plugin loads, tools write the
   chart, `/chart` executes.
 
+## M11 — `/chart` for Claude Code; one C++ MCP server (complete)
+
+- `ChartTools` (`include/Comprendo/ChartTools.hpp`): the seven chart tools
+  ported from TypeScript to C++ (same arguments, messages, and behaviour;
+  one transaction per call, nothing written on failure).
+- `comprendo-cli mcp [--root DIR]`: MCP stdio server (`serve_mcp`):
+  `initialize`, `ping`, `tools/list`, `tools/call`.
+- `claude_plugin/`: `/comprendo:chart` skill and the `chart` MCP server;
+  repository-root marketplace for `claude plugin install`.
+- `prompts/chart.md`: the shared prompt; the skill's copy is checked by
+  `chart_prompt_in_sync`.
+- opencode 1.x (`config` hook) and 2.x (`ctx.mcp.transform`) plugins register
+  the same server and keep only `/chart`; the TypeScript chart code, its
+  embedded schema, and its tests are gone.
+- `COMPRENDO_CLI` names the CLI when it is not on `PATH`.
+- Tests: `test_chart_tools.cpp` (ports of the plugin's tool tests),
+  `test_mcp.cpp`, the `mcp_annotate` session replay with validate/info/viewer
+  smoke, and the plugins' registration tests.
+
+Acceptance (met except a full model run): `claude plugin validate` passes;
+`claude mcp list --plugin-dir claude_plugin` and opencode 1.19.5's
+`mcp list` show the server connected; on opencode 2.2.7 (`--standalone`) a
+session's Code Mode call to `chart_overview` wrote the chart. A complete
+`/comprendo:chart` run costs a model session and is left to the user.

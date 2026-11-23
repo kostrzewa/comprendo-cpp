@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chart": {
+      "command": "${COMPRENDO_CLI:-comprendo-cli}",
+      "args": ["mcp", "--root", "${CLAUDE_PROJECT_DIR}"]
+    }
+  }
+}

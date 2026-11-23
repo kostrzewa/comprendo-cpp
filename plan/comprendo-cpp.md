@@ -5,6 +5,8 @@ The system is based on two parts:
 - an explorer / visualizer written using raylib which can be used to navigate a codebase visually including the functionality explanations produced by the model
 - an opencode plugin which provides a /chart command to opencode which produces some kind of output file which can later be opened with the explorer / visualizer
 
+Since M11 `/chart` is also available in Claude Code (`claude_plugin/`), and the chart tools of all assistants are served by `comprendo-cli mcp`.
+
 Technologies to be used:
 
 -  CMake as a build system, GCC as a compiler, external libraries to be included via FetchContent_Declare FetchContent_MakeAvailable if possible
@@ -16,7 +18,7 @@ Technologies to be used:
 -  https://github.com/ph3at/libenvpp for handling environment variables
 -  https://github.com/ToruNiina/toml11.git for textual input files
 -  https://github.com/CLIUtils/CLI11 for command-line argument parsing (`comprendo-cli` and the viewer)
--  SQLite (amalgamation via FetchContent) as the chart store shared by the plugin and the C++ tools; the plugin writes it directly through `bun:sqlite`
+-  SQLite (amalgamation via FetchContent) as the chart store written by the C++ tools (`comprendo-cli extract` and the chart tools behind `/chart`)
 -  include/Profiler/Profiler.hpp for profiling (output to perfetto traces)
 -  include/Logger/Logger.hpp (for logging, uses spdlog) from which you should remove the depdendency on MPI and Kronos
 -  absolutely non-negiotable: doxygen documentation of all functions, classes, class members, class methods etc., see docs/doxygen and cmake/doxygen_setup.cmake
@@ -46,4 +48,4 @@ Use clang-format-22 to format code, format given by .clang-format
 - [chart-schema.md](chart-schema.md) — SQLite schema, node/edge kinds, ids, validation.
 - [milestones.md](milestones.md) — M0–M7 with acceptance criteria and test gates.
 - [log.md](log.md) — progress log: one entry per milestone with decisions and commits.
-- [`schema/chart.sql`](../schema/chart.sql) — the chart DDL shared by C++ and the plugin.
+- [`schema/chart.sql`](../schema/chart.sql) — the chart DDL.

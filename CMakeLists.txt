@@ -58,6 +58,7 @@ add_library(
   STATIC
   src/Chart.cpp
   src/ChartStore.cpp
+  src/ChartTools.cpp
   src/ChartView.cpp
   src/ChartWatcher.cpp
   src/ClangdExtractor.cpp
@@ -70,6 +71,7 @@ add_library(
   src/Includes.cpp
   src/Json.cpp
   src/Lsp.cpp
+  src/Mcp.cpp
   src/Navigation.cpp
   src/Layout.cpp
   src/Process.cpp
@@ -111,6 +113,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_threads.cpp
     tests/test_chart.cpp
     tests/test_chart_store.cpp
+    tests/test_chart_tools.cpp
     tests/test_chart_view.cpp
     tests/test_chart_watcher.cpp
     tests/test_clangd_extractor.cpp
@@ -124,6 +127,7 @@ if(COMPRENDO_BUILD_TESTS)
     tests/test_json.cpp
     tests/test_layout.cpp
     tests/test_lsp.cpp
+    tests/test_mcp.cpp
     tests/test_navigation.cpp
     tests/test_process.cpp
     tests/test_quadtree.cpp
@@ -177,7 +181,39 @@ if(COMPRENDO_BUILD_TESTS)
     set_tests_properties(cli_info PROPERTIES PASS_REGULAR_EXPRESSION "Contains +[0-9]+")
   endif()
 
-  # The plugin runs on Bun; opencode is a Bun executable and acts as `bun` with BUN_BE_BUN=1.
+  # The /chart skill of the Claude Code plugin carries a copy of the shared prompt.
+  add_test(
+    NAME chart_prompt_in_sync
+    COMMAND
+      ${CMAKE_COMMAND} -DMODE=check -DPROMPT=${CMAKE_SOURCE_DIR}/prompts/chart.md
+      -DSKILL=${CMAKE_SOURCE_DIR}/claude_plugin/skills/chart/SKILL.md -P
+      ${CMAKE_SOURCE_DIR}/cmake/sync_prompt.cmake
+  )
+
+  # A recorded /chart session through `comprendo-cli mcp`, on the extracted sample chart.
+  if(UNIVERSAL_CTAGS)
+    set(MCP_TEST_DIR ${CMAKE_BINARY_DIR}/mcp-test)
+    set(MCP_TEST_CHART ${MCP_TEST_DIR}/.comprendo/chart.sqlite)
+    add_test(
+      NAME mcp_annotate
+      COMMAND
+        ${CMAKE_COMMAND} -DCLI=$<TARGET_FILE:comprendo-cli> -DSOURCE=${CLI_TEST_CHART}
+        -DPROJECT=${MCP_TEST_DIR} -DSESSION=${CMAKE_SOURCE_DIR}/tests/fixtures/mcp/annotate.jsonl
+        -P ${CMAKE_SOURCE_DIR}/tests/run_mcp_session.cmake
+    )
+    add_test(NAME mcp_chart_validate COMMAND comprendo-cli validate ${MCP_TEST_CHART})
+    add_test(NAME mcp_chart_info COMMAND comprendo-cli info ${MCP_TEST_CHART})
+    set_tests_properties(
+      mcp_annotate
+      PROPERTIES FIXTURES_REQUIRED cli_chart FIXTURES_SETUP mcp_chart
+    )
+    set_tests_properties(mcp_chart_validate mcp_chart_info PROPERTIES FIXTURES_REQUIRED mcp_chart)
+    set_tests_properties(mcp_chart_validate PROPERTIES PASS_REGULAR_EXPRESSION ": valid")
+    set_tests_properties(mcp_chart_info PROPERTIES PASS_REGULAR_EXPRESSION "Uses +1")
+  endif()
+
+  # The opencode plugins run on Bun; opencode is a Bun executable and acts as
+  # `bun` with BUN_BE_BUN=1.
   find_program(COMPRENDO_BUN bun)
   find_program(COMPRENDO_OPENCODE opencode)
   if(COMPRENDO_BUN)
@@ -196,28 +232,6 @@ if(COMPRENDO_BUILD_TESTS)
       COMMAND ${COMPRENDO_BUN_COMMAND} test
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/plugin_v2
     )
-    if(UNIVERSAL_CTAGS)
-      set(PLUGIN_TEST_DIR ${CMAKE_BINARY_DIR}/plugin-test)
-      set(PLUGIN_TEST_CHART ${PLUGIN_TEST_DIR}/.comprendo/chart.sqlite)
-      add_test(
-        NAME plugin_annotate
-        COMMAND
-          ${COMPRENDO_BUN_COMMAND} run ${CMAKE_SOURCE_DIR}/plugin/scripts/annotate-sample.ts
-          ${CLI_TEST_CHART} ${PLUGIN_TEST_DIR}
-      )
-      add_test(NAME plugin_chart_validate COMMAND comprendo-cli validate ${PLUGIN_TEST_CHART})
-      add_test(NAME plugin_chart_info COMMAND comprendo-cli info ${PLUGIN_TEST_CHART})
-      set_tests_properties(
-        plugin_annotate
-        PROPERTIES FIXTURES_REQUIRED cli_chart FIXTURES_SETUP plugin_chart
-      )
-      set_tests_properties(
-        plugin_chart_validate plugin_chart_info
-        PROPERTIES FIXTURES_REQUIRED plugin_chart
-      )
-      set_tests_properties(plugin_chart_validate PROPERTIES PASS_REGULAR_EXPRESSION ": valid")
-      set_tests_properties(plugin_chart_info PROPERTIES PASS_REGULAR_EXPRESSION "Uses +1")
-    endif()
   endif()
 
   if(COMPRENDO_BUILD_VIEWER)
@@ -235,16 +249,11 @@ if(COMPRENDO_BUILD_TESTS)
           COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test ${CLI_TEST_CHART}
         )
         set_tests_properties(viewer_smoke_chart PROPERTIES FIXTURES_REQUIRED cli_chart)
-        if(COMPRENDO_BUN_COMMAND)
-          add_test(
-            NAME viewer_smoke_plugin_chart
-            COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test ${PLUGIN_TEST_CHART}
-          )
-          set_tests_properties(
-            viewer_smoke_plugin_chart
-            PROPERTIES FIXTURES_REQUIRED plugin_chart
-          )
-        endif()
+        add_test(
+          NAME viewer_smoke_mcp_chart
+          COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test ${MCP_TEST_CHART}
+        )
+        set_tests_properties(viewer_smoke_mcp_chart PROPERTIES FIXTURES_REQUIRED mcp_chart)
       endif()
     endif()
   endif()

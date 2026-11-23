@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <istream>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -22,9 +23,11 @@
 
 #include "Comprendo/Chart.hpp"
 #include "Comprendo/ChartStore.hpp"
+#include "Comprendo/ChartTools.hpp"
 #include "Comprendo/ClangdExtractor.hpp"
 #include "Comprendo/CtagsExtractor.hpp"
 #include "Comprendo/ExtractConfig.hpp"
+#include "Comprendo/Mcp.hpp"
 #include "Profiler/Profiler.hpp"
 #include "Version.hpp"
 
@@ -218,7 +221,9 @@ namespace
 namespace Comprendo
 {
   int
-  run_cli(std::span<const std::string_view> args, std::ostream &out, std::ostream &err)
+  run_cli(
+    std::span<const std::string_view> args, std::istream &in, std::ostream &out, std::ostream &err
+  )
   {
     CLI::App app {"Extract, validate, and summarize Comprendo code charts.", "comprendo-cli"};
     app.set_version_flag(
@@ -257,6 +262,13 @@ namespace Comprendo
     CLI::App *info = app.add_subcommand("info", "Summarize a chart");
     info->add_option("file", info_path, "Chart file")->capture_default_str();
 
+    std::string mcp_root = ".";
+    CLI::App *mcp = app.add_subcommand(
+      "mcp", "Serve the chart tools to an assistant over MCP (stdio), as /chart uses them"
+    );
+    mcp->add_option("--root", mcp_root, "Project whose .comprendo/chart.sqlite the tools edit")
+      ->capture_default_str();
+
     std::vector<std::string> reversed(args.rbegin(), args.rend());
     try
     {
@@ -287,6 +299,11 @@ namespace Comprendo
     if (validate->parsed())
     {
       return run_validate(validate_path, out, err);
+    }
+    if (mcp->parsed())
+    {
+      serve_mcp(in, out, ChartTools {mcp_root});
+      return kExitOk;
     }
     return run_info(info_path, out, err);
   }

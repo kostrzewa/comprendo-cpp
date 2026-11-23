@@ -423,3 +423,32 @@ commit. Newest last.
   in the same frame are seen as one held press by raylib.
 
 - Commit: `21243a3`.
+
+## 2026-11-23 — M11 /chart for Claude Code, one C++ MCP server
+
+- Request: `/chart` in Claude Code too. Claude Code has no Bun to lend and
+  this machine has neither bun nor node, so the chart tools moved to C++ and
+  are served by `comprendo-cli mcp`; the user chose to switch opencode to the
+  same server and retire the TypeScript tools.
+- `ChartTools` ports `chart.ts`/`tools.ts`/`ids.ts` (SQL failures stick to a
+  per-call store and roll back; argument errors use the TS messages).
+  `serve_mcp` speaks newline-delimited JSON-RPC (protocol revisions
+  2024-11-05 … 2025-11-25). `run_cli` takes an input stream for it.
+- Claude plugin: skill `/comprendo:chart` (plugin skills are namespaced;
+  `disable-model-invocation`), `.mcp.json` with
+  `${COMPRENDO_CLI:-comprendo-cli}` and `${CLAUDE_PROJECT_DIR}`; marketplace
+  at the repository root. `claude plugin validate` passes (strict mode only
+  wants an icon/licence for directory submission).
+- opencode: the 1.x `config` hook can add `mcp.comprendo` (probe: connected in
+  `opencode mcp list`). opencode 2.x plugins get `ctx.mcp.transform` with an
+  editor offering `get/set/update/remove/list`; transforms run lazily when the
+  MCP registry is built, not during `setup`. `opencode mcp list`/`api
+  mcp.list` in 2.x do not load project plugins, so the check was a
+  `--standalone` session (one model call) whose Code Mode call reached the
+  server; the session was removed afterwards. 2.x finds the project through
+  git (a scratch project without `.git` did not load its config).
+- The prompt now requires the CLI (the tools run in it) and mentions the tool
+  name prefixes hosts add. `comprendo-cli` is not on PATH on this machine:
+  checks used `COMPRENDO_CLI`.
+- Config (`~/.config/opencode/opencode.jsonc`) untouched by these runs
+  (mtime 18:12 before and after; it had been edited earlier in the day).

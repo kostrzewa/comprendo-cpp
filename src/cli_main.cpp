@@ -26,5 +26,5 @@ main(int argc, char **argv)
   const std::span<char *> raw {argv, static_cast<std::size_t>(argc)};
   const std::span<char *> rest = raw.empty() ? raw : raw.subspan(1);
   const std::vector<std::string_view> args(rest.begin(), rest.end());
-  return Comprendo::run_cli(args, std::cout, std::cerr);
+  return Comprendo::run_cli(args, std::cin, std::cout, std::cerr);
 }

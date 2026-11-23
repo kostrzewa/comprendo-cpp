@@ -40,9 +40,10 @@ namespace
   run(std::initializer_list<std::string_view> args)
   {
     const std::vector<std::string_view> arguments(args);
+    std::istringstream in;
     std::ostringstream out;
     std::ostringstream err;
-    const int code = Comprendo::run_cli(arguments, out, err);
+    const int code = Comprendo::run_cli(arguments, in, out, err);
     return {.code = code, .out = out.str(), .err = err.str()};
   }
 } // namespace

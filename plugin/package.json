@@ -1,12 +1,11 @@
 {
   "name": "comprendo-opencode",
   "version": "0.1.0",
-  "description": "opencode plugin: /chart explores a codebase and writes a Comprendo chart",
+  "description": "opencode 1.x plugin: /chart explores a codebase and builds a Comprendo chart with comprendo-cli's MCP tools",
   "type": "module",
   "private": true,
   "main": "src/index.ts",
   "scripts": {
-    "test": "bun test",
-    "embed-schema": "bun scripts/embed-schema.ts"
+    "test": "bun test"
   }
 }

@@ -10,9 +10,10 @@ share it:
 
 - `comprendo-cli extract` builds the structure with Universal Ctags and, for
   C and C++, clangd-22 (resolved calls and inheritance);
-- the opencode plugin's `/chart` command has the model explore the code and
-  annotate the chart: summaries, details, subsystems (clusters), and missing
-  symbols or relationships;
+- `/chart` in Claude Code or opencode has the model explore the code and
+  annotate the chart through the chart tools of `comprendo-cli mcp`:
+  summaries, details, subsystems (clusters), and missing symbols or
+  relationships;
 - `comprendo`, the viewer, draws the chart as nested disks with an Explorer,
   an Inspector, and a Log, and reloads it while the other two write.
 
@@ -29,8 +30,10 @@ comprendo-cli extract                       # writes .comprendo/chart.sqlite
 comprendo                                   # opens it
 ```
 
-To annotate the chart, add the plugin to opencode (see \ref plugin) and run
-`/chart` in the project. Keep the viewer open: it follows the session.
+To annotate the chart, put `comprendo-cli` on `PATH`, add the plugin to
+Claude Code or opencode (see \ref plugin), and run `/comprendo:chart` (Claude
+Code) or `/chart` (opencode) in the project. Keep the viewer open: it follows
+the session.
 
 # Extraction {#extraction}
 
@@ -144,23 +147,24 @@ The viewer polls the chart twice a second. When only explanations changed, it
 takes them over in place; when nodes or edges changed, it rebuilds the view,
 keeping the grouping, camera, and selection.
 
-# opencode plugin {#plugin}
+# Assistants: Claude Code and opencode {#plugin}
 
-There are two variants with the same tools and `/chart` prompt: `plugin/` for
-opencode 1.x (config key `plugin`, path to `src/index.ts`) and `plugin_v2/`
-for opencode 2.x (config key `plugins`, path to the `plugin_v2` directory).
+`/chart` asks the model to run `comprendo-cli extract`, read the code, and
+fill the chart through seven tools. The tools are served by
+`comprendo-cli mcp` (an MCP server on stdio), so every assistant uses the same
+implementation; the plugins only add the command and start the server.
+`comprendo-cli` must be on `PATH`, or `COMPRENDO_CLI` must name it, for
+example `export COMPRENDO_CLI=/path/to/build/comprendo-cli`.
 
+| Assistant | Install | Command |
+| --- | --- | --- |
+| Claude Code | `claude plugin marketplace add /path/to/comprendo-cpp`, then `claude plugin install comprendo@comprendo` (or `claude --plugin-dir /path/to/comprendo-cpp/claude_plugin` for one session) | `/comprendo:chart [instructions]` |
+| opencode 1.x | `{ "plugin": ["/path/to/comprendo-cpp/plugin/src/index.ts"] }` in `opencode.json` or `~/.config/opencode/opencode.json` | `/chart [instructions]` |
+| opencode 2.x | `{ "plugins": ["/path/to/comprendo-cpp/plugin_v2"] }` (the directory) | `/chart [instructions]` |
 
-The plugin lives in `plugin/`, needs nothing besides opencode, and carries its
-own copy of the chart schema, so `plugin/src` can also be copied elsewhere. Add it to the
-project's `opencode.json` (or `~/.config/opencode/opencode.json`):
-
-```json
-{ "plugin": ["/path/to/comprendo-cpp/plugin/src/index.ts"] }
-```
-
-`/chart [instructions]` asks the model to run `comprendo-cli extract` when the
-CLI is on `PATH`, read the code, and use the chart tools:
+The plugins run on other repositories: they only need `comprendo-cli`, which
+carries the chart schema. A user-defined `/chart` command or `comprendo` MCP
+server is left alone.
 
 | Tool | Purpose |
 | --- | --- |
@@ -171,16 +175,22 @@ CLI is on `PATH`, read the code, and use the chart tools:
 | `chart_add_node`, `chart_add_edge` | Fill gaps the extractor left |
 | `chart_finish` | Check the chart and print the viewer command |
 
+Assistants show the tools with a prefix (`mcp__plugin_comprendo_chart__…` in
+Claude Code, `comprendo_…` in opencode 1.x, `tools.comprendo.…` in opencode
+2.x's Code Mode). Every call opens the chart, runs one transaction, and closes
+it, so `comprendo-cli extract` and the viewer can use the file in between; a
+failed call writes nothing.
+
 # Chart format {#chart_format}
 
-The schema is `schema/chart.sql`, shared by the C++ tools and the plugin; the
+The schema is `schema/chart.sql`, embedded into the C++ tools; the
 conventions (ids, kinds, provenance, validation, versioning) are described in
 `plan/chart-schema.md`. Node ids are 64-bit FNV-1a hashes of kind, qualified
-name, file, and signature, so the extractor and the plugin agree on them.
+name, file, and signature, so the extractor and the chart tools agree on them.
 
 # Development
 
 See `AGENTS.md` for the toolchain (clang-22 tools only), tests
-(`ctest --preset clang-22`, plugin tests with `bun test` or
+(`ctest --preset clang-22`, opencode plugin tests with `bun test` or
 `BUN_BE_BUN=1 opencode test`), formatting, `clang-tidy`, and documentation
 rules, and `plan/` for requirements, architecture, milestones, and the log.

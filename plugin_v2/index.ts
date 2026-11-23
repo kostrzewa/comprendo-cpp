@@ -1,46 +1,18 @@
 /**
- * @file opencode 2.x plugin: registers `/chart` and the chart tools through the v2 plugin API.
+ * @file opencode 2.x plugin: registers `/chart` and the Comprendo MCP server through the v2 plugin API.
  *
- * The chart logic, the `/chart` prompt, and the embedded schema are shared
- * with the opencode 1.x plugin in `../plugin/src`, so both write identical
- * charts. The module default-exports a plain `{ id, setup }` definition (what
- * `Plugin.define` from `@opencode/plugin` returns), so it has no dependencies
- * besides Bun's built-ins.
+ * The chart tools are served by `comprendo-cli mcp` (shared with the opencode
+ * 1.x plugin and Claude Code); the `/chart` prompt comes from
+ * `../plugin/src/prompt.ts`. The module default-exports a plain `{ id, setup }`
+ * definition (what `Plugin.define` from `@opencode/plugin` returns), so it has
+ * no dependencies besides Bun's built-ins.
  */
 
-import { ChartError } from "../plugin/src/chart.ts";
 import { CHART_COMMAND } from "../plugin/src/prompt.ts";
-import { createTools, runTool, type JsonSchema, type ToolArgs } from "../plugin/src/tools.ts";
+import { MCP_SERVER_NAME, mcpServer, type LocalMcpServer } from "../plugin/src/server.ts";
 
 /** Plugin id: scopes the plugin's storage and names it in diagnostics. */
 export const PLUGIN_ID = "comprendo";
-
-/** A tool as the v2 tool editor takes it. */
-export interface ToolDefinition {
-  /** Tool name shown to the model. */
-  name: string;
-  /** What the tool does. */
-  description: string;
-  /** JSON Schema of the input object. */
-  input: JsonSchema;
-  /**
-   * Run the tool.
-   *
-   * @param input Arguments from the model.
-   * @returns Tool output.
-   */
-  execute(input: ToolArgs): Promise<{ content: string }>;
-}
-
-/** The parts of the v2 tool editor this plugin uses. */
-export interface ToolEditor {
-  /**
-   * Register a tool.
-   *
-   * @param tool Tool definition.
-   */
-  add(tool: ToolDefinition): void;
-}
 
 /** What a 2.x command receives when invoked. */
 export interface CommandInput {
@@ -74,12 +46,30 @@ export interface CommandEditor {
   update?(name: string, change: (command: { template: string; description?: string }) => void): void;
 }
 
+/** The parts of the v2 MCP editor this plugin uses. */
+export interface McpEditor {
+  /**
+   * Look up a server.
+   *
+   * @param name Server name.
+   * @returns Its configuration, or undefined.
+   */
+  get(name: string): unknown;
+  /**
+   * Add or replace a server.
+   *
+   * @param name Server name.
+   * @param config Server configuration.
+   */
+  set(name: string, config: LocalMcpServer): void;
+}
+
 /** The parts of the v2 setup context this plugin uses. */
 export interface SetupContext {
   /** Where this plugin instance was loaded. */
   location?: { directory?: string };
-  /** Tool registry. */
-  tool?: { transform(edit: (editor: ToolEditor) => void): Promise<unknown> | unknown };
+  /** MCP server registry. */
+  mcp?: { transform(edit: (editor: McpEditor) => void): Promise<unknown> | unknown };
   /** Command registry. */
   command?: { transform(edit: (editor: CommandEditor) => void): Promise<unknown> | unknown };
   /** Session control, used to send the /chart prompt. */
@@ -90,35 +80,6 @@ export interface SetupContext {
 
 /** Name of the slash command. */
 const COMMAND_NAME = "chart";
-
-/**
- * Describe the chart tools for the v2 tool editor.
- *
- * Arguments use the same JSON Schemas as the 1.x plugin; none is required
- * because the handlers validate their own arguments and report mistakes as
- * text the model can act on.
- *
- * @param directory Project directory holding `.comprendo/`.
- * @returns Tool definitions in registration order.
- */
-export function chartTools(directory: string): ToolDefinition[] {
-  const tools = createTools(directory);
-  return Object.entries(tools).map(([name, spec]) => ({
-    name,
-    description: spec.description,
-    input: { type: "object", properties: spec.args, additionalProperties: false },
-    async execute(input: ToolArgs) {
-      try {
-        return { content: runTool(tools, name, input ?? {}, directory) };
-      } catch (error) {
-        if (error instanceof ChartError) {
-          return { content: `error: ${error.message}` };
-        }
-        throw error;
-      }
-    },
-  }));
-}
 
 /**
  * Fill the `/chart` template with the user's arguments.
@@ -161,19 +122,18 @@ function addChartCommand(editor: CommandEditor, ctx: SetupContext): void {
 }
 
 /**
- * Register the chart tools and `/chart`.
+ * Register the `comprendo` MCP server (unless the user configured one) and `/chart`.
  *
- * Transforms only describe registrations (opencode replays them); the tools
- * open the chart when executed.
+ * Transforms only describe registrations; opencode replays them when it
+ * (re)builds its registries.
  *
  * @param ctx Setup context from opencode.
  */
 export async function setup(ctx: SetupContext): Promise<void> {
   const directory = ctx.location?.directory ?? process.cwd();
-  const tools = chartTools(directory);
-  await ctx.tool?.transform((editor) => {
-    for (const tool of tools) {
-      editor.add(tool);
+  await ctx.mcp?.transform((editor) => {
+    if (editor.get(MCP_SERVER_NAME) === undefined) {
+      editor.set(MCP_SERVER_NAME, mcpServer(directory));
     }
   });
   await ctx.command?.transform((editor) => addChartCommand(editor, ctx));

@@ -1,15 +1,20 @@
 # comprendo-opencode
 
-opencode plugin adding `/chart`: the model explores the project and writes a
-Comprendo chart (`.comprendo/chart.sqlite`) that the `comprendo` viewer opens.
+opencode 1.x plugin adding `/chart`: the model explores the project and builds
+a Comprendo chart (`.comprendo/chart.sqlite`) that the `comprendo` viewer
+opens.
+
+The chart tools are not part of the plugin: they are served by
+`comprendo-cli mcp`, which the plugin registers as the MCP server `comprendo`
+(Claude Code and the opencode 2.x plugin in `../plugin_v2` use the same
+server). The plugin itself only adds the command and the server to opencode's
+configuration, leaving a user-defined `/chart` or `comprendo` server alone.
 
 ## Install
 
-The plugin is self-contained: everything it needs is in `src/`, including
-the chart schema (`src/schema.ts`, embedded from `../schema/chart.sql`), and
-it has no dependencies besides Bun's built-ins. Either load it by path in the
-project's `opencode.json` (or `~/.config/opencode/opencode.json` for all
-projects):
+Put `comprendo-cli` on `PATH`, or set `COMPRENDO_CLI` to its path. Then load
+the plugin by path in the project's `opencode.json` (or
+`~/.config/opencode/opencode.json` for all projects):
 
 ```json
 {
@@ -17,11 +22,7 @@ projects):
 }
 ```
 
-or copy `src/` anywhere and point the `plugin` entry at the copy's `index.ts`.
-
-Put `comprendo-cli` on `PATH` so `/chart` can start from the extracted
-structure (with clangd-22 call edges when a `compile_commands.json` exists);
-without it the model builds the chart from scratch.
+`opencode mcp list` shows the `comprendo` server as connected.
 
 ## Use
 
@@ -33,38 +34,10 @@ without it the model builds the chart from scratch.
 The session ends with `chart_finish`, which prints the viewer command, e.g.
 `comprendo /project/.comprendo/chart.sqlite`.
 
-## Tools
+## Files
 
-| Tool | Purpose |
-| --- | --- |
-| `chart_overview` | Counts, clusters, and per-file annotation progress |
-| `chart_find_node` | Look up nodes and their `0x…` ids |
-| `chart_add_node` | Add a symbol the extractor missed (placed under its file) |
-| `chart_annotate_node` | Set a node's summary and detail |
-| `chart_annotate_cluster` | Create or update a cluster by label and assign nodes |
-| `chart_add_edge` | Add or update a relationship |
-| `chart_finish` | Check integrity, stamp the chart, print the viewer command |
+- `src/index.ts` — plugin entry (`config` hook)
+- `src/prompt.ts` — `/chart`, reading the shared prompt `../prompts/chart.md`
+- `src/server.ts` — the MCP server entry (`comprendo-cli mcp --root <project>`)
 
-Every call opens the chart, runs one transaction, and closes it, so
-`comprendo-cli extract` and the viewer can use the same file in between.
-
-## Schema
-
-`schema/chart.sql` is the single source of truth shared with the C++ tools.
-After changing it, regenerate the embedded copy:
-
-```sh
-bun scripts/embed-schema.ts            # --check only reports staleness
-```
-
-The tests fail while `src/schema.ts` is stale.
-
-## Test
-
-```sh
-bun test                         # or, with only opencode installed:
-BUN_BE_BUN=1 opencode test
-```
-
-CTest runs these tests (`plugin_tests`) and a cross-check that annotates a
-CLI-extracted chart and validates it with `comprendo-cli validate`.
+Tests: `bun test`, or `BUN_BE_BUN=1 opencode test` without a Bun install.

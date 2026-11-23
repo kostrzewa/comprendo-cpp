@@ -1,0 +1,14 @@
+{
+  "name": "comprendo",
+  "description": "Comprendo: chart a codebase with Claude and explore it in the Comprendo viewer",
+  "owner": {
+    "name": "Comprendo"
+  },
+  "plugins": [
+    {
+      "name": "comprendo",
+      "source": "./claude_plugin",
+      "description": "/comprendo:chart builds a Comprendo code chart with Claude"
+    }
+  ]
+}

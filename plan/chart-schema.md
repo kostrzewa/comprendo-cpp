@@ -3,10 +3,11 @@
 Cross-references: [requirements](comprendo-cpp.md) · [architecture](architecture.md) · [milestones](milestones.md)
 
 The chart is a single SQLite database, by default `.comprendo/chart.sqlite`. Two
-independent writers fill it: the opencode plugin (through `bun:sqlite`) and
-`comprendo-cli extract`. The viewer opens it read-only. The DDL in
-[`schema/chart.sql`](../schema/chart.sql) is the single source of truth for both
-languages; the C++ build embeds it into the generated `ChartSchema.hpp`.
+independent writers fill it: `comprendo-cli extract` and the chart tools the
+assistant's model calls during `/chart` (`comprendo-cli mcp`). The viewer
+opens it read-only. The DDL in [`schema/chart.sql`](../schema/chart.sql) is the
+single source of truth; the C++ build embeds it into the generated
+`ChartSchema.hpp`.
 
 ## File identity
 
@@ -22,7 +23,7 @@ the supported range.
 ## Connection settings
 
 Every connection runs `PRAGMA foreign_keys = ON` and `PRAGMA journal_mode = WAL`.
-WAL lets the viewer read while the plugin writes.
+WAL lets the viewer read while the chart tools write.
 
 ## Tables
 
@@ -30,8 +31,9 @@ WAL lets the viewer read while the plugin writes.
 
 Key/value text pairs: `project`, `git_commit` (`git describe --always --dirty`),
 `generated_at` (ISO-8601 UTC), `generator` (e.g. `comprendo-cli 0.1.0`),
-`source_root` (absolute path). The plugin adds `annotator` (e.g.
-`comprendo-opencode 0.1.0`) and `annotated_at` (ISO-8601 UTC) when the model
+`source_root` (absolute path). The chart tools add `annotator` (e.g.
+`comprendo-cli 0.1.0`; `comprendo-opencode 0.1.0` before M11) and
+`annotated_at` (ISO-8601 UTC) when the model
 finishes; readers ignore keys they do not know.
 
 ### `nodes`
@@ -55,8 +57,8 @@ finishes; readers ignore keys they do not know.
 
 `provenance` records who wrote the node's content: the extractor sets
 `Extractor` (a non-empty summary then comes from the code's Doxygen
-comments); the plugin sets `Model` on nodes it adds and on nodes it
-annotates. Edges keep the provenance of their first writer.
+comments); the chart tools set `Model` on nodes they add and on nodes they
+annotate. Edges keep the provenance of their first writer.
 
 #### NodeKind
 
@@ -97,7 +99,7 @@ Primary key `(src, dst, kind)`; writers upsert on conflict.
 | `color` | INTEGER | Packed `0xRRGGBB` |
 | `parent_id` | INTEGER NULL | Parent cluster (FK), `NULL` for top level |
 
-The plugin derives cluster ids from labels: FNV-1a over `"cluster" 0x1F
+The chart tools derive cluster ids from labels (`make_cluster_id`): FNV-1a over `"cluster" 0x1F
 label`, with `0` replaced by `1`, so re-annotating a cluster by label updates it
 in place. A `color` of `0` lets the viewer choose.
 
@@ -136,13 +138,12 @@ kind_byte 0x1F qualified_name 0x1F file 0x1F signature
 
 where `kind_byte` is the `NodeKind` value as one byte and strings are UTF-8.
 The unsigned 64-bit result is stored bit-cast to SQLite's signed `INTEGER`, so
-ids with the high bit set appear negative in the `sqlite3` shell. The plugin
-opens the database with `safeIntegers: true` and handles ids as `BigInt`.
+ids with the high bit set appear negative in the `sqlite3` shell.
 
 In memory, `cluster_id == 0` and `parent_id == 0` mean "none" and map to SQL
 `NULL`.
 
-Test vectors (checked by the C++ and the plugin test suites):
+Test vectors (checked by the C++ test suite):
 
 | Input | Hash |
 | --- | --- |
