@@ -194,3 +194,9 @@ See `AGENTS.md` for the toolchain (clang-22 tools only), tests
 (`ctest --preset clang-22`, opencode plugin tests with `bun test` or
 `BUN_BE_BUN=1 opencode test`), formatting, `clang-tidy`, and documentation
 rules, and `plan/` for requirements, architecture, milestones, and the log.
+
+# License
+
+Comprendo is licensed under the Apache License v2.0 with LLVM Exceptions
+(SPDX `Apache-2.0 WITH LLVM-exception`); see `LICENSE` in the repository root.
+Dependencies fetched at build time keep their own licenses.

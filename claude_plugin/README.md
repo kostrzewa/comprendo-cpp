@@ -44,3 +44,15 @@ invoke it; Claude does not start it on its own.
 - `.mcp.json` — the `chart` MCP server: `comprendo-cli mcp --root <project>`
 - `skills/chart/SKILL.md` — the `/chart` prompt; its body is a copy of
   `../prompts/chart.md`, kept in sync by `cmake/sync_prompt.cmake`
+- `assets/icon.png` — the plugin icon (a blocky `¿?`), rendered from
+  `../docs/graphics/comprendo-icon.svg`:
+
+  ```sh
+  inkscape docs/graphics/comprendo-icon.svg --export-type=png --export-filename=/tmp/icon.png -w 1024 -h 1024
+  convert /tmp/icon.png -background white -flatten -colorspace Gray \
+    -define png:bit-depth=8 -define png:color-type=0 claude_plugin/assets/icon.png
+  ```
+
+## License
+
+Apache License v2.0 with LLVM Exceptions, see `../LICENSE`.

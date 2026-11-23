@@ -454,3 +454,18 @@ commit. Newest last.
   (mtime 18:12 before and after; it had been edited earlier in the day).
 
 - Commit: `986019b`.
+
+## 2026-11-23 — Icon and license
+
+- Icon: a blocky black-on-white `¿?` drawn on a 5×9 grid with one-cell
+  strokes (`¿` is `?` turned 180°, so the pair is point-symmetric); no font,
+  so nothing to attribute. Source `docs/graphics/comprendo-icon.svg`,
+  rendered to `claude_plugin/assets/icon.png` (1024², 8-bit grayscale) and
+  referenced by `plugin.json`. Two denser drafts read as pixel art and were
+  dropped.
+- License: Apache License v2.0 with LLVM Exceptions in `LICENSE` (the LLVM
+  project's text without its third-party and legacy-license sections, header
+  naming Comprendo); SPDX `Apache-2.0 WITH LLVM-exception` in `plugin.json`
+  and both opencode `package.json` files.
+- `claude plugin validate --strict` now only warns about the missing
+  `author`.

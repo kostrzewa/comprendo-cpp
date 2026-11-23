@@ -2,6 +2,7 @@
   "name": "comprendo-opencode",
   "version": "0.1.0",
   "description": "opencode 1.x plugin: /chart explores a codebase and builds a Comprendo chart with comprendo-cli's MCP tools",
+  "license": "Apache-2.0 WITH LLVM-exception",
   "type": "module",
   "private": true,
   "main": "src/index.ts",
