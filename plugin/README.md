@@ -5,9 +5,10 @@ Comprendo chart (`.comprendo/chart.sqlite`) that the `comprendo` viewer opens.
 
 ## Install
 
-The plugin has no dependencies besides Bun's built-ins and reads the shared
-schema from `../schema/chart.sql`, so load it from this repository by path. In
-the project's `opencode.json` (or `~/.config/opencode/opencode.json` for all
+The plugin is self-contained: everything it needs is in `src/`, including
+the chart schema (`src/schema.ts`, embedded from `../schema/chart.sql`), and
+it has no dependencies besides Bun's built-ins. Either load it by path in the
+project's `opencode.json` (or `~/.config/opencode/opencode.json` for all
 projects):
 
 ```json
@@ -15,6 +16,8 @@ projects):
   "plugin": ["/path/to/comprendo-cpp/plugin/src/index.ts"]
 }
 ```
+
+or copy `src/` anywhere and point the `plugin` entry at the copy's `index.ts`.
 
 Put `comprendo-cli` on `PATH` so `/chart` can start from the extracted
 structure (with clangd-22 call edges when a `compile_commands.json` exists);
@@ -44,6 +47,17 @@ The session ends with `chart_finish`, which prints the viewer command, e.g.
 
 Every call opens the chart, runs one transaction, and closes it, so
 `comprendo-cli extract` and the viewer can use the same file in between.
+
+## Schema
+
+`schema/chart.sql` is the single source of truth shared with the C++ tools.
+After changing it, regenerate the embedded copy:
+
+```sh
+bun scripts/embed-schema.ts            # --check only reports staleness
+```
+
+The tests fail while `src/schema.ts` is stale.
 
 ## Test
 

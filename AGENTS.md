@@ -138,7 +138,9 @@ and tests before committing.
 - `src/` — viewer and CLI entry points and implementations
 - `tests/` — Catch2 tests
 - `plugin/` — TypeScript opencode plugin
-- `schema/` — `chart.sql`, the SQLite DDL shared by C++ and the plugin
+- `schema/` — `chart.sql`, the SQLite DDL shared by C++ and the plugin; after
+  editing it, run `BUN_BE_BUN=1 opencode scripts/embed-schema.ts` in `plugin/`
+  to refresh the plugin's embedded copy (`plugin/src/schema.ts`)
 - `cmake/` — dependency, doxygen, and git-hash setup
 - `docs/` — Doxygen assets and main page
 - `plan/` — requirements and implementation plans

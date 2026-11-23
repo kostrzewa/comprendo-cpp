@@ -1,7 +1,8 @@
 -- Comprendo chart schema, version 1.
 --
 -- Shared by comprendo_core (embedded via cmake/ChartSchema.hpp.in) and the
--- opencode plugin (bun:sqlite). See plan/chart-schema.md for the conventions:
+-- opencode plugin (embedded in plugin/src/schema.ts; after editing this file,
+-- run `bun scripts/embed-schema.ts` in plugin/). See plan/chart-schema.md for the conventions:
 -- uint64 ids are stored bit-cast to INTEGER, and NULL means "no cluster".
 -- Every statement is idempotent so writers may apply it to an existing chart
 -- after checking application_id and user_version.

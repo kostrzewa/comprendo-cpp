@@ -222,7 +222,7 @@ requires the default export `{ id, server }`. It does not invoke
   as tool errors the model can fix. Ids appear as `0x` plus 16 hex digits.
 - **Storage**: each call opens `.comprendo/chart.sqlite` with `bun:sqlite`
   (`safeIntegers`, ids as `BigInt`), refuses non-charts and newer schema
-  versions, enables WAL and foreign keys, applies `schema/chart.sql`, runs
+  versions, enables WAL and foreign keys, applies the schema, runs
   one immediate transaction, and closes. Holding no connection between calls
   lets `comprendo-cli extract` replace the file during a session.
 - **Identity**: existing nodes are found by name and file
@@ -234,6 +234,11 @@ requires the default export `{ id, server }`. It does not invoke
 - **Finish**: `chart_finish` runs `integrity_check` and
   `foreign_key_check`, stamps `meta`, and prints `comprendo <chart>`. It does
   not launch the viewer.
+- **Self-contained**: the plugin runs on other repositories and may be copied
+  away from this one, so it reads nothing outside `plugin/src`. The schema is
+  embedded in `plugin/src/schema.ts`, generated from `schema/chart.sql` by
+  `plugin/scripts/embed-schema.ts`; a test fails when the copy is stale, and
+  another runs the tools from a copy of `plugin/src` alone.
 - **Testing**: `bun test` in `plugin/`. Without a Bun install,
   `BUN_BE_BUN=1 opencode` is Bun (opencode is a Bun executable); CMake uses
   either.

@@ -106,7 +106,8 @@ keeping the grouping, camera, and selection.
 
 # opencode plugin {#plugin}
 
-The plugin lives in `plugin/` and needs nothing besides opencode. Add it to the
+The plugin lives in `plugin/`, needs nothing besides opencode, and carries its
+own copy of the chart schema, so `plugin/src` can also be copied elsewhere. Add it to the
 project's `opencode.json` (or `~/.config/opencode/opencode.json`):
 
 ```json

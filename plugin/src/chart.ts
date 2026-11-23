@@ -1,16 +1,18 @@
 /**
  * @file The chart database as the plugin sees it: opening, identity checks, and row access.
  *
- * Uses the same DDL as the C++ tools (`schema/chart.sql`) and the conventions
+ * Uses the same DDL as the C++ tools (`schema/chart.sql`, embedded in
+ * `schema.ts`) and the conventions
  * of `plan/chart-schema.md`: ids are unsigned 64-bit values stored bit-cast to
  * signed `INTEGER`, and `NULL` means "no cluster".
  */
 
 import { Database } from "bun:sqlite";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { formatId, fromSql, Provenance, toSql } from "./ids.ts";
+import { CHART_SCHEMA } from "./schema.ts";
 
 /** `PRAGMA application_id` of a chart ('CMPR'). */
 export const APPLICATION_ID = 0x434d5052;
@@ -26,15 +28,6 @@ const BUSY_TIMEOUT_MS = 5000;
 
 /** A failure the model can act on, reported as the tool's error. */
 export class ChartError extends Error {}
-
-/**
- * Read the shared chart DDL that ships next to the plugin.
- *
- * @returns Contents of `schema/chart.sql`.
- */
-export function loadSchema(): string {
-  return readFileSync(new URL("../../schema/chart.sql", import.meta.url), "utf8");
-}
 
 /** A node row with ids as unsigned values. */
 export interface NodeRow {
@@ -173,7 +166,7 @@ export class Chart {
    * @returns The open chart.
    * @throws ChartError When the file is not a usable chart.
    */
-  static open(path: string, schema: string = loadSchema()): Chart {
+  static open(path: string, schema: string = CHART_SCHEMA): Chart {
     mkdirSync(dirname(path), { recursive: true });
     const db = new Database(path, { create: true, safeIntegers: true, strict: true });
     try {
