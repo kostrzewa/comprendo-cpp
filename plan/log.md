@@ -562,3 +562,5 @@ commit. Newest last.
 - Checked under xvfb with an isolated XDG_CONFIG_HOME: default start without
   Log, status in the menu bar, minimap uncovered; Log toggled on and off via
   the View menu survives restarts both ways.
+
+- Commit: `3d7c5e5`.
