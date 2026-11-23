@@ -326,3 +326,4 @@ commit. Newest last.
   instead of per hardware thread (8 instead of 16 here), read from the sysfs
   topology of the CPUs in the affinity mask.
 
+- Commit: `0d9a3a6`.
