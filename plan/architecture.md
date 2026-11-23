@@ -497,6 +497,14 @@ graph:
   font otherwise, before each frame; `GraphFrame::text_scale` sizes the graph
   labels. Ctrl++/−/0 are matched by the typed character (`glfwGetKeyName`
   from raylib's bundled GLFW) so they follow the keyboard layout.
+- **Fonts and settings** (M12b, c): `font_choices()` (`ViewerSettings.hpp`)
+  lists the fonts with a natural pixel size each (`font_size_factor`);
+  `Ui::load_fonts` adds the TTFs from `<exe>/fonts` (fetched by
+  `cmake/dependencies.cmake`), `Ui::apply_settings` picks `io.FontDefault`
+  and `FontScaleMain` before each frame, and `GraphRenderer` loads the same
+  file with raylib's `LoadFontEx` at the label pixel size (`label_pixels`).
+  `ViewerSettings` (font id, text level) is read at startup and written
+  atomically whenever it changes.
 - **Inspector** (lists reworked in M8e): Detail, Contains, Outgoing, and
   Incoming are always shown, each under a heading in its own scrolling child;
   they share the window height below the fields (`share_heights`: short

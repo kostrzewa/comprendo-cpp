@@ -101,6 +101,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | `Up` / `Down`, `Enter` (Inspector focused) | Move through the Inspector's lists; jump to the highlighted entry |
 | `Right` / `Left` (Inspector focused) | Unfold / fold the highlighted row of Contains |
 | `Ctrl` + `+` / `Ctrl` + `-` / `Ctrl` + `0` | Larger / smaller / default text in the panels and graph labels (also View menu; keypad works too, and so does `Ctrl` + `=`) |
+| View → Fonts... | Floating dialog: choose the font of the panels and graph labels (Proggy, Atkinson Hyperlegible, Inter, JetBrains Mono) and the text size; changes apply at once |
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |
 
@@ -121,6 +122,12 @@ small dot on the rim marks where each connection leaves a group. Lines between t
 appear only while you hover over one of them. Hovering over anything with
 connections highlights them (and the trunks they feed) and dims the rest. View → Member connections draws every relationship
 between its endpoints instead.
+
+The font and text size are remembered per user in
+`$XDG_CONFIG_HOME/comprendo/viewer.toml` (usually
+`~/.config/comprendo/viewer.toml`). The fonts are fetched at build time and
+copied to `fonts/` next to the viewer; a font whose file is missing is shown
+as unavailable.
 
 For a cluster, directory, file, or namespace the Inspector lists its
 connections with other groups of the same kind (other clusters, other files)

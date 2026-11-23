@@ -44,6 +44,9 @@ namespace
     ImGui::PopStyleColor();
   }
 
+  /// Pixel size ImGui loads the TrueType fonts at; sizes are scaled from it.
+  constexpr float kBuiltinFontPixels = 13.0F;
+
   /// Most search results listed by the Explorer.
   constexpr std::size_t kSearchLimit = 500;
 
@@ -928,11 +931,55 @@ namespace Comprendo
   }
 
   void
-  Ui::apply_text_level(int level) const
+  Ui::load_fonts(const std::filesystem::path &directory)
   {
-    ImGui::GetStyle().FontScaleMain = text_scale(level);
-    ImGui::GetIO().FontDefault
-      = level == 0 || vector_font_ == nullptr ? bitmap_font_ : vector_font_;
+    for (const FontChoice &choice : font_choices())
+    {
+      if (choice.file.empty())
+      {
+        continue;
+      }
+      const std::filesystem::path file = directory / choice.file;
+      std::error_code error;
+      if (!std::filesystem::is_regular_file(file, error))
+      {
+        Logger::warn("Font {} not found at {}", choice.name, file.string());
+        continue;
+      }
+      ImFont *font = ImGui::GetIO().Fonts->AddFontFromFileTTF(file.c_str(), kBuiltinFontPixels);
+      if (font != nullptr)
+      {
+        fonts_.emplace(std::string {choice.id}, std::pair {font, file});
+      }
+    }
+  }
+
+  ImFont *
+  Ui::builtin_font(const ViewerState &state) const
+  {
+    return state.text_level == 0 || vector_font_ == nullptr ? bitmap_font_ : vector_font_;
+  }
+
+  bool
+  Ui::font_available(std::string_view id) const
+  {
+    return id == kBuiltinFontId || fonts_.contains(id);
+  }
+
+  std::filesystem::path
+  Ui::font_file(const ViewerState &state) const
+  {
+    const auto found = fonts_.find(state.font);
+    return found == fonts_.end() ? std::filesystem::path {} : found->second.second;
+  }
+
+  void
+  Ui::apply_settings(const ViewerState &state) const
+  {
+    const auto found = fonts_.find(state.font);
+    ImGui::GetIO().FontDefault = found == fonts_.end() ? builtin_font(state) : found->second.first;
+    const float factor = found == fonts_.end() ? 1.0F : font_size_factor(state.font);
+    ImGui::GetStyle().FontScaleMain = text_scale(state.text_level) * factor;
   }
 
   void
@@ -1037,6 +1084,7 @@ namespace Comprendo
     draw_explorer(state, view);
     draw_inspector(state, view);
     draw_log(state);
+    draw_fonts(state);
     draw_about(state);
     draw_status_bar(state, view);
 
@@ -1124,6 +1172,7 @@ namespace Comprendo
       {
         state.text_level = 0;
       }
+      ImGui::MenuItem("Fonts...", nullptr, &state.show_fonts);
       ImGui::Separator();
       if (ImGui::MenuItem("Reset layout"))
       {
@@ -1261,6 +1310,88 @@ namespace Comprendo
           ImGui::SetScrollHereY(1.0F);
         }
       }
+    }
+    ImGui::End();
+  }
+
+  void
+  Ui::draw_fonts(ViewerState &state) const
+  {
+    if (!state.show_fonts)
+    {
+      return;
+    }
+    constexpr std::string_view kSample = "Layout engine  ChartView::shown_edges  0123 ¿?";
+    const ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(
+      ImVec2(viewport->GetCenter().x, viewport->GetCenter().y),
+      ImGuiCond_FirstUseEver,
+      ImVec2(0.5F, 0.5F)
+    );
+    constexpr ImGuiWindowFlags kFlags = ImGuiWindowFlags_NoDocking
+      | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse;
+    if (ImGui::Begin("Fonts", &state.show_fonts, kFlags))
+    {
+      // Non-modal but floating above the docked panels, without taking focus.
+      ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+      text_disabled("Font of the panels and the graph labels:");
+      for (const FontChoice &choice : font_choices())
+      {
+        const bool available = font_available(choice.id);
+        ImGui::BeginDisabled(!available);
+        const std::string name {choice.name};
+        if (ImGui::RadioButton(name.c_str(), state.font == choice.id))
+        {
+          state.font = std::string {choice.id};
+        }
+        ImGui::EndDisabled();
+        ImGui::Indent();
+        if (!available)
+        {
+          text_disabled("not installed next to the viewer (fonts/)");
+        }
+        else
+        {
+          // Preview at the size the font will have once chosen; FontScaleMain
+          // already carries the current font's size factor.
+          const auto found = fonts_.find(choice.id);
+          ImFont *preview = found == fonts_.end() ? builtin_font(state) : found->second.first;
+          const float current_factor
+            = fonts_.contains(state.font) ? font_size_factor(state.font) : 1.0F;
+          ImGui::PushFont(
+            preview, ImGui::GetStyle().FontSizeBase * font_size_factor(choice.id) / current_factor
+          );
+          ImGui::TextUnformatted(kSample.data(), kSample.data() + kSample.size());
+          ImGui::PopFont();
+        }
+        ImGui::Unindent();
+      }
+      ImGui::Separator();
+      const std::string size_text
+        = fmt::format("Text size: {:.0f}%", std::round(text_scale(state.text_level) * 100.0F));
+      ImGui::TextUnformatted(size_text.c_str());
+      ImGui::SameLine();
+      ImGui::BeginDisabled(state.text_level <= kMinTextLevel);
+      if (ImGui::Button("-"))
+      {
+        state.text_level = step_text_level(state.text_level, -1);
+      }
+      ImGui::EndDisabled();
+      ImGui::SameLine();
+      ImGui::BeginDisabled(state.text_level >= kMaxTextLevel);
+      if (ImGui::Button("+"))
+      {
+        state.text_level = step_text_level(state.text_level, 1);
+      }
+      ImGui::EndDisabled();
+      ImGui::SameLine();
+      ImGui::BeginDisabled(state.text_level == 0);
+      if (ImGui::Button("Default"))
+      {
+        state.text_level = 0;
+      }
+      ImGui::EndDisabled();
+      text_disabled("Ctrl++ / Ctrl+- / Ctrl+0 work anywhere. Saved for next time.");
     }
     ImGui::End();
   }

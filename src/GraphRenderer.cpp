@@ -399,21 +399,24 @@ void main()
   /// \param view Chart view.
   /// \param camera View camera.
   /// \param items Visible groups.
-  /// \param text_scale Text size relative to the default (Ctrl++ / Ctrl+-).
+  /// \param font Label font, loaded at \p label_size (or raylib's default font).
+  /// \param label_size Label height in pixels.
   void
   draw_labels(
     const ChartView &view,
     const ViewCamera &camera,
     const std::vector<DrawItem> &items,
-    float text_scale
+    const Font &font,
+    int label_size
   )
   {
-    constexpr int kSmallestLabel = 8;
     constexpr float kRimGap = 4.0F;
-    const int label_size = std::max(
-      kSmallestLabel, static_cast<int>(std::lround(static_cast<float>(kLabelSize) * text_scale))
-    );
-    const int rim_gap = static_cast<int>(std::lround(kRimGap * text_scale));
+    const float scale = static_cast<float>(label_size) / static_cast<float>(kLabelSize);
+    const int rim_gap = static_cast<int>(std::lround(kRimGap * scale));
+    // raylib's default font is spaced by a tenth of the size, like DrawText().
+    const bool default_font = font.texture.id == GetFontDefault().texture.id;
+    const float spacing = default_font ? static_cast<float>(label_size) / 10.0F : 0.0F;
+    const auto size = static_cast<float>(label_size);
     std::vector<Rectangle> placed;
     for (const DrawItem &item : items)
     {
@@ -427,7 +430,7 @@ void main()
         continue;
       }
       const std::string label = view.display_label(item.group);
-      const int width = MeasureText(label.c_str(), label_size);
+      const int width = static_cast<int>(MeasureTextEx(font, label.c_str(), size, spacing).x);
       const Vector2 centre = screen_centre(view, camera, item.group);
       const int x = static_cast<int>(centre.x) - (width / 2);
       const int y = container ? static_cast<int>(centre.y - radius) + rim_gap
@@ -447,8 +450,11 @@ void main()
         continue;
       }
       placed.push_back(bounds);
-      DrawText(label.c_str(), x + 1, y + 1, label_size, kShadowColor);
-      DrawText(label.c_str(), x, y, label_size, kLabelColor);
+      const Vector2 at {.x = static_cast<float>(x), .y = static_cast<float>(y)};
+      DrawTextEx(
+        font, label.c_str(), {.x = at.x + 1.0F, .y = at.y + 1.0F}, size, spacing, kShadowColor
+      );
+      DrawTextEx(font, label.c_str(), at, size, spacing, kLabelColor);
     }
   }
   /// Line width for an edge weight: one pixel for a single edge, growing
@@ -653,11 +659,62 @@ namespace Comprendo
 
   GraphRenderer::~GraphRenderer()
   {
+    if (m_label_font)
+    {
+      UnloadFont(*m_label_font);
+    }
     if (m_antialiased)
     {
       rlUnloadRenderBatch(m_batch);
       UnloadShader(m_shader);
     }
+  }
+
+  int
+  GraphRenderer::label_pixels(float text_scale)
+  {
+    constexpr int kSmallestLabel = 8;
+    return std::max(
+      kSmallestLabel, static_cast<int>(std::lround(static_cast<float>(kLabelSize) * text_scale))
+    );
+  }
+
+  void
+  GraphRenderer::use_label_font(const std::filesystem::path &file, int pixels)
+  {
+    if (file == m_label_font_file && pixels == m_label_font_pixels)
+    {
+      return;
+    }
+    if (m_label_font)
+    {
+      UnloadFont(*m_label_font);
+      m_label_font.reset();
+    }
+    m_label_font_file = file;
+    m_label_font_pixels = pixels;
+    if (file.empty())
+    {
+      return;
+    }
+    // Latin-1 plus the punctuation labels commonly use.
+    std::vector<int> codepoints;
+    constexpr int kFirst = 32;
+    constexpr int kLast = 255;
+    for (int codepoint = kFirst; codepoint <= kLast; ++codepoint)
+    {
+      codepoints.push_back(codepoint);
+    }
+    constexpr std::array<int, 4> kExtra = {0x2013, 0x2014, 0x2026, 0x2192};
+    codepoints.insert(codepoints.end(), kExtra.begin(), kExtra.end());
+    const Font font
+      = LoadFontEx(file.c_str(), pixels, codepoints.data(), static_cast<int>(codepoints.size()));
+    if (font.texture.id == GetFontDefault().texture.id || font.glyphCount == 0)
+    {
+      Logger::warn("Cannot load label font {}; using the default font", file.string());
+      return;
+    }
+    m_label_font = font;
   }
 
   void
@@ -711,7 +768,11 @@ namespace Comprendo
       rlSetTexture(0);
       EndShaderMode();
     }
-    draw_labels(view, camera, frame.items, frame.text_scale);
+    const int label_size = label_pixels(frame.text_scale);
+    use_label_font(frame.label_font, label_size);
+    draw_labels(
+      view, camera, frame.items, m_label_font ? *m_label_font : GetFontDefault(), label_size
+    );
     if (frame.minimap)
     {
       draw_minimap(view, camera, *frame.minimap, frame.area);

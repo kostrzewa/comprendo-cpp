@@ -47,6 +47,44 @@ if(COMPRENDO_BUILD_VIEWER)
   add_library(rlimgui STATIC ${rlimgui_SOURCE_DIR}/rlImGui.cpp)
   target_include_directories(rlimgui PUBLIC ${rlimgui_SOURCE_DIR})
   target_link_libraries(rlimgui PUBLIC imgui raylib)
+
+  # -------------------------------------------------------------------------
+  # Fonts offered in View -> Fonts (SIL Open Font License), from the Google
+  # Fonts repository at a pinned commit. They are copied to <build>/fonts,
+  # where the viewer looks for them next to its executable.
+  # -------------------------------------------------------------------------
+  set(COMPRENDO_GOOGLE_FONTS
+      https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl
+  )
+  FetchContent_Declare(
+    font_atkinson_hyperlegible
+    URL ${COMPRENDO_GOOGLE_FONTS}/atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf
+    URL_HASH SHA256=7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669
+    DOWNLOAD_NAME AtkinsonHyperlegible-Regular.ttf
+    DOWNLOAD_NO_EXTRACT TRUE
+  )
+  FetchContent_Declare(
+    font_inter
+    URL ${COMPRENDO_GOOGLE_FONTS}/inter/Inter%5Bopsz,wght%5D.ttf
+    URL_HASH SHA256=29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031
+    DOWNLOAD_NAME Inter-Variable.ttf
+    DOWNLOAD_NO_EXTRACT TRUE
+  )
+  FetchContent_Declare(
+    font_jetbrains_mono
+    URL ${COMPRENDO_GOOGLE_FONTS}/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf
+    URL_HASH SHA256=48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda
+    DOWNLOAD_NAME JetBrainsMono-Variable.ttf
+    DOWNLOAD_NO_EXTRACT TRUE
+  )
+  FetchContent_MakeAvailable(font_atkinson_hyperlegible font_inter font_jetbrains_mono)
+  foreach(font IN ITEMS atkinson_hyperlegible inter jetbrains_mono)
+    file(GLOB font_files "${font_${font}_SOURCE_DIR}/*.ttf")
+    foreach(font_file IN LISTS font_files)
+      get_filename_component(font_name "${font_file}" NAME)
+      configure_file("${font_file}" "${CMAKE_BINARY_DIR}/fonts/${font_name}" COPYONLY)
+    endforeach()
+  endforeach()
 endif()
 
 # ---------------------------------------------------------------------------

@@ -523,3 +523,24 @@ commit. Newest last.
   independent of which font is selected.
 
 - Commit: `f9a7351`.
+
+## 2026-11-23 — M12b/c font choice and remembered settings
+
+- View → Fonts... opens a floating ImGui window (`NoDocking`, brought to the
+  display front each frame so it stays above the docked panels without
+  stealing focus): radio buttons per font with a preview in that font at
+  its real size, and text size −/+/Default. Choices apply on the next frame.
+- Fonts: Atkinson Hyperlegible (static), Inter and JetBrains Mono
+  (variable; ImGui and raylib render the default instance), from
+  google/fonts at 06bfe0d as `FetchContent` URL downloads with SHA-256,
+  copied to `<build>/fonts`; OFL texts in THIRD_PARTY_NOTICES.md. Inter's
+  own release archive is 33 MB, hence single files from google/fonts.
+- Graph labels use the chosen TTF through raylib (`LoadFontEx` at the exact
+  label size, Latin-1 plus dashes, ellipsis, arrow), reloaded only when file
+  or size change; the built-in choice keeps raylib's default font.
+- `ViewerSettings` (core): TOML parse/format (unknown keys ignored, unknown
+  fonts rejected, level clamped), XDG path, atomic save; tests in
+  `test_viewer_settings.cpp`. The smoke test switches to Inter and checks
+  the panel font (Inter-Variable.ttf at 14 px).
+- Checked under xvfb with an isolated XDG_CONFIG_HOME: dialog, live switch
+  to Inter (panels, dialog, labels), saved file, restored after restart.

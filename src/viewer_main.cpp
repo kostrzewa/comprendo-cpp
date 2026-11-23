@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <exception>
 #include <expected>
+#include <filesystem>
 #include <limits>
 #include <optional>
 #include <string>
@@ -29,6 +30,7 @@
 #include "Comprendo/ChartView.hpp"
 #include "Comprendo/ChartWatcher.hpp"
 #include "Comprendo/Navigation.hpp"
+#include "Comprendo/ViewerSettings.hpp"
 #include "Comprendo/Cli.hpp"
 #include "Comprendo/GraphRenderer.hpp"
 #include "Comprendo/Ui.hpp"
@@ -170,6 +172,15 @@ namespace
 
   /// Frame on which the smoke test checks the default font size is back.
   constexpr int kSmokeTextResetCheckFrame = 13;
+
+  /// Frame on which the smoke test switches to the Inter font.
+  constexpr int kSmokeFontFrame = 14;
+
+  /// Frame on which the smoke test checks the panels use Inter's size.
+  constexpr int kSmokeFontCheckFrame = 19;
+
+  /// Frame on which the smoke test returns to the built-in font.
+  constexpr int kSmokeFontResetFrame = 20;
 
   /// Frame on which the smoke test resizes the window.
   constexpr int kSmokeResizeFrame = 5;
@@ -333,6 +344,60 @@ namespace
     default:
       // raylib's codes for printable keys are their US-layout characters.
       return key >= KEY_SPACE && key <= KEY_GRAVE ? static_cast<char>(key) : '\0';
+    }
+  }
+
+  /// Read the viewer settings into the state; an invalid file is reported and
+  /// the defaults are used.
+  ///
+  /// \param path Settings file; empty to use the defaults.
+  /// \param state Viewer state receiving the font and text size.
+  /// \return The settings as read, to detect later changes.
+  Comprendo::ViewerSettings
+  load_settings(const std::filesystem::path &path, Comprendo::ViewerState &state)
+  {
+    Comprendo::ViewerSettings settings;
+    if (!path.empty())
+    {
+      if (auto loaded = Comprendo::load_viewer_settings(path))
+      {
+        settings = std::move(*loaded);
+      }
+      else
+      {
+        Comprendo::Logger::warn("Ignoring viewer settings: {}", loaded.error());
+      }
+    }
+    state.font = settings.font;
+    state.text_level = settings.text_level;
+    return settings;
+  }
+
+  /// Write the viewer settings when the font or text size changed.
+  ///
+  /// \param path Settings file; empty to keep changes for this session only.
+  /// \param state Viewer state holding the font and text size.
+  /// \param saved Settings last written (or read); updated on change.
+  void
+  save_settings_if_changed(
+    const std::filesystem::path &path,
+    const Comprendo::ViewerState &state,
+    Comprendo::ViewerSettings &saved
+  )
+  {
+    const Comprendo::ViewerSettings current {.font = state.font, .text_level = state.text_level};
+    if (current == saved)
+    {
+      return;
+    }
+    saved = current;
+    if (path.empty())
+    {
+      return;
+    }
+    if (auto written = Comprendo::save_viewer_settings(path, current); !written)
+    {
+      Comprendo::Logger::warn("Cannot save viewer settings: {}", written.error());
     }
   }
 
@@ -1010,11 +1075,13 @@ namespace
   /// \param session Session to draw.
   /// \param state Viewer state holding the selection.
   /// \param renderer Graph renderer.
+  /// \param label_font TrueType file of the chosen font; empty for the built-in one.
   void
   draw_session(
     const GraphSession &session,
     const Comprendo::ViewerState &state,
-    Comprendo::GraphRenderer &renderer
+    Comprendo::GraphRenderer &renderer,
+    const std::filesystem::path &label_font
   )
   {
     Comprendo::GraphFrame frame;
@@ -1023,7 +1090,9 @@ namespace
     frame.selected = state.selected;
     frame.hovered = session.hovered;
     frame.area = graph_area(state);
-    frame.text_scale = Comprendo::text_scale(state.text_level);
+    frame.label_font = label_font;
+    frame.text_scale = Comprendo::text_scale(state.text_level)
+      * (label_font.empty() ? 1.0F : Comprendo::font_size_factor(state.font));
     if (state.show_minimap)
     {
       frame.minimap
@@ -1066,7 +1135,7 @@ namespace
   {
     if (session)
     {
-      draw_session(*session, state, renderer);
+      draw_session(*session, state, renderer, ui_shell.font_file(state));
     }
     else
     {
@@ -1166,6 +1235,12 @@ namespace
       Comprendo::Logger::info("Smoke: font size {:.1f} at text level 2", size);
       return std::abs(size - (base_font_size * Comprendo::text_scale(2))) < kTolerance;
     case kSmokeTextResetCheckFrame: return size == base_font_size;
+    case kSmokeFontCheckFrame:
+      Comprendo::Logger::info(
+        "Smoke: font {} at {:.1f} px", ImGui::GetFont()->GetDebugName(), size
+      );
+      return std::abs(size - (base_font_size * Comprendo::font_size_factor("inter"))) < kTolerance
+        && std::string_view {ImGui::GetFont()->GetDebugName()}.starts_with("Inter");
     default: return true;
     }
   }
@@ -1308,11 +1383,19 @@ namespace
       {
         state.text_level = 0;
       }
+      if (frame == kSmokeFontFrame)
+      {
+        state.font = "inter";
+      }
+      if (frame == kSmokeFontResetFrame)
+      {
+        state.font = std::string {Comprendo::kBuiltinFontId};
+      }
 
       BeginDrawing();
       ClearBackground(kBackground);
       const auto start = std::chrono::steady_clock::now();
-      ui_shell.apply_text_level(state.text_level);
+      ui_shell.apply_settings(state);
       Comprendo::Ui::begin_frame();
       if (!check_text_size(frame, base_font_size))
       {
@@ -1354,6 +1437,7 @@ namespace
     Comprendo::Ui ui_shell;
     Comprendo::ViewerState state;
     ui_shell.init(!options.smoke_test);
+    ui_shell.load_fonts(std::filesystem::path {GetApplicationDirectory()} / "fonts");
     std::optional<Comprendo::GraphRenderer> renderer;
     renderer.emplace();
 
@@ -1374,6 +1458,10 @@ namespace
     state.log_sink->set_level(spdlog::level::info);
     spdlog::default_logger()->sinks().push_back(state.log_sink);
     state.grouping = options.grouping;
+    // The smoke test runs with default settings and must not touch the user's file.
+    const std::filesystem::path settings_path
+      = options.smoke_test ? std::filesystem::path {} : Comprendo::viewer_settings_path();
+    Comprendo::ViewerSettings saved_settings = load_settings(settings_path, state);
     if (auto loaded = load_session(options.chart, options.grouping))
     {
       session = std::move(*loaded);
@@ -1418,7 +1506,8 @@ namespace
         BeginDrawing();
         ClearBackground(kBackground);
 
-        ui_shell.apply_text_level(state.text_level);
+        save_settings_if_changed(settings_path, state, saved_settings);
+        ui_shell.apply_settings(state);
         Comprendo::Ui::begin_frame();
         handle_text_size_keys(state);
         if (first_frame || IsWindowResized())

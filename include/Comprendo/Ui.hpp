@@ -5,6 +5,8 @@
 
 #include <array>
 #include <cstddef>
+#include <filesystem>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -15,6 +17,7 @@
 
 #include "Comprendo/ChartView.hpp"
 #include "Comprendo/Hierarchy.hpp"
+#include "Comprendo/ViewerSettings.hpp"
 
 struct ImFont;
 
@@ -53,6 +56,12 @@ namespace Comprendo
 
     /// Whether the About window is open.
     bool show_about = false;
+
+    /// Whether the floating Fonts dialog is open.
+    bool show_fonts = false;
+
+    /// Font of the panels and graph labels (see font_choices()).
+    std::string font {kBuiltinFontId};
 
     /// Set when the user requests to quit.
     bool quit_requested = false;
@@ -108,15 +117,39 @@ namespace Comprendo
     static void
     shutdown();
 
-    /// Size the panels' text for a text size level; takes effect with the next
-    /// begin_frame().
+    /// Add the TrueType fonts of font_choices() found in a directory to ImGui;
+    /// fonts whose file is missing stay unavailable in the Fonts dialog.
     ///
-    /// At the default size the crisp 13 px bitmap font is used; other sizes use
-    /// ImGui's scalable vector font, which stays sharp when scaled.
-    ///
-    /// \param level Text size level (see text_scale()).
+    /// \param directory Directory holding the font files.
     void
-    apply_text_level(int level) const;
+    load_fonts(const std::filesystem::path &directory);
+
+    /// Select the panels' font and size for the state's font and text level;
+    /// takes effect with the next begin_frame().
+    ///
+    /// The built-in font is ImGui's crisp 13 px pixel font at the default size
+    /// and its scalable vector font at other sizes. An unavailable font falls
+    /// back to the built-in one.
+    ///
+    /// \param state Viewer state holding the font and text level.
+    void
+    apply_settings(const ViewerState &state) const;
+
+    /// Whether a font can be used: the built-in font, or a loaded file.
+    ///
+    /// \param id Font id.
+    /// \return True when the font is available.
+    [[nodiscard]]
+    bool
+    font_available(std::string_view id) const;
+
+    /// File of the font in use, for the graph labels.
+    ///
+    /// \param state Viewer state holding the font.
+    /// \return The TrueType file, or empty for the built-in font.
+    [[nodiscard]]
+    std::filesystem::path
+    font_file(const ViewerState &state) const;
 
     /// Begin an ImGui frame.
     static void
@@ -213,6 +246,22 @@ namespace Comprendo
     static void
     draw_log(ViewerState &state);
 
+    /// The built-in font for the state's text size: the pixel font at the
+    /// default size, the vector font otherwise.
+    ///
+    /// \param state Viewer state holding the text size level.
+    /// \return The ImGui font.
+    [[nodiscard]]
+    ImFont *
+    builtin_font(const ViewerState &state) const;
+
+    /// Draw the floating Fonts dialog: pick a font (each previewed in itself)
+    /// and the text size; changes apply to the whole viewer at once.
+    ///
+    /// \param state Viewer state.
+    void
+    draw_fonts(ViewerState &state) const;
+
     /// Draw the About window.
     ///
     /// \param state Viewer state.
@@ -234,6 +283,9 @@ namespace Comprendo
 
     /// ImGui's scalable font, used at every other text size.
     ImFont *vector_font_ = nullptr;
+
+    /// Loaded TrueType fonts by font id, with their files.
+    std::map<std::string, std::pair<ImFont *, std::filesystem::path>, std::less<>> fonts_;
 
     /// Query of the cached search results.
     std::string search_query_;

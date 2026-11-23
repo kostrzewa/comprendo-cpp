@@ -369,6 +369,14 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   font otherwise) and the graph labels with them. Shortcuts are matched on
   the character the key types on the active layout (`glfwGetKeyName`), so a
   German keyboard's + key works.
-- b. (planned) Settings dialog with a choice of fonts for the panels and the
-  graph labels.
+- b. (done) View → Fonts...: a floating, non-modal ImGui dialog (no docking,
+  kept above the panels without taking focus) choosing the font of panels
+  and graph labels, each previewed in itself at its real size, plus the text
+  size; changes apply live. Fonts (OFL): Proggy built-in, Atkinson
+  Hyperlegible, Inter, JetBrains Mono, fetched from google/fonts at a pinned
+  commit into `<build>/fonts`. Labels use the same TTF via raylib, loaded at
+  the exact label size.
+- c. (done) Font and text size persist per user in
+  `$XDG_CONFIG_HOME/comprendo/viewer.toml` (`ViewerSettings`), saved on
+  change; the smoke test neither reads nor writes it.
 

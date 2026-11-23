@@ -78,6 +78,7 @@ add_library(
   src/QuadTree.cpp
   src/RadixSort.cpp
   src/Threads.cpp
+  src/ViewerSettings.cpp
   src/Sqlite.cpp
 )
 target_include_directories(
@@ -114,6 +115,7 @@ if(COMPRENDO_BUILD_TESTS)
     comprendo_tests
     tests/test_smoke.cpp
     tests/test_threads.cpp
+    tests/test_viewer_settings.cpp
     tests/test_chart.cpp
     tests/test_chart_store.cpp
     tests/test_chart_tools.cpp

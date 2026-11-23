@@ -7,6 +7,7 @@
 #include <rlgl.h>
 
 #include <cstddef>
+#include <filesystem>
 #include <optional>
 #include <vector>
 
@@ -29,8 +30,10 @@ namespace Comprendo
     std::optional<Minimap> minimap;
     /// Graph area, whose chart extent the minimap outlines.
     ScreenRect area;
-    /// Label size relative to the default, from the viewer's text size level.
+    /// Label size relative to the default, from the text size level and the font.
     float text_scale = 1.0F;
+    /// TrueType file of the label font; empty for raylib's built-in font.
+    std::filesystem::path label_font;
   };
 
   /// Draws the graph with analytic anti-aliasing.
@@ -96,7 +99,29 @@ namespace Comprendo
     void
     draw(const ChartView &view, const ViewCamera &camera, const GraphFrame &frame);
 
+    /// Height of graph labels in pixels for a text scale.
+    ///
+    /// \param text_scale Scale relative to the default label size.
+    /// \return Pixel size, at least 8.
+    [[nodiscard]]
+    static int
+    label_pixels(float text_scale);
+
   private:
+    /// Load the label font at a pixel size, unless it is already loaded;
+    /// glyphs are rasterized at exactly that size so labels stay crisp.
+    ///
+    /// \param file TrueType file; empty for raylib's built-in font.
+    /// \param pixels Label height in pixels.
+    void
+    use_label_font(const std::filesystem::path &file, int pixels);
+
+    /// Label font, when a TrueType file is in use.
+    std::optional<Font> m_label_font;
+    /// File of m_label_font (empty for the built-in font).
+    std::filesystem::path m_label_font_file;
+    /// Pixel size m_label_font was loaded at.
+    int m_label_font_pixels = 0;
     /// Anti-aliasing shader.
     Shader m_shader {};
     /// Render batch whose vertex layout feeds the shader's normal attribute;
