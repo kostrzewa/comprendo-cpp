@@ -500,3 +500,5 @@ commit. Newest last.
 - opencode 1.19.5 loads the plugin from the new path (scratch project,
   `mcp list`: connected). Configs pointing at the old paths must be updated
   by their owners; `~/.config/opencode/opencode.jsonc` was not touched.
+
+- Commit: `a4f734a`.
