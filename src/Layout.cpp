@@ -18,6 +18,7 @@
 
 #include "Comprendo/QuadTree.hpp"
 #include "Comprendo/Random.hpp"
+#include "Comprendo/Threads.hpp"
 #include "Profiler/Profiler.hpp"
 
 namespace
@@ -214,7 +215,7 @@ namespace
   ///
   /// \param bodies Number of bodies involved.
   /// \param allow False when the caller already runs on a worker thread.
-  /// \return 1 for small or nested work, otherwise the hardware concurrency.
+  /// \return 1 for small or nested work, otherwise the number of physical cores.
   std::size_t
   threads_for(std::size_t bodies, bool allow)
   {
@@ -222,7 +223,7 @@ namespace
     {
       return 1;
     }
-    return std::max(1U, std::thread::hardware_concurrency());
+    return Comprendo::physical_core_count();
   }
 
   /// Run a function for every index in [0, count) on up to \p threads threads.

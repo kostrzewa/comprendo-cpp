@@ -157,7 +157,7 @@ Pipeline, each step a separately tested unit in `comprendo_core`:
    when set, otherwise the root, `build/`, then the first directory below
    `build/` by name (e.g. `build/clang-22-debug`).
 2. **Server**: `clangd-22 --compile-commands-dir=<dir> --background-index=false
-   -j=<cores>`. Without a background index nothing is written into the project
+   -j=<physical cores>`. Without a background index nothing is written into the project
    (no `.cache/clangd`); stderr goes to `/dev/null`. The LSP client
    (`LspClient`, over `Subprocess` pipes) is synchronous: server requests are
    answered with `null`, notifications skipped. `initialize` asks for UTF-8
@@ -193,6 +193,15 @@ without a source file (e.g. `Extractor.hpp`) occasionally differ between runs
 `--sync` mode would avoid the race at several times the run time. `hover` is
 not used: its text repeats the source, and `summary`/`detail` belong to the
 model.
+
+### Threads
+
+Parallel work (layout leaves, Barnes-Hut force passes, clangd's `-j`) uses one
+thread per physical core (`physical_core_count`): distinct (package, core)
+pairs in `/sys/devices/system/cpu/cpuN/topology` over the CPUs in the
+process's affinity mask, falling back to `hardware_concurrency()`. SMT
+siblings share a core's execution units, so a thread per hardware thread only
+adds contention. Layout results do not depend on the thread count.
 
 ## CLI
 

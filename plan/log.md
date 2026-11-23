@@ -319,3 +319,10 @@ commit. Newest last.
   Checked with screenshots of the user's chart, hovering through XTest.
 
 - Commit: `592c8e6`.
+
+## 2026-11-23 — Threads per physical core
+
+- At the user's request, layout and clangd use one thread per physical core
+  instead of per hardware thread (8 instead of 16 here), read from the sysfs
+  topology of the CPUs in the affinity mask.
+

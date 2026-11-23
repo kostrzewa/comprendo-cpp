@@ -21,7 +21,6 @@
 #include <string>
 #include <string_view>
 #include <system_error>
-#include <thread>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -33,6 +32,7 @@
 #include "Comprendo/Json.hpp"
 #include "Comprendo/Lsp.hpp"
 #include "Comprendo/Process.hpp"
+#include "Comprendo/Threads.hpp"
 #include "Logger/Logger.hpp"
 #include "Profiler/Profiler.hpp"
 #include "Version.hpp"
@@ -702,7 +702,7 @@ namespace Comprendo
   {
     const ProfileScope profile {"clangd_enrich"};
     const std::filesystem::path canonical_root = std::filesystem::weakly_canonical(root);
-    const unsigned workers = std::max(1U, std::thread::hardware_concurrency());
+    const unsigned workers = physical_core_count();
     auto client = LspClient::start(
       {clangd,
        fmt::format(
