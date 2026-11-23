@@ -111,8 +111,9 @@ connections by one level: a selected cluster links its files to the other
 clusters, a selected file links its classes to other files, and a selected
 method or other leaf links to the members it uses. These links are bundled:
 thin fibres run from the parts to the selection's rim, and one trunk per
-destination continues from there. Hovering over anything with connections
-highlights them (and the trunks they feed) and dims the rest. View → Member connections draws every relationship
+destination continues from there. Lines between the selection's own parts
+appear only while you hover over one of them. Hovering over anything with
+connections highlights them (and the trunks they feed) and dims the rest. View → Member connections draws every relationship
 between its endpoints instead.
 
 For a cluster, directory, file, or namespace the Inspector lists its

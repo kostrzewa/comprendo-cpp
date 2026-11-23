@@ -314,4 +314,5 @@ Open (waiting for a decision, see [log](log.md)):
 - i. (done) One line per pair of groups regardless of kind and direction.
 - j. (done) Bundling of the selection's lines through its rim (fibres and one
   trunk per destination) and hover emphasis of a group's lines.
+- k. (done) Lines between the selection's children appear only on hover.
 

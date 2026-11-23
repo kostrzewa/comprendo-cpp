@@ -238,6 +238,9 @@ namespace Comprendo
     /// Group through whose rim the line is bundled (the selection, for lines
     /// from its children to its peers), or 0 for a straight line.
     std::size_t via = 0;
+    /// True for lines between children of the selection, drawn only while the
+    /// mouse is over one of their ends.
+    bool hover_only = false;
 
     /// Memberwise equality.
     ///
@@ -466,7 +469,8 @@ namespace Comprendo
     /// a file links its classes to other files, and a leaf links to the members
     /// it uses. Crossing edges to an ancestor of \p focus are dropped. Lines
     /// from a child of \p focus carry VisibleEdge::via = \p focus so they can
-    /// be bundled through its rim.
+    /// be bundled through its rim; aggregated lines between children of
+    /// \p focus are marked VisibleEdge::hover_only.
     ///
     /// Which groups an edge connects depends only on the hierarchy, the
     /// filter, and \p focus, never on zoom or position: lines end at their
@@ -610,7 +614,8 @@ namespace Comprendo
   /// every kind and both directions between two groups become one line: its
   /// weight is the sum, its kind the one with the largest summed weight (the
   /// lower kind on ties), its direction the heavier one (from the lower group
-  /// index on ties). A pair keeps the bundling group of its edges.
+  /// index on ties). A pair keeps the bundling group of its edges and is
+  /// hover-only when all its edges are.
   ///
   /// \param edges Edges, possibly several per pair.
   /// \return One edge per pair, ordered by (lower group, higher group).

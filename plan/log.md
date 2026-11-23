@@ -327,3 +327,10 @@ commit. Newest last.
   topology of the CPUs in the affinity mask.
 
 - Commit: `0d9a3a6`.
+
+## 2026-11-23 — M9k inner lines on hover
+
+- Lines between the selection's children are hover-only; hovering the
+  selection's background or an enclosing group does not count, or resting
+  the mouse on the cluster would bring them all back.
+

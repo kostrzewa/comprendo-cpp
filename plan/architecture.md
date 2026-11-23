@@ -377,7 +377,9 @@ Input is ignored while ImGui uses the mouse or keyboard.
 - bundling and hover: lines from the selection's children carry
   `VisibleEdge::via` = selection; the renderer draws a fibre from the child to
   the selection's rim (the point facing the peer) and one trunk per (rim,
-  peer) with the summed weight (up to 6× width). While the mouse is over a
+  peer) with the summed weight (up to 6× width). Lines between the
+  selection's children (`VisibleEdge::hover_only`) are drawn only while the
+  mouse is over one of their ends inside the selection. While the mouse is over a
   group with lines, lines touching it and the trunks they feed are drawn at
   double opacity and the rest at 20%;
 - one line per pair of groups (`merge_pairs`): kinds and directions merge,

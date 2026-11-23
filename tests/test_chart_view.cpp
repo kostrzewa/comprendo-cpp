@@ -686,3 +686,32 @@ TEST_CASE("edges merge into one line per pair", "[view]")
   );
   CHECK(Comprendo::merge_pairs({}).empty());
 }
+
+/// Inside the selection, lines between its own children compete with the
+/// bundled lines to its rim, so they are shown only on hover. Selects class A
+/// in a sample with a call between A's methods and checks that line is marked
+/// hover-only while the crossing calls into A are not, and that nothing is
+/// hover-only without a selection or when one of the methods is selected.
+TEST_CASE("lines among the selection's children are hover-only", "[view]")
+{
+  Chart chart = sample_chart();
+  chart.edges.push_back({.src = 7, .dst = 8, .kind = EdgeKind::Calls});
+  const ChartView view {chart, Grouping::File};
+  const auto edges = view.shown_edges({}, group_of(view, 5));
+  const auto inner = std::ranges::find_if(
+    edges,
+    [&](const auto &edge) { return edge.from == group_of(view, 7) && edge.to == group_of(view, 8); }
+  );
+  CHECK(inner != edges.end());
+  if (inner != edges.end())
+  {
+    CHECK(inner->hover_only);
+  }
+  CHECK(
+    std::ranges::any_of(edges, [](const auto &edge) { return edge.via != 0 && !edge.hover_only; })
+  );
+  const auto none_hover_only = [](const std::vector<Comprendo::VisibleEdge> &shown)
+  { return std::ranges::none_of(shown, [](const auto &edge) { return edge.hover_only; }); };
+  CHECK(none_hover_only(view.shown_edges()));
+  CHECK(none_hover_only(view.shown_edges({}, group_of(view, 7))));
+}

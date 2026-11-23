@@ -516,6 +516,7 @@ namespace Comprendo
       std::size_t from = 0;
       std::size_t to = 0;
       std::size_t via = 0;
+      bool hover_only = false;
       if (in_focus[edge.from] != in_focus[edge.to])
       {
         // Crossing the selection: the near end one level below the selection,
@@ -542,6 +543,7 @@ namespace Comprendo
         }
         from = edge.lifted_from;
         to = edge.lifted_to;
+        hover_only = focus_group != 0 && m_hierarchy.groups[from].parent == focus_group;
       }
       if (from == 0 || to == 0)
       {
@@ -551,9 +553,14 @@ namespace Comprendo
       to = shown_endpoint(to);
       if (from != 0 && to != 0 && from != to)
       {
-        edges.push_back(
-          {.from = from, .to = to, .kind = edge.kind, .weight = edge.weight, .via = via}
-        );
+        edges.push_back({
+          .from = from,
+          .to = to,
+          .kind = edge.kind,
+          .weight = edge.weight,
+          .via = via,
+          .hover_only = hover_only,
+        });
       }
     }
     return merge_pairs(edges);
@@ -568,6 +575,7 @@ namespace Comprendo
       float forward = 0.0F;
       float backward = 0.0F;
       std::size_t via = 0;
+      bool hover_only = true;
     };
     std::map<std::pair<std::size_t, std::size_t>, Pair> pairs;
     for (const VisibleEdge &edge : edges)
@@ -577,6 +585,7 @@ namespace Comprendo
       pair.by_kind.at(static_cast<std::size_t>(edge.kind)) += edge.weight;
       (forward ? pair.forward : pair.backward) += edge.weight;
       pair.via = std::max(pair.via, edge.via);
+      pair.hover_only = pair.hover_only && edge.hover_only;
     }
     std::vector<VisibleEdge> merged;
     merged.reserve(pairs.size());
@@ -590,6 +599,7 @@ namespace Comprendo
         .kind = static_cast<EdgeKind>(dominant - pair.by_kind.begin()),
         .weight = pair.forward + pair.backward,
         .via = pair.via,
+        .hover_only = pair.hover_only,
       });
     }
     return merged;

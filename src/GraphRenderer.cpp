@@ -445,8 +445,10 @@ void main()
 
   /// Draw the frame's edges: straight lines, and lines bundled through the
   /// selection's rim (thin fibres from its children to the rim, one trunk per
-  /// peer from there). While the mouse is over a group with lines, its lines
-  /// (and the trunks its fibres feed) are emphasized and all others dimmed.
+  /// peer from there). Lines between the selection's children are drawn only
+  /// while the mouse is over one of their ends inside the selection. While the
+  /// mouse is over a group with lines, its lines (and the trunks its fibres
+  /// feed) are emphasized and all others dimmed.
   ///
   /// \param painter Shape painter.
   /// \param view Chart view.
@@ -473,8 +475,17 @@ void main()
       return frame.hovered
         && (view.contains(group, *frame.hovered) || view.contains(*frame.hovered, group));
     };
+    // Lines between the selection's children appear only while the mouse is
+    // over one of their ends, not over the selection itself or around it.
+    const bool inside_selection = frame.hovered && frame.selected
+      && !view.contains(*frame.hovered, *frame.selected)
+      && view.contains(*frame.selected, *frame.hovered);
+    const auto drawn = [&](const VisibleEdge &edge)
+    { return !edge.hover_only || (inside_selection && (touches(edge.from) || touches(edge.to))); };
     const bool hovering = std::ranges::any_of(
-      frame.edges, [&](const VisibleEdge &edge) { return touches(edge.from) || touches(edge.to); }
+      frame.edges,
+      [&](const VisibleEdge &edge)
+      { return drawn(edge) && (touches(edge.from) || touches(edge.to)); }
     );
     const auto emphasis
       = [&](bool touched) { return !hovering ? 1.0F : (touched ? kHighlight : kDimmed); };
@@ -489,6 +500,10 @@ void main()
     std::map<std::pair<std::size_t, std::size_t>, Trunk> trunks;
     for (const VisibleEdge &edge : frame.edges)
     {
+      if (!drawn(edge))
+      {
+        continue;
+      }
       const bool touched = touches(edge.from) || touches(edge.to);
       const Color color = scale_alpha(edge_color(edge.kind), emphasis(touched));
       if (edge.via == 0)
