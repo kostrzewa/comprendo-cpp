@@ -599,3 +599,5 @@ commit. Newest last.
 - Mistake on the way: one test run started in the repository and saved a
   floating Source window into the user's `.comprendo/ui.ini`; that entry was
   removed and later runs used a scratch directory with a copy of the layout.
+
+- Commit: `1215ba4`.
