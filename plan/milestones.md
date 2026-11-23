@@ -298,4 +298,6 @@ Open (waiting for a decision, see [log](log.md)):
 - b. (done) The Inspector lists aggregated connections for clusters, directories,
   files, and namespaces (other cluster, other file, ... with counts).
 - c. (done) The Inspector's lists share the window's full height.
+- d. (done) Double-clicking a container row in the Explorer (directory,
+  cluster, file, ...) unfolds or folds it.
 

@@ -227,3 +227,16 @@ commit. Newest last.
 
 - Commit: `44fef0f`.
 - Commit: `26f5cf3`.
+- Commit: `289bd08`.
+
+## 2026-11-23 — M9b–d Inspector connections and height, Explorer double click
+
+- M9b: clusters, directories, files, and namespaces list connections with
+  groups of their own type; unclustered counterparts show as their files,
+  which says more than one "(unclustered)" entry.
+- M9c: the Inspector's sections share the window height (`share_heights`).
+- M9d: Explorer rows already asked ImGui to open on double click, yet the
+  user saw no unfolding; the row now toggles its open state explicitly on a
+  double click that ImGui did not handle. Not reproducible here without input
+  automation, so the fix is guarded to be harmless if ImGui does toggle.
+

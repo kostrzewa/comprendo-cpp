@@ -147,6 +147,15 @@ namespace
     {
       select_from_panel(state, group);
     }
+    // Double-clicking a container (directory, cluster, file, ...) unfolds or
+    // folds it; the open state applies from the next frame.
+    if (
+      !leaf && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
+      && !ImGui::IsItemToggledOpen()
+    )
+    {
+      ImGui::GetStateStorage()->SetInt(ImGui::GetItemID(), open ? 0 : 1);
+    }
     if (state.reveal_requested && state.selected == group)
     {
       ImGui::SetScrollHereY(0.5F);
