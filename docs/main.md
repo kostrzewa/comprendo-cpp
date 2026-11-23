@@ -87,7 +87,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | --- | --- |
 | Mouse wheel | Zoom about the cursor |
 | Left drag, right or middle drag | Pan |
-| Left click | Select (Inspector shows it, Explorer reveals it, Source panel opens it) |
+| Left click | Select (Inspector shows it, Explorer reveals it, the Source panel follows it) |
 | Double click | Select and centre the object with a short animation (zoom unchanged) |
 | `Backspace` | Go back to the view and selection before the last jump (double click, Explorer, Inspector); works while a panel has focus, except when typing in a text field |
 | `W` `A` `S` `D` | Pan |
@@ -123,14 +123,14 @@ appear only while you hover over one of them. Hovering over anything with
 connections highlights them (and the trunks they feed) and dims the rest. View → Member connections draws every relationship
 between its endpoints instead.
 
-Selecting a symbol or file anywhere (graph, Explorer, Inspector) shows its
-source in the Source panel, docked below the graph: C++ highlighting, line
-numbers, and the symbol's lines tinted and scrolled into view. Files are
-looked up relative to the working directory (start the viewer in the source
-tree), then the chart's recorded source root, then the directory holding
-`.comprendo/`; the panel follows edits on disk. View → Source shows or hides
-the panel, and View → Open source on selection stops selections from opening
-it.
+View → Source opens the Source panel, docked below the graph: the selected
+symbol's file with C++ highlighting and line numbers, its lines tinted and
+scrolled into view. The panel follows every selection (graph, Explorer,
+Inspector) even while it is closed, so it shows the current selection when
+opened; selecting never opens it. Files are looked up relative to the
+working directory (start the viewer in the source tree), then the chart's
+recorded source root, then the directory holding `.comprendo/`; the panel
+follows edits on disk.
 
 The status (chart file, counts, grouping, zoom, frame rate) sits at the right
 end of the menu bar; hover over it for the full chart path. The Log panel is

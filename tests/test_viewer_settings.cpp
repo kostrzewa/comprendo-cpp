@@ -31,12 +31,11 @@ TEST_CASE("viewer settings parse, format, and validate", "[settings]")
     .show_log = true,
     .show_minimap = false,
     .show_source = true,
-    .source_on_select = false,
   };
   CHECK(parse_viewer_settings(Comprendo::format_viewer_settings(custom), "t") == custom);
   CHECK(parse_viewer_settings("", "t") == ViewerSettings {});
   CHECK_FALSE(ViewerSettings {}.show_log);
-  CHECK(ViewerSettings {}.source_on_select);
+  CHECK_FALSE(ViewerSettings {}.show_source);
   CHECK(parse_viewer_settings("show_log = true\n", "t") == ViewerSettings {.show_log = true});
   CHECK_FALSE(parse_viewer_settings("show_log = 1\n", "t").has_value());
   CHECK(

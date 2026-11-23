@@ -601,3 +601,15 @@ commit. Newest last.
   removed and later runs used a scratch directory with a copy of the layout.
 
 - Commit: `1215ba4`.
+
+## 2026-11-23 — M12f follow-up: the Source panel never opens itself
+
+- Clarified by the user: selecting must not open the Source panel; the panel
+  opens only from View → Source and must already show the current selection
+  then. `update_source` already ran for every selection; the auto-open and
+  the "Open source on selection" option (and its setting) are removed. The
+  pending scroll to the symbol is kept until the panel is drawn.
+- Smoke test: the selection loads the file while the panel stays closed
+  (frame 29), then the panel is opened (frame 31). Checked under xvfb:
+  select `compute_layout` with the panel closed, open View → Source, and it
+  shows Layout.cpp at lines 598–686.

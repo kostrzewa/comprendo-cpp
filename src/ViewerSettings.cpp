@@ -101,13 +101,12 @@ namespace Comprendo
       settings.text_level
         = step_text_level(0, static_cast<int>(std::clamp(level.as_integer(), -kLimit, kLimit)));
     }
-    const std::array<std::pair<std::string_view, bool *>, 6> flags = {{
+    const std::array<std::pair<std::string_view, bool *>, 5> flags = {{
       {"show_explorer", &settings.show_explorer},
       {"show_inspector", &settings.show_inspector},
       {"show_log", &settings.show_log},
       {"show_minimap", &settings.show_minimap},
       {"show_source", &settings.show_source},
-      {"source_on_select", &settings.source_on_select},
     }};
     for (const auto &[key, flag] : flags)
     {
@@ -133,15 +132,14 @@ namespace Comprendo
       "# Comprendo viewer settings, written by the viewer.\n"
       "font = \"{}\"\ntext_level = {}\n"
       "show_explorer = {}\nshow_inspector = {}\nshow_log = {}\nshow_minimap = {}\n"
-      "show_source = {}\nsource_on_select = {}\n",
+      "show_source = {}\n",
       settings.font,
       settings.text_level,
       settings.show_explorer,
       settings.show_inspector,
       settings.show_log,
       settings.show_minimap,
-      settings.show_source,
-      settings.source_on_select
+      settings.show_source
     );
   }
 

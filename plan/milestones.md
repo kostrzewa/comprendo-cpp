@@ -392,5 +392,7 @@ session's Code Mode call to `chart_overview` wrote the chart. A complete
   (`SourceHighlight.hpp`: keywords, types, preprocessor, strings incl. raw
   strings across lines, characters, numbers, comments across lines), line
   numbers, and the symbol's lines tinted and scrolled to. Docked below the
-  graph; panel visibility and "open on selection" persist per user.
+  graph; opened only from View → Source (visibility persists per user) and
+  kept in step with the selection while closed, so it opens on the current
+  selection.
 

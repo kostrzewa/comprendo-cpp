@@ -62,11 +62,9 @@ namespace Comprendo
     /// Whether the floating Fonts dialog is open.
     bool show_fonts = false;
 
-    /// Whether the Source panel is visible.
+    /// Whether the Source panel is visible (View -> Source); it follows the
+    /// selection either way.
     bool show_source = false;
-
-    /// Whether selecting a symbol opens the Source panel at it.
-    bool source_on_select = true;
 
     /// Font of the panels and graph labels (see font_choices()).
     std::string font {kBuiltinFontId};
@@ -291,13 +289,14 @@ namespace Comprendo
     draw_fonts(ViewerState &state) const;
 
     /// Follow the selection: when a different symbol with a source location is
-    /// selected, open its file at its lines (and show the panel when
-    /// ViewerState::source_on_select is set).
+    /// selected, load its file and remember its lines. This runs whether or not
+    /// the Source panel is open, so the panel shows the selection (scrolled to
+    /// it) as soon as it is opened; selecting never opens the panel.
     ///
     /// \param state Viewer state holding the selection.
     /// \param view Loaded chart, or null.
     void
-    update_source(ViewerState &state, const ChartView *view);
+    update_source(const ViewerState &state, const ChartView *view);
 
     /// Read and highlight a file for the Source panel, keeping the previous
     /// one when it is already shown and unchanged on disk.

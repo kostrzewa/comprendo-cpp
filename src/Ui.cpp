@@ -1257,7 +1257,6 @@ namespace Comprendo
       ImGui::MenuItem("Fonts...", nullptr, &state.show_fonts);
       ImGui::Separator();
       ImGui::MenuItem("Source", nullptr, &state.show_source);
-      ImGui::MenuItem("Open source on selection", nullptr, &state.source_on_select);
       ImGui::Separator();
       if (ImGui::MenuItem("Reset layout"))
       {
@@ -1401,7 +1400,7 @@ namespace Comprendo
   }
 
   void
-  Ui::update_source(ViewerState &state, const ChartView *view)
+  Ui::update_source(const ViewerState &state, const ChartView *view)
   {
     if (view == nullptr || !state.selected)
     {
@@ -1422,10 +1421,6 @@ namespace Comprendo
     source_last_ = node.kind == NodeKind::File ? 0 : std::max(node.line_end, node.line_start);
     source_scroll_ = true;
     open_source(node.file, state, *view);
-    if (state.source_on_select)
-    {
-      state.show_source = true;
-    }
   }
 
   void

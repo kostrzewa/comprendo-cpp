@@ -124,8 +124,11 @@ namespace
   /// Frame on which the smoke test selects a symbol to open its source.
   constexpr int kSmokeSourceFrame = 27;
 
-  /// Frame on which the smoke test checks the Source panel shows the file.
+  /// Frame on which the smoke test checks the file was loaded without opening the panel.
   constexpr int kSmokeSourceCheckFrame = 29;
+
+  /// Frame on which the smoke test opens the Source panel with that file.
+  constexpr int kSmokeSourceOpenFrame = 31;
 
   /// Frame on which the smoke test zooms into the chart.
   constexpr int kSmokeChartZoomFrame = 20;
@@ -420,7 +423,6 @@ namespace
     state.show_log = settings.show_log;
     state.show_minimap = settings.show_minimap;
     state.show_source = settings.show_source;
-    state.source_on_select = settings.source_on_select;
     return settings;
   }
 
@@ -444,7 +446,6 @@ namespace
       .show_log = state.show_log,
       .show_minimap = state.show_minimap,
       .show_source = state.show_source,
-      .source_on_select = state.source_on_select,
     };
     if (current == saved)
     {
@@ -1471,6 +1472,10 @@ namespace
       {
         state.selected = first_symbol_with_lines(session->view);
       }
+      if (session && frame == kSmokeSourceOpenFrame)
+      {
+        state.show_source = true;
+      }
       if (frame == kSmokeFontFrame)
       {
         state.font = "inter";
@@ -1493,8 +1498,11 @@ namespace
       draw_frame(session, build_info, note, ui_shell, state, renderer);
       if (session && frame == kSmokeSourceCheckFrame)
       {
-        Comprendo::Logger::info("Smoke: source panel shows {} lines", ui_shell.source_line_count());
-        if (!state.show_source || ui_shell.source_line_count() == 0)
+        Comprendo::Logger::info(
+          "Smoke: source loaded in the background ({} lines)", ui_shell.source_line_count()
+        );
+        // The panel follows the selection in the background without opening.
+        if (state.show_source || ui_shell.source_line_count() == 0)
         {
           Comprendo::Logger::warn("Smoke: source panel check failed at frame {}", frame);
           passed = false;

@@ -534,7 +534,8 @@ graph:
   `claude_plugin/assets/icon.png` at configure time), resized to 16–256 px
   and set before the hidden window is first shown.
 - **Source panel** (M12f): `Ui::update_source` follows `ViewerState::selected`
-  (by node id, so regrouping does not reopen), `open_source` resolves the
+  (by node id, so regrouping does not reload) whether or not the panel is
+  open, and never opens it; `open_source` resolves the
   file (`resolve_source`) and highlights it once (`highlight_source`, a
   line-by-line lexer whose `LexState` carries block comments and raw
   strings); `draw_source` clips to visible lines, draws numbers in a gutter
