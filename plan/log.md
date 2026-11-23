@@ -56,3 +56,19 @@ commit. Newest last.
   identical edges.
 - The fixture gained `total(const geo::Shape &)` to exercise a virtual call
   through a base reference (ctags counts are now 31 nodes, 29 edges).
+- Commit: `5be33e3`.
+
+## 2026-11-23 — M6 opencode plugin
+
+- Bun is not installed, but opencode is a Bun executable: with `BUN_BE_BUN=1`
+  it is Bun 1.4.4 with `bun:sqlite` and `bun test`. CMake uses `bun` when
+  present, otherwise that.
+- Read from opencode's bundled source: plugins listed by path must default
+  export `{ id, server }`; tool arguments may be plain JSON Schema instead of
+  zod. Both let the plugin load from this repository without `npm install`.
+- Tools open the chart per call, so `comprendo-cli extract` can rewrite it
+  mid-session; arguments are validated in the handlers because opencode does
+  not validate JSON Schema arguments.
+- Verified with opencode 1.19.5 in a scratch project: `/chart` is registered
+  and the build agent lists all seven tools. No live model session was run.
+

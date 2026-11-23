@@ -146,6 +146,44 @@ if(COMPRENDO_BUILD_TESTS)
     set_tests_properties(cli_info PROPERTIES PASS_REGULAR_EXPRESSION "Contains +[0-9]+")
   endif()
 
+  # The plugin runs on Bun; opencode is a Bun executable and acts as `bun` with BUN_BE_BUN=1.
+  find_program(COMPRENDO_BUN bun)
+  find_program(COMPRENDO_OPENCODE opencode)
+  if(COMPRENDO_BUN)
+    set(COMPRENDO_BUN_COMMAND ${COMPRENDO_BUN})
+  elseif(COMPRENDO_OPENCODE)
+    set(COMPRENDO_BUN_COMMAND ${CMAKE_COMMAND} -E env BUN_BE_BUN=1 ${COMPRENDO_OPENCODE})
+  endif()
+  if(COMPRENDO_BUN_COMMAND)
+    add_test(
+      NAME plugin_tests
+      COMMAND ${COMPRENDO_BUN_COMMAND} test
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/plugin
+    )
+    if(UNIVERSAL_CTAGS)
+      set(PLUGIN_TEST_DIR ${CMAKE_BINARY_DIR}/plugin-test)
+      set(PLUGIN_TEST_CHART ${PLUGIN_TEST_DIR}/.comprendo/chart.sqlite)
+      add_test(
+        NAME plugin_annotate
+        COMMAND
+          ${COMPRENDO_BUN_COMMAND} run ${CMAKE_SOURCE_DIR}/plugin/scripts/annotate-sample.ts
+          ${CLI_TEST_CHART} ${PLUGIN_TEST_DIR}
+      )
+      add_test(NAME plugin_chart_validate COMMAND comprendo-cli validate ${PLUGIN_TEST_CHART})
+      add_test(NAME plugin_chart_info COMMAND comprendo-cli info ${PLUGIN_TEST_CHART})
+      set_tests_properties(
+        plugin_annotate
+        PROPERTIES FIXTURES_REQUIRED cli_chart FIXTURES_SETUP plugin_chart
+      )
+      set_tests_properties(
+        plugin_chart_validate plugin_chart_info
+        PROPERTIES FIXTURES_REQUIRED plugin_chart
+      )
+      set_tests_properties(plugin_chart_validate PROPERTIES PASS_REGULAR_EXPRESSION ": valid")
+      set_tests_properties(plugin_chart_info PROPERTIES PASS_REGULAR_EXPRESSION "Uses +1")
+    endif()
+  endif()
+
   if(COMPRENDO_BUILD_VIEWER)
     add_test(NAME viewer_rejects_unknown_option COMMAND comprendo --no-such-option)
     set_tests_properties(
@@ -161,6 +199,16 @@ if(COMPRENDO_BUILD_TESTS)
           COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test ${CLI_TEST_CHART}
         )
         set_tests_properties(viewer_smoke_chart PROPERTIES FIXTURES_REQUIRED cli_chart)
+        if(COMPRENDO_BUN_COMMAND)
+          add_test(
+            NAME viewer_smoke_plugin_chart
+            COMMAND ${XVFB_RUN} -a $<TARGET_FILE:comprendo> --smoke-test ${PLUGIN_TEST_CHART}
+          )
+          set_tests_properties(
+            viewer_smoke_plugin_chart
+            PROPERTIES FIXTURES_REQUIRED plugin_chart
+          )
+        endif()
       endif()
     endif()
   endif()

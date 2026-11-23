@@ -81,6 +81,8 @@ Keep `docs/main.md` and the `plan/` documents current.
 
 - Use Catch2 and CTest. Prefer deterministic tests; use golden files for layout
   and serialization.
+- The plugin uses `bun test` (`plugin/test/`). Bun is not required: opencode is
+  a Bun executable, so `BUN_BE_BUN=1 opencode test` in `plugin/` runs them.
 - Add tests with every feature and run `ctest --preset clang-22` before
   finishing.
 - Gate tests that need external tools (for example `clangd-22`) on their

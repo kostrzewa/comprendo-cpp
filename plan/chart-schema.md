@@ -30,7 +30,9 @@ WAL lets the viewer read while the plugin writes.
 
 Key/value text pairs: `project`, `git_commit` (`git describe --always --dirty`),
 `generated_at` (ISO-8601 UTC), `generator` (e.g. `comprendo-cli 0.1.0`),
-`source_root` (absolute path).
+`source_root` (absolute path). The plugin adds `annotator` (e.g.
+`comprendo-opencode 0.1.0`) and `annotated_at` (ISO-8601 UTC) when the model
+finishes; readers ignore keys they do not know.
 
 ### `nodes`
 
@@ -50,6 +52,10 @@ Key/value text pairs: `project`, `git_commit` (`git describe --always --dirty`),
 | `loc` | INTEGER | Lines of code |
 | `complexity` | INTEGER | Cyclomatic complexity, `0` when unknown |
 | `provenance` | INTEGER | `Provenance`, checked `0..2` |
+
+`provenance` records who wrote the node's content: the extractor sets
+`Extractor`; the plugin sets `Model` on nodes it adds and on nodes it
+annotates. Edges keep the provenance of their first writer.
 
 #### NodeKind
 
@@ -89,6 +95,10 @@ Primary key `(src, dst, kind)`; writers upsert on conflict.
 | `summary` | TEXT | Model explanation |
 | `color` | INTEGER | Packed `0xRRGGBB` |
 | `parent_id` | INTEGER NULL | Parent cluster (FK), `NULL` for top level |
+
+The plugin derives cluster ids from labels: FNV-1a over `"cluster" 0x1F
+label`, with `0` replaced by `1`, so re-annotating a cluster by label updates it
+in place. A `color` of `0` lets the viewer choose.
 
 ### `layout`
 

@@ -212,20 +212,27 @@ Acceptance: graph screenshots show smooth circle and line edges.
 
 Acceptance: `extract` → `validate` → `info` runs headlessly.
 
-## M6 — opencode plugin
+## M6 — opencode plugin (complete)
 
-- `plugin/` package with `/chart` command and chart tools.
+- `plugin/` with `/chart` (registered through the `config` hook) and seven
+  chart tools ([architecture](architecture.md#plugin)); loaded by path, no
+  npm dependencies.
 - Writes `.comprendo/chart.sqlite` itself via `bun:sqlite`; no code
   dependency on `comprendo-cli`. The `/chart` prompt asks the model to run
   `comprendo-cli extract` via its shell tool when available, then annotates
   the extracted nodes (looked up by qualified name and file).
 - FNV-1a node ids in `BigInt` for model-added nodes, checked against the
-  [chart-schema.md](chart-schema.md#ids) vectors.
-- `bun test` against a temporary database; a CTest gated on `bun` runs
-  `comprendo-cli validate` on a plugin-written chart.
+  [chart-schema.md](chart-schema.md#ids) vectors; cluster ids from labels.
+- `bun test` against temporary databases; CTests (`plugin_tests`,
+  `plugin_annotate`, `plugin_chart_validate`, `plugin_chart_info`,
+  `viewer_smoke_plugin_chart`) gated on Bun or opencode.
 
-Acceptance: `/chart` fills `.comprendo/chart.sqlite`, the viewer opens it, and the
-plugin prints the viewer command.
+Acceptance (met, except a live model session): opencode 1.19.5 loads the
+plugin by path, `debug config` shows `/chart`, the build agent lists the
+seven tools, a scripted session fills a CLI-extracted chart that
+`comprendo-cli validate` accepts and the viewer opens, and `chart_finish`
+prints the viewer command. A real `/chart` run needs a model and was left to
+the user.
 
 ## M7 — Polish
 

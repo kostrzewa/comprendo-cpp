@@ -1,0 +1,11 @@
+{
+  "name": "comprendo-opencode",
+  "version": "0.1.0",
+  "description": "opencode plugin: /chart explores a codebase and writes a Comprendo chart",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  }
+}

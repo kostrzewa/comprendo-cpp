@@ -193,25 +193,38 @@ than recomputing ids.
 
 ## Plugin
 
-The plugin does not invoke `comprendo-cli`. opencode plugins run on Bun, so the
-plugin opens the chart with the built-in `bun:sqlite` module. `/chart`:
+`plugin/` is an opencode plugin with no dependencies besides Bun's built-ins.
+opencode loads it by path (`"plugin": ["<repo>/plugin/src/index.ts"]`), which
+requires the default export `{ id, server }`. It does not invoke
+`comprendo-cli` itself.
 
-1. prompts the session to run `comprendo-cli extract` through its shell tool
-   when the CLI is available, so the chart starts from the complete extracted
-   structure (this rewrites `.comprendo/chart.sqlite`);
-2. opens `.comprendo/chart.sqlite`, creating it and applying
-   `schema/chart.sql` when absent, and sets the connection pragmas
-   (`foreign_keys`, `journal_mode = WAL`);
-3. prompts the session to explore and annotate the codebase;
-4. exposes `chart_find_node`, `chart_add_node`, `chart_annotate_node`,
-   `chart_annotate_cluster`, `chart_add_edge`, and `chart_finish`; each tool
-   call is one transaction and writes rows with provenance `Model`. Existing
-   nodes are found by qualified name and file (`chart_find_node`), never by
-   recomputing ids, because extractor signatures use ctags' exact text;
-5. computes ids only for nodes the model adds, with the FNV-1a recipe in
-   [chart-schema.md](chart-schema.md#ids), using `BigInt` (`safeIntegers`);
-6. on `chart_finish`, prints the chart path and the viewer command. It does
-   not launch the viewer.
+- **Command**: the `config` hook adds `/chart` unless the user defined one.
+  The prompt has the model run `comprendo-cli extract` through its shell tool
+  when the CLI is on `PATH` (this rewrites `.comprendo/chart.sqlite`), then
+  explore, annotate, cluster, and call `chart_finish`.
+- **Tools**: `chart_overview`, `chart_find_node`, `chart_add_node`,
+  `chart_annotate_node`, `chart_annotate_cluster`, `chart_add_edge`,
+  `chart_finish`. Arguments are plain JSON Schema: opencode accepts these
+  next to zod schemas (marking every argument required and skipping
+  validation), so handlers validate their own arguments and report mistakes
+  as tool errors the model can fix. Ids appear as `0x` plus 16 hex digits.
+- **Storage**: each call opens `.comprendo/chart.sqlite` with `bun:sqlite`
+  (`safeIntegers`, ids as `BigInt`), refuses non-charts and newer schema
+  versions, enables WAL and foreign keys, applies `schema/chart.sql`, runs
+  one immediate transaction, and closes. Holding no connection between calls
+  lets `comprendo-cli extract` replace the file during a session.
+- **Identity**: existing nodes are found by name and file
+  (`chart_find_node`), never by recomputing ids, because extractor signatures
+  use ctags' exact text. Ids of nodes the model adds use the FNV-1a recipe in
+  [chart-schema.md](chart-schema.md#ids); new nodes hang under their file
+  (created when missing) by a `Contains` edge, and stale layout rows are
+  dropped. Clusters are addressed by label.
+- **Finish**: `chart_finish` runs `integrity_check` and
+  `foreign_key_check`, stamps `meta`, and prints `comprendo <chart>`. It does
+  not launch the viewer.
+- **Testing**: `bun test` in `plugin/`. Without a Bun install,
+  `BUN_BE_BUN=1 opencode` is Bun (opencode is a Bun executable); CMake uses
+  either.
 
 Without the CLI, the model builds the chart from scratch through
 `chart_add_node`. The viewer shows rows from either writer.
@@ -366,5 +379,6 @@ Catch2 covers the chart model, id test vectors, SQLite round-trip, schema
 version and identity checks, validation, ctags JSON fixtures, clangd-22 merge
 fixtures (skipped when the binary is absent), layout determinism, and a CTest
 integration test for `comprendo-cli validate`. The plugin is tested with
-`bun test` against a temporary database; a CTest gated on `bun` validates a
-plugin-written chart with `comprendo-cli validate`.
+`bun test` against temporary databases; CTests gated on Bun (or opencode)
+annotate a CLI-extracted chart through the plugin's tools and check it with
+`comprendo-cli validate`, `comprendo-cli info`, and the viewer smoke test.
