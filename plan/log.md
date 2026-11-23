@@ -723,3 +723,5 @@ commit. Newest last.
   selection targets still glide to the middle.
 - Smoke test: C over the centred group restores the normal layout with the
   group within 0.5 px of where it was. Checked under xvfb with real input.
+
+- Commit: `7592210`.
