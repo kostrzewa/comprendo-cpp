@@ -479,7 +479,11 @@ graph:
   sections get what they need, long ones split the rest, at least 3 rows). With the Inspector focused, Up/Down move one
   cursor through all list rows (`move_list_cursor`) and Enter selects the
   row; the window has `NoNavInputs` so ImGui's own navigation does not also
-  react. For clusters, directories, files, and namespaces, Outgoing and
+  react. Contains is a tree (`ChartView::contents_tree`, flattened into
+  rows so the clipper and cursor still work): children of the selection's
+  type start unfolded, others folded; `ViewerState::inspector_toggled` flips
+  that per group (arrow click, Right/Left) and is cleared on a new selection.
+  For clusters, directories, files, and namespaces, Outgoing and
   Incoming list aggregated connections (`ChartView::connections`): edges
   with one endpoint inside the group, counted against the other endpoint's
   nearest group of the same type (else its file), most edges first; symbols

@@ -745,3 +745,67 @@ TEST_CASE("connections are clipped at the disks' rims", "[view]")
   const Vec2 same {.x = 4, .y = 5};
   CHECK(rim_to_rim(same, 1, same, 2, 2) == Segment {.from = same, .to = same});
 }
+
+/// The Inspector shows a cluster's contents as a tree so subclusters and
+/// their members are visible at a glance. Nests cluster Gamma (holding a.cpp)
+/// in Alpha (holding b.cpp), lists Alpha's contents, and checks Gamma starts
+/// unfolded with a.cpp below it while files start folded; then flips a.cpp
+/// (its namespace appears one level deeper) and Gamma (a.cpp disappears).
+TEST_CASE("contents are listed as a foldable tree", "[view]")
+{
+  Chart chart = sample_chart();
+  chart.clusters.push_back({.id = 100, .label = "Alpha"});
+  chart.clusters.push_back({.id = 300, .label = "Gamma", .parent_id = 100});
+  chart.nodes.at(0).cluster_id = 300;
+  chart.nodes.at(1).cluster_id = 100;
+  const ChartView view {chart, Grouping::Cluster};
+  const auto &groups = view.hierarchy().groups;
+  const auto cluster = [&](std::uint64_t id)
+  {
+    return static_cast<std::size_t>(
+      std::ranges::find(groups, id, &Comprendo::HierarchyGroup::cluster) - groups.begin()
+    );
+  };
+  const std::size_t alpha = cluster(100);
+  const std::size_t gamma = cluster(300);
+  const std::size_t a_cpp = group_of(view, 1);
+  const std::size_t b_cpp = group_of(view, 2);
+  using Comprendo::ContentsRow;
+  // Position of a group's row, or nothing when it is not shown.
+  const auto position
+    = [](const std::vector<ContentsRow> &rows, std::size_t group) -> std::optional<std::size_t>
+  {
+    const auto it = std::ranges::find(rows, group, &ContentsRow::group);
+    if (it == rows.end())
+    {
+      return std::nullopt;
+    }
+    return static_cast<std::size_t>(it - rows.begin());
+  };
+  const auto row
+    = [&](const std::vector<ContentsRow> &rows, std::size_t group) -> std::optional<ContentsRow>
+  {
+    const auto at = position(rows, group);
+    return at ? std::optional {rows[*at]} : std::nullopt;
+  };
+
+  const auto rows = view.contents_tree(alpha);
+  CHECK(rows.size() == 3);
+  CHECK(
+    row(rows, gamma)
+    == ContentsRow {.group = gamma, .depth = 0, .expandable = true, .expanded = true}
+  );
+  CHECK(row(rows, a_cpp) == ContentsRow {.group = a_cpp, .depth = 1, .expandable = true});
+  CHECK(row(rows, b_cpp) == ContentsRow {.group = b_cpp, .depth = 0, .expandable = true});
+  const auto gamma_at = position(rows, gamma);
+  CHECK((gamma_at && position(rows, a_cpp) == *gamma_at + 1));
+
+  const auto unfolded = view.contents_tree(alpha, {a_cpp});
+  CHECK(unfolded.size() == 4);
+  const std::size_t ns_a = group_of(view, 3);
+  CHECK(row(unfolded, ns_a) == ContentsRow {.group = ns_a, .depth = 2, .expandable = true});
+
+  const auto folded = view.contents_tree(alpha, {gamma, a_cpp});
+  CHECK(folded.size() == 2);
+  CHECK_FALSE(position(folded, a_cpp));
+}

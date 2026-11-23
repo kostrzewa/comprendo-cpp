@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,10 @@ namespace Comprendo
 
     /// Group the Inspector cursor belongs to; a new selection resets the cursor.
     std::optional<std::size_t> inspector_group;
+
+    /// Rows of the Inspector's Contains tree whose default folding was flipped
+    /// (see ChartView::contents_tree()); a new selection clears it.
+    std::set<std::size_t> inspector_toggled;
 
     /// Whether the minimap is drawn in the graph area.
     bool show_minimap = true;

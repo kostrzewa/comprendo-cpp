@@ -96,6 +96,7 @@ profile of the run and write a Perfetto trace (open it at ui.perfetto.dev).
 | Double click in the Explorer | Unfold or fold a directory, cluster, file, ... |
 | `Ctrl+F` | Filter the Explorer |
 | `Up` / `Down`, `Enter` (Inspector focused) | Move through the Inspector's lists; jump to the highlighted entry |
+| `Right` / `Left` (Inspector focused) | Unfold / fold the highlighted row of Contains |
 | `F11` / `Escape` | Toggle / leave fullscreen |
 | `Ctrl+Q` | Quit |
 
@@ -119,7 +120,10 @@ between its endpoints instead.
 
 For a cluster, directory, file, or namespace the Inspector lists its
 connections with other groups of the same kind (other clusters, other files)
-and how many relationships each stands for.
+and how many relationships each stands for. Contains shows the selection's
+contents as a tree: nested groups of the same kind (subclusters,
+subdirectories) start unfolded, everything else folded. The arrow folds or
+unfolds a row; clicking its name selects it.
 
 View → Show hides symbol kinds (with their contents) and relationship kinds,
 for example everything but calls.

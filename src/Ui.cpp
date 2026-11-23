@@ -293,6 +293,12 @@ namespace
     std::string label;
     /// Group selected when the row is chosen.
     std::size_t group = 0;
+    /// Indentation level in a tree section.
+    std::size_t depth = 0;
+    /// True when the row can be unfolded (tree sections only).
+    bool expandable = false;
+    /// True when the row is unfolded.
+    bool expanded = false;
   };
 
   /// One headed, scrollable list of the Inspector.
@@ -302,22 +308,46 @@ namespace
     const char *title = "";
     /// Rows.
     std::vector<ListEntry> entries;
+    /// True to draw the rows as a foldable tree, coloured like the Explorer.
+    bool tree = false;
   };
 
-  /// Rows for a group's children.
+  /// The Contains section: a group's contents as a foldable tree.
   ///
   /// \param view Chart view.
-  /// \param group Group whose children are listed.
-  /// \return One row per child, in Explorer order.
-  std::vector<ListEntry>
-  child_entries(const Comprendo::ChartView &view, std::size_t group)
+  /// \param state Viewer state holding the folding the user changed.
+  /// \param group Group whose contents are listed.
+  /// \return The section, one row per visible tree row.
+  ListSection
+  contents_section(
+    const Comprendo::ChartView &view, const Comprendo::ViewerState &state, std::size_t group
+  )
   {
-    std::vector<ListEntry> entries;
-    for (const std::size_t child : view.display_children(group))
+    ListSection section {.title = "Contains", .tree = true};
+    for (const Comprendo::ContentsRow &row : view.contents_tree(group, state.inspector_toggled))
     {
-      entries.push_back({.label = view.display_label(child), .group = child});
+      section.entries.push_back({
+        .label = view.display_label(row.group),
+        .group = row.group,
+        .depth = row.depth,
+        .expandable = row.expandable,
+        .expanded = row.expanded,
+      });
     }
-    return entries;
+    return section;
+  }
+
+  /// Flip the folding of a Contains row.
+  ///
+  /// \param state Viewer state holding the folding.
+  /// \param group Group of the row.
+  void
+  toggle_contents_row(Comprendo::ViewerState &state, std::size_t group)
+  {
+    if (!state.inspector_toggled.erase(group))
+    {
+      state.inspector_toggled.insert(group);
+    }
   }
 
   /// Rows for a selection's edges, each naming the other endpoint.
@@ -407,8 +437,55 @@ namespace
       + (2.0F * ImGui::GetStyle().WindowPadding.y);
   }
 
+  /// Draw one row of a tree section: indented, with a fold arrow when it has
+  /// contents, coloured like the Explorer. The arrow folds or unfolds the row;
+  /// the label selects its group.
+  ///
+  /// \param view Chart view.
+  /// \param entry Row.
+  /// \param highlighted True when the keyboard cursor is on the row.
+  /// \param state Viewer state receiving the folding or selection.
+  void
+  draw_tree_row(
+    const Comprendo::ChartView &view,
+    const ListEntry &entry,
+    bool highlighted,
+    Comprendo::ViewerState &state
+  )
+  {
+    const float indent = static_cast<float>(entry.depth) * ImGui::GetStyle().IndentSpacing;
+    if (indent > 0.0F)
+    {
+      ImGui::Indent(indent);
+    }
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth
+      | ImGuiTreeNodeFlags_NoTreePushOnOpen
+      | (entry.expandable ? ImGuiTreeNodeFlags_OpenOnArrow : ImGuiTreeNodeFlags_Leaf);
+    if (highlighted)
+    {
+      flags |= ImGuiTreeNodeFlags_Selected;
+    }
+    ImGui::SetNextItemOpen(entry.expanded);
+    ImGui::PushStyleColor(ImGuiCol_Text, imgui_color(view.group_color(entry.group)));
+    ImGui::TreeNodeEx(entry.label.c_str(), flags);
+    ImGui::PopStyleColor();
+    if (ImGui::IsItemToggledOpen())
+    {
+      toggle_contents_row(state, entry.group);
+    }
+    else if (ImGui::IsItemClicked())
+    {
+      select_from_panel(state, entry.group);
+    }
+    if (indent > 0.0F)
+    {
+      ImGui::Unindent(indent);
+    }
+  }
+
   /// Draw a headed list with its own scrollbar.
   ///
+  /// \param view Chart view.
   /// \param section Heading and rows.
   /// \param height Height of the scrolling list.
   /// \param first Cursor index of the section's first row.
@@ -417,6 +494,7 @@ namespace
   /// \param state Viewer state receiving a click selection.
   void
   draw_list_section(
+    const Comprendo::ChartView &view,
     const ListSection &section,
     float height,
     std::size_t first,
@@ -425,7 +503,10 @@ namespace
     Comprendo::ViewerState &state
   )
   {
-    section_heading(section.title, section.entries.size());
+    section_heading(
+      section.title,
+      static_cast<std::size_t>(std::ranges::count(section.entries, 0UZ, &ListEntry::depth))
+    );
     if (section.entries.empty())
     {
       text_disabled("None");
@@ -446,7 +527,11 @@ namespace
         const ListEntry &entry = section.entries[static_cast<std::size_t>(row)];
         const bool highlighted = cursor_here && *cursor == first + static_cast<std::size_t>(row);
         ImGui::PushID(row);
-        if (ImGui::Selectable(entry.label.c_str(), highlighted))
+        if (section.tree)
+        {
+          draw_tree_row(view, entry, highlighted, state);
+        }
+        else if (ImGui::Selectable(entry.label.c_str(), highlighted))
         {
           select_from_panel(state, entry.group);
         }
@@ -463,7 +548,7 @@ namespace
   /// Move the Inspector's keyboard cursor and act on Enter.
   ///
   /// Up and Down move through the rows of all lists in order; Enter selects the
-  /// row's group as a click would.
+  /// row's group as a click would; Right and Left unfold and fold a tree row.
   ///
   /// \param sections Lists in drawing order.
   /// \param state Viewer state holding the cursor.
@@ -496,6 +581,15 @@ namespace
     {
       select_from_panel(state, rows[*cursor]->group);
     }
+    if (cursor && rows[*cursor]->expandable)
+    {
+      const bool unfold = ImGui::IsKeyPressed(ImGuiKey_RightArrow) && !rows[*cursor]->expanded;
+      const bool fold = ImGui::IsKeyPressed(ImGuiKey_LeftArrow) && rows[*cursor]->expanded;
+      if (unfold || fold)
+      {
+        toggle_contents_row(state, rows[*cursor]->group);
+      }
+    }
     return moved;
   }
 
@@ -514,12 +608,14 @@ namespace
   /// Each section gets the height it needs while that fits; long sections
   /// share what is left (see share_heights()) and keep at least a few rows.
   ///
+  /// \param view Chart view.
   /// \param detail Detail text, or null for groups without one.
   /// \param sections Lists in drawing order.
   /// \param state Viewer state.
   /// \param keyboard True when the Inspector has keyboard focus.
   void
   draw_list_sections(
+    const Comprendo::ChartView &view,
     const std::string *detail,
     const std::vector<ListSection> &sections,
     Comprendo::ViewerState &state,
@@ -578,7 +674,7 @@ namespace
     for (const ListSection &section : sections)
     {
       const float height = section.entries.empty() ? 0.0F : heights[next++];
-      draw_list_section(section, height, first, state.inspector_cursor, scroll, state);
+      draw_list_section(view, section, height, first, state.inspector_cursor, scroll, state);
       first += section.entries.size();
     }
   }
@@ -654,6 +750,7 @@ namespace
     {
       state.inspector_group = group;
       state.inspector_cursor.reset();
+      state.inspector_toggled.clear();
     }
     const Comprendo::HierarchyGroup &entry = view.hierarchy().groups[group];
     ImGui::PushStyleColor(ImGuiCol_Text, imgui_color(view.group_color(group)));
@@ -680,9 +777,10 @@ namespace
     if (entry.nodes.empty())
     {
       draw_list_sections(
+        view,
         nullptr,
         {
-          ListSection {.title = "Contains", .entries = child_entries(view, group)},
+          contents_section(view, state, group),
           ListSection {.title = "Outgoing", .entries = connection_entries(view, group, true)},
           ListSection {.title = "Incoming", .entries = connection_entries(view, group, false)},
         },
@@ -764,9 +862,10 @@ namespace
       }
     }
     draw_list_sections(
+      view,
       &node.detail,
       {
-        ListSection {.title = "Contains", .entries = child_entries(view, group)},
+        contents_section(view, state, group),
         ListSection {
           .title = "Outgoing",
           .entries = lists_connections(view, group) ? connection_entries(view, group, true)

@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -115,6 +116,25 @@ namespace Comprendo
     Symbol,
     /// A synthetic group without nodes, such as "(unclustered)".
     Other,
+  };
+
+  /// One row of a group's contents shown as a tree.
+  struct ContentsRow
+  {
+    /// Group of the row.
+    std::size_t group = 0;
+    /// Nesting below the listed group: 0 for its children.
+    std::size_t depth = 0;
+    /// True when the group has children, so the row can be unfolded.
+    bool expandable = false;
+    /// True when the row's children follow it.
+    bool expanded = false;
+
+    /// Memberwise equality.
+    ///
+    /// \return True when all members are equal.
+    bool
+    operator==(const ContentsRow &) const = default;
   };
 
   /// Aggregated connection between a group and a group of the same type.
@@ -487,6 +507,19 @@ namespace Comprendo
     shown_edges(
       const ViewFilter &filter = {}, std::optional<std::size_t> focus = std::nullopt
     ) const;
+
+    /// A group's contents as a tree, flattened into rows in Explorer order.
+    ///
+    /// Children of the same type as \p group (subclusters of a cluster,
+    /// subdirectories of a directory) start unfolded so the nesting shows;
+    /// everything else starts folded. \p toggled flips that default per group.
+    ///
+    /// \param group Group whose contents are listed.
+    /// \param toggled Groups whose default folding the user flipped.
+    /// \return Rows of the visible tree, parents before their children.
+    [[nodiscard]]
+    std::vector<ContentsRow>
+    contents_tree(std::size_t group, const std::set<std::size_t> &toggled = {}) const;
 
     /// What a group stands for.
     ///

@@ -320,6 +320,9 @@ Open (waiting for a decision, see [log](log.md)):
 - m. (done) Fibres start at the children's rims too, and a small port (a dot
   in the line's colour, sized by its width) marks every point where a line
   leaves a disk.
+- n. (done) The Inspector's Contains list is a foldable tree: subclusters
+  (and subdirectories) unfold by default, other contents fold; arrows and
+  Right/Left fold and unfold rows.
 
 ## M10 — opencode 2.x plugin (complete)
 

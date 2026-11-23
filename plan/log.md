@@ -387,3 +387,15 @@ commit. Newest last.
 - Checked under xvfb: nothing selected and `Layout engine` selected.
 
 - Commit: `4613dd3`.
+
+## 2026-11-23 — M9n Contains as a tree
+
+- User request: a cluster holding subclusters and members should show them as
+  a tree in the Inspector's Contains list. `ChartView::contents_tree` flattens
+  the visible tree into rows (depth, expandable, expanded) so the list keeps
+  its clipper, keyboard cursor, and height sharing; children of the
+  selection's type start unfolded. Rows are coloured like the Explorer; the
+  arrow folds, the label selects, Right/Left fold with the keyboard. The
+  heading counts direct children.
+- Checked under xvfb with XTest clicks on `Extraction pipeline`: unfolding a
+  file and folding a subcluster leave the selection unchanged.

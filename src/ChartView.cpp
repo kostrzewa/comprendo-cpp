@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <ranges>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -671,6 +673,41 @@ namespace Comprendo
     case NodeKind::Namespace: return GroupType::Namespace;
     default: return GroupType::Symbol;
     }
+  }
+
+  std::vector<ContentsRow>
+  ChartView::contents_tree(std::size_t group, const std::set<std::size_t> &toggled) const
+  {
+    const GroupType type = group_type(group);
+    std::vector<ContentsRow> rows;
+    // Depth-first with an explicit stack; children are pushed in reverse so
+    // they come out in display order.
+    std::vector<std::pair<std::size_t, std::size_t>> pending;
+    const auto push_children = [&](std::size_t parent, std::size_t depth)
+    {
+      const std::vector<std::size_t> &children = m_display_children[parent];
+      for (const std::size_t child : std::views::reverse(children))
+      {
+        pending.emplace_back(child, depth);
+      }
+    };
+    push_children(group, 0);
+    while (!pending.empty())
+    {
+      const auto [child, depth] = pending.back();
+      pending.pop_back();
+      const bool expandable = !m_display_children[child].empty();
+      const bool by_default = group_type(child) == type;
+      const bool expanded = expandable && (by_default != toggled.contains(child));
+      rows.push_back(
+        {.group = child, .depth = depth, .expandable = expandable, .expanded = expanded}
+      );
+      if (expanded)
+      {
+        push_children(child, depth + 1);
+      }
+    }
+    return rows;
   }
 
   const std::vector<GroupConnection> &
